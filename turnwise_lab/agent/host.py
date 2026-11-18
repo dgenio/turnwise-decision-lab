@@ -63,10 +63,14 @@ class Validation:
 
 class Host:
     def __init__(self, world: IncidentWorld, *, identity: HostIdentity | None = None,
-                 permitted_blocks: frozenset[str] | None = None, limits: Limits | None = None):
+                 permitted_blocks: frozenset[str] | None = None, limits: Limits | None = None,
+                 finish_policy: str = "minimum_evidence_v1"):
         self.world = world
         self.identity = identity or HostIdentity("demo-reader", frozenset({"read", "read_incident"}))
         self.limits = limits or Limits()
+        if finish_policy not in ("minimum_evidence_v1", "legacy_v06"):
+            raise ValueError(f"unknown deterministic finish policy {finish_policy!r}")
+        self.finish_policy = finish_policy
         handlers = world.handlers()
         self.harness = LocalHarness({c.id: RegisteredAction(c.id, c.description, handlers[c.id], side_effect=c.side_effect,
                                                             required_permission=c.permission) for c in CATALOG})
@@ -111,6 +115,12 @@ class Host:
                 return Validation(False, d, "rejected", f"model tier {d.model_tier!r} is not one of {list(TIERS)}")
             return Validation(True, d, "accepted", f"{d.model_tier} generation permitted")
         if d.operation == "finish":
+            if self.finish_policy == "legacy_v06":
+                # Explicit historical replay only. Do not silently modify or re-score
+                # the frozen v0.6 traces after introducing prospective safeguards.
+                if not any(o.status == "ok" for o in executed):
+                    return Validation(False, d, "rejected", "finish needs at least one verified observation")
+                return Validation(True, d, "accepted", "finish permitted (frozen v0.6 policy)")
             from .sufficiency import assess
             evidence = assess(user_text or "", executed)
             return Validation(evidence.sufficient, d, "accepted" if evidence.sufficient else "rejected",
