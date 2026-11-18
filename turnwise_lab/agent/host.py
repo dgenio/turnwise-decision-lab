@@ -58,6 +58,7 @@ class Validation:
     status: str  # accepted | rejected | approval_required
     reason: str
     dropped: list[str] = field(default_factory=list)
+    sufficiency: dict[str, Any] | None = None
 
 
 class Host:
@@ -78,7 +79,7 @@ class Host:
         """What the decision model may *propose*. Writes are listed: proposing one yields an approval request."""
         return CATALOG
 
-    def validate(self, d: Decision, executed: list[Observation]) -> Validation:
+    def validate(self, d: Decision, executed: list[Observation], *, user_text: str | None = None) -> Validation:
         if d.operation not in OPERATIONS:
             return Validation(False, d, "rejected", f"unknown operation {d.operation!r}")
         if d.operation in ("call_tool", "call_workflow"):
@@ -109,8 +110,11 @@ class Host:
             if d.model_tier not in TIERS:
                 return Validation(False, d, "rejected", f"model tier {d.model_tier!r} is not one of {list(TIERS)}")
             return Validation(True, d, "accepted", f"{d.model_tier} generation permitted")
-        if d.operation == "finish" and not any(o.status == "ok" for o in executed):
-            return Validation(False, d, "rejected", "finish needs at least one verified observation")
+        if d.operation == "finish":
+            from .sufficiency import assess
+            evidence = assess(user_text or "", executed)
+            return Validation(evidence.sufficient, d, "accepted" if evidence.sufficient else "rejected",
+                              evidence.reason, sufficiency=evidence.as_json())
         return Validation(True, d, "accepted", f"{d.operation} permitted")
 
     # ------------------------------------------------------------ execution
