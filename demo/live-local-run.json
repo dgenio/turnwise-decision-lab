@@ -1,0 +1,161 @@
+{
+  "generative_model_calls": 0,
+  "kind": "actual local Python handler execution",
+  "notes": [
+    "Four paths demonstrated with real local execution/handoff; LLM reasoning is not generated.",
+    "All records and timestamps are invented for this self-contained educational fixture.",
+    "SHA-256 receipts are unsigned reproduction fingerprints, not security attestations."
+  ],
+  "remote_provider_calls": 0,
+  "schema_version": "live-local-v1",
+  "turns": [
+    {
+      "expected_route": "direct",
+      "proposed_route": "direct",
+      "receipt": {
+        "answer": "INC-SYN-042",
+        "audit_digest": "4d3f218e68bda0dcb3cd26e7c939cc6923057f77323e07c12f4898e0b15b6639",
+        "classifier_called": false,
+        "context_ids": [],
+        "executed_actions": [],
+        "model_tier": null,
+        "path": "direct",
+        "reason_codes": [
+          "verified_host_answer",
+          "host_verified_answer_used"
+        ],
+        "selected_action": null,
+        "status": "completed"
+      },
+      "turn_id": "01",
+      "user_request": "Show the incident reference number"
+    },
+    {
+      "expected_route": "flow",
+      "proposed_route": "flow",
+      "receipt": {
+        "answer": {
+          "changed_keys": [
+            "timeout_seconds"
+          ],
+          "matches_baseline": false,
+          "provenance": "synthetic-deployment-v1"
+        },
+        "audit_digest": "9262bc9a07edad132b70d886dabcf2c05e5f9ebce205688f4d5ad9dbced9a9f3",
+        "classifier_called": false,
+        "context_ids": [],
+        "executed_actions": [
+          "validate_deployment_baseline"
+        ],
+        "model_tier": null,
+        "path": "flow",
+        "reason_codes": [
+          "lexical_match",
+          "registered_action_executed"
+        ],
+        "selected_action": "validate_deployment_baseline",
+        "status": "completed"
+      },
+      "turn_id": "02",
+      "user_request": "Validate deployment baseline settings"
+    },
+    {
+      "expected_route": "tool",
+      "proposed_route": "tool",
+      "receipt": {
+        "answer": {
+          "error_rate_pct": 6.4,
+          "observed_at": "2026-11-01T12:05:00Z",
+          "provenance": "synthetic-health-v1",
+          "service": "checkout-api",
+          "status": "degraded"
+        },
+        "audit_digest": "7b6853eefed2c4ca390803c706cc15fbe6470f90c58ca86c98bbcf2fc886286f",
+        "classifier_called": false,
+        "context_ids": [],
+        "executed_actions": [
+          "fetch_service_health"
+        ],
+        "model_tier": "standard",
+        "path": "tool",
+        "reason_codes": [
+          "lexical_match",
+          "registered_action_executed"
+        ],
+        "selected_action": "fetch_service_health",
+        "status": "completed"
+      },
+      "turn_id": "03",
+      "user_request": "Fetch service health status"
+    },
+    {
+      "expected_route": "llm",
+      "proposed_route": "llm",
+      "receipt": {
+        "answer": null,
+        "audit_digest": "aac7ebc5aaffedbb8ec317461a9704b8c67e78861a066d7a1d1e32f423fa7206",
+        "classifier_called": false,
+        "context_ids": [
+          "checkout_health",
+          "rollback_cause"
+        ],
+        "executed_actions": [],
+        "model_tier": "deep",
+        "path": "llm",
+        "reason_codes": [
+          "no_rule_match",
+          "no_generation_backend_configured"
+        ],
+        "selected_action": null,
+        "status": "generation_required"
+      },
+      "turn_id": "04",
+      "user_request": "Explain why the checkout service failed after the release"
+    },
+    {
+      "expected_route": "hold",
+      "proposed_route": "hold",
+      "receipt": {
+        "answer": null,
+        "audit_digest": "bcec909cf7f933298ae5050f50a7ee1d0196d718b692ac4960598f27485f08c2",
+        "classifier_called": false,
+        "context_ids": [],
+        "executed_actions": [],
+        "model_tier": null,
+        "path": "hold",
+        "reason_codes": [
+          "host_approval_required",
+          "host_honors_hold"
+        ],
+        "selected_action": "publish_incident_report",
+        "status": "approval_required"
+      },
+      "turn_id": "05",
+      "user_request": "Publish incident report"
+    },
+    {
+      "expected_route": "llm",
+      "proposed_route": "llm",
+      "receipt": {
+        "answer": null,
+        "audit_digest": "096d32e2b0c8a80348b6ebbc97d01d66d0324f5647463cb1b1d0705835b756dc",
+        "classifier_called": false,
+        "context_ids": [
+          "rollback_cause",
+          "checkout_health"
+        ],
+        "executed_actions": [],
+        "model_tier": "deep",
+        "path": "llm",
+        "reason_codes": [
+          "no_rule_match",
+          "no_generation_backend_configured"
+        ],
+        "selected_action": null,
+        "status": "generation_required"
+      },
+      "turn_id": "06",
+      "user_request": "Does that rollback explain the outage?"
+    }
+  ]
+}

@@ -1,0 +1,268 @@
+{
+  "arms": [
+    {
+      "approval_holds": 0,
+      "arm": "always_deep_sanity",
+      "cases": [
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "no_tool_answer",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "direct",
+          "match": false
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "deterministic_flow",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "flow",
+          "match": false
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "tool_query",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "tool",
+          "match": false
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "complex",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "write_gate",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "hold",
+          "match": false
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "uncertain",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "missing_tool",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "low_tier",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        }
+      ],
+      "classifier_calls": 0,
+      "flow_paths": 0,
+      "proposed_deep_tier_turns": 8,
+      "route_contract_match_rate": 0.5,
+      "route_contract_matches": 4,
+      "tool_paths": 0,
+      "total": 8
+    },
+    {
+      "approval_holds": 1,
+      "arm": "simple_host_rules",
+      "cases": [
+        {
+          "actual": "direct",
+          "approval_hold": false,
+          "case_id": "no_tool_answer",
+          "classifier_called": false,
+          "deep_tier_proposed": false,
+          "expected": "direct",
+          "match": true
+        },
+        {
+          "actual": "flow",
+          "approval_hold": false,
+          "case_id": "deterministic_flow",
+          "classifier_called": false,
+          "deep_tier_proposed": false,
+          "expected": "flow",
+          "match": true
+        },
+        {
+          "actual": "tool",
+          "approval_hold": false,
+          "case_id": "tool_query",
+          "classifier_called": false,
+          "deep_tier_proposed": false,
+          "expected": "tool",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "complex",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "hold",
+          "approval_hold": true,
+          "case_id": "write_gate",
+          "classifier_called": false,
+          "deep_tier_proposed": false,
+          "expected": "hold",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "uncertain",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "missing_tool",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "low_tier",
+          "classifier_called": false,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        }
+      ],
+      "classifier_calls": 0,
+      "flow_paths": 1,
+      "proposed_deep_tier_turns": 4,
+      "route_contract_match_rate": 1.0,
+      "route_contract_matches": 8,
+      "tool_paths": 1,
+      "total": 8
+    },
+    {
+      "approval_holds": 1,
+      "arm": "fixture_planner_contract_only",
+      "cases": [
+        {
+          "actual": "direct",
+          "approval_hold": false,
+          "case_id": "no_tool_answer",
+          "classifier_called": false,
+          "deep_tier_proposed": false,
+          "expected": "direct",
+          "match": true
+        },
+        {
+          "actual": "flow",
+          "approval_hold": false,
+          "case_id": "deterministic_flow",
+          "classifier_called": true,
+          "deep_tier_proposed": false,
+          "expected": "flow",
+          "match": true
+        },
+        {
+          "actual": "tool",
+          "approval_hold": false,
+          "case_id": "tool_query",
+          "classifier_called": true,
+          "deep_tier_proposed": false,
+          "expected": "tool",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "complex",
+          "classifier_called": true,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "hold",
+          "approval_hold": true,
+          "case_id": "write_gate",
+          "classifier_called": true,
+          "deep_tier_proposed": false,
+          "expected": "hold",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "uncertain",
+          "classifier_called": true,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "missing_tool",
+          "classifier_called": true,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        },
+        {
+          "actual": "llm_deep",
+          "approval_hold": false,
+          "case_id": "low_tier",
+          "classifier_called": true,
+          "deep_tier_proposed": true,
+          "expected": "llm_deep",
+          "match": true
+        }
+      ],
+      "classifier_calls": 7,
+      "flow_paths": 1,
+      "proposed_deep_tier_turns": 4,
+      "route_contract_match_rate": 1.0,
+      "route_contract_matches": 8,
+      "tool_paths": 1,
+      "total": 8
+    }
+  ],
+  "dataset": "authored synthetic fixture smoke cases",
+  "limitations": [
+    "FixtureDecider answers are keyed by the exact test turn and authored with the labels; no classifier quality can be inferred.",
+    "Route-contract agreement is not end-to-end task correctness, tool argument quality or context completeness.",
+    "Deep-tier counts are planning proposals, not actual model calls, money saved or latency.",
+    "No hosted LiteLLM/Jev, vLLM, provider-native search or generative LLM was run.",
+    "The always-deep control is a sanity baseline, not the competitive comparator."
+  ],
+  "schema_version": "replay-v1"
+}
