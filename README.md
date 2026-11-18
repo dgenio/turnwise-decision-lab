@@ -4,6 +4,16 @@ Model routers choose *which* model answers a turn. That may be one decision too 
 
 **Turnwise is a small, reproducible experiment that tests that idea and keeps the parts where it fails.** It is not a framework or a router product.
 
+### The architectural hypothesis: who decides the next step?
+
+A conventional model router chooses **which LLM** should answer a request. Turnwise instead investigates **who decides the next operation after every observation within the agent's execution loop**. A cheap typed decision policy can propose a verified direct answer, read tool, deterministic workflow, light or strong model with selected context, clarification, or explicit hold. The host independently validates and executes each proposal; the policy observes the result and decides again.
+
+**Calling the strong LLM becomes one operation, not the default mechanism for choosing every operation.** This is a testable *per-step execution-control* hypothesis, not a claim that graph routing, decision models or provider-native capabilities are new. Jev/System One is one possible decision provider, not a dependency. The strongest null comparator is simple host rules plus the **same capable, tool-using strong agent**.
+
+[Research contract, example and falsifiers](docs/per-step-execution-hypothesis.md) · [Existing systems and prior art](docs/comparators.md) · [Quality-first prospective experiment](https://github.com/dgenio/turnwise-decision-lab/issues/9)
+
+**Current evidence is HOLD:** v0.5 is synthetic and uses no models; v0.6 in [open PR #6](https://github.com/dgenio/turnwise-decision-lab/pull/6) is a real but inconclusive, weak-model-scale experiment with serious investigative and fallback failures. Neither establishes quality non-inferiority, provider-cost savings or production readiness.
+
 ### The next hypothesis: near-baseline quality, much lower cost
 
 The target is **not** higher accuracy than a conventional heavy-LLM tool-calling agent. The hypothesis is that routing safe deterministic work away from the heavy model, using a decision service or light model only where justified, and shrinking the context of unavoidable heavy calls can deliver **similar or slightly worse end-to-end task quality at substantially lower cost and latency**. When unsure, prefer a heavy fallback; do not silently guess.
