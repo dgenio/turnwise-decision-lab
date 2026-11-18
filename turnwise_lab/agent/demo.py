@@ -168,7 +168,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);font-si
 
 <section id="results" aria-labelledby="r-h">
 <h2 id="r-h">Held-out results (30 tasks written by an independent agent)</h2>
-<p class="sub">Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, answer content, and no forbidden or executed write. Cost comes after success. Latency is local CPU time, and no provider was billed.</p>
+<p class="sub">Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, answer content, and no forbidden or executed write. Cost comes after success. Latency is local CPU time, and no provider was billed. <strong>Status: exploratory and inconclusive.</strong> "Heavy tokens" counts heavy generation only, including cache-reused prompt tokens. Counting every token the 0.8B model actually computed, including the controller's own scoring, the decision-driven loop processed more tokens than the heavy-only agent; its saving is in time, mostly decoding (<a href="{{REPO}}/blob/main/reports/v06/audit.md">audit</a>).</p>
 <div class="panel"><table id="resTable"></table></div>
 <h3 style="margin-top:20px">Pre-registered predictions</h3>
 <div class="panel"><table id="predTable"></table></div>

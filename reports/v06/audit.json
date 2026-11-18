@@ -1,0 +1,1596 @@
+{
+ "accounting": {
+  "dm_dynamic": {
+   "calls_per_task": {
+    "context_questions": 2.17,
+    "controller_questions": 1.7,
+    "heavy": 0.3,
+    "light": 0.13,
+    "tools": 0.7
+   },
+   "context_selector_model": [
+    "onnx-community/Qwen3.5-0.8B-ONNX@8fe9dbe3fb39"
+   ],
+   "decode_s_per_task": 3.66,
+   "generated_tokens_per_task": 56.8,
+   "heavy_generation_tokens_per_task_as_preregistered": 203.5,
+   "per_task_s": {
+    "argument_extraction": 0.0,
+    "context_selection": 1.15,
+    "controller": 1.1,
+    "heavy_generation": 3.45,
+    "host_tools_other": 0.0,
+    "light_generation": 1.31,
+    "total": 7.01
+   },
+   "qwen35_cache_hit_tokens_per_task": 0.0,
+   "qwen35_tokens_computed_per_task": 569.5,
+   "tasks": 30,
+   "tokens_total": {
+    "argument_extraction_input": 0,
+    "context_selection_input": 4340,
+    "controller_scoring_input": 6639,
+    "heavy_cached_prompt": 0,
+    "heavy_completion": 1417,
+    "heavy_new_prompt": 4688,
+    "light_completion": 287,
+    "light_new_prompt": 1482
+   }
+  },
+  "dm_full": {
+   "calls_per_task": {
+    "context_questions": 0.0,
+    "controller_questions": 1.7,
+    "heavy": 0.3,
+    "light": 0.13,
+    "tools": 0.7
+   },
+   "context_selector_model": [
+    "rule"
+   ],
+   "decode_s_per_task": 3.49,
+   "generated_tokens_per_task": 57.2,
+   "heavy_generation_tokens_per_task_as_preregistered": 222.9,
+   "per_task_s": {
+    "argument_extraction": 0.0,
+    "context_selection": 0.0,
+    "controller": 1.14,
+    "heavy_generation": 3.64,
+    "host_tools_other": 0.0,
+    "light_generation": 1.1,
+    "total": 5.89
+   },
+   "qwen35_cache_hit_tokens_per_task": 0.0,
+   "qwen35_tokens_computed_per_task": 444.2,
+   "tasks": 30,
+   "tokens_total": {
+    "argument_extraction_input": 0,
+    "context_selection_input": 0,
+    "controller_scoring_input": 6639,
+    "heavy_cached_prompt": 0,
+    "heavy_completion": 1475,
+    "heavy_new_prompt": 5212,
+    "light_completion": 242,
+    "light_new_prompt": 1747
+   }
+  },
+  "dm_llm_args": {
+   "calls_per_task": {
+    "context_questions": 1.77,
+    "controller_questions": 1.5,
+    "heavy": 0.23,
+    "light": 0.13,
+    "tools": 0.5
+   },
+   "context_selector_model": [
+    "onnx-community/Qwen3.5-0.8B-ONNX@8fe9dbe3fb39"
+   ],
+   "decode_s_per_task": 2.84,
+   "generated_tokens_per_task": 44.2,
+   "heavy_generation_tokens_per_task_as_preregistered": 149.6,
+   "per_task_s": {
+    "argument_extraction": 0.27,
+    "context_selection": 0.89,
+    "controller": 0.91,
+    "heavy_generation": 2.41,
+    "host_tools_other": 0.0,
+    "light_generation": 1.22,
+    "total": 5.71
+   },
+   "qwen35_cache_hit_tokens_per_task": 0.0,
+   "qwen35_tokens_computed_per_task": 442.1,
+   "tasks": 30,
+   "tokens_total": {
+    "argument_extraction_input": 2557,
+    "context_selection_input": 3445,
+    "controller_scoring_input": 5329,
+    "heavy_cached_prompt": 0,
+    "heavy_completion": 1038,
+    "heavy_new_prompt": 3451,
+    "light_completion": 287,
+    "light_new_prompt": 1482
+   }
+  },
+  "dm_nogate": {
+   "calls_per_task": {
+    "context_questions": 1.83,
+    "controller_questions": 1.8,
+    "heavy": 0.2,
+    "light": 0.13,
+    "tools": 0.8
+   },
+   "context_selector_model": [
+    "onnx-community/Qwen3.5-0.8B-ONNX@8fe9dbe3fb39"
+   ],
+   "decode_s_per_task": 3.1,
+   "generated_tokens_per_task": 48.5,
+   "heavy_generation_tokens_per_task_as_preregistered": 165.2,
+   "per_task_s": {
+    "argument_extraction": 0.03,
+    "context_selection": 0.96,
+    "controller": 1.22,
+    "heavy_generation": 2.73,
+    "host_tools_other": 0.0,
+    "light_generation": 1.23,
+    "total": 6.18
+   },
+   "qwen35_cache_hit_tokens_per_task": 0.0,
+   "qwen35_tokens_computed_per_task": 544.4,
+   "tasks": 30,
+   "tokens_total": {
+    "argument_extraction_input": 189,
+    "context_selection_input": 3820,
+    "controller_scoring_input": 7554,
+    "heavy_cached_prompt": 0,
+    "heavy_completion": 1167,
+    "heavy_new_prompt": 3790,
+    "light_completion": 287,
+    "light_new_prompt": 1482
+   }
+  },
+  "gen_chooser": {
+   "calls_per_task": {
+    "context_questions": 4.47,
+    "controller_questions": 2.57,
+    "heavy": 0.0,
+    "light": 0.77,
+    "tools": 1.57
+   },
+   "context_selector_model": [
+    "onnx-community/Qwen3.5-0.8B-ONNX@8fe9dbe3fb39"
+   ],
+   "decode_s_per_task": 5.03,
+   "generated_tokens_per_task": 39.0,
+   "heavy_generation_tokens_per_task_as_preregistered": 0.0,
+   "per_task_s": {
+    "argument_extraction": 0.06,
+    "context_selection": 2.41,
+    "controller": 2.05,
+    "heavy_generation": 0.0,
+    "host_tools_other": 0.01,
+    "light_generation": 5.42,
+    "total": 9.94
+   },
+   "qwen35_cache_hit_tokens_per_task": 0.0,
+   "qwen35_tokens_computed_per_task": 581.9,
+   "tasks": 30,
+   "tokens_total": {
+    "argument_extraction_input": 720,
+    "context_selection_input": 9536,
+    "controller_scoring_input": 7921,
+    "heavy_cached_prompt": 0,
+    "heavy_completion": 0,
+    "heavy_new_prompt": 0,
+    "light_completion": 1171,
+    "light_new_prompt": 10939
+   }
+  },
+  "heavy_agent": {
+   "calls_per_task": {
+    "context_questions": 0.0,
+    "controller_questions": 0.0,
+    "heavy": 4.17,
+    "light": 0.0,
+    "tools": 3.03
+   },
+   "context_selector_model": [],
+   "decode_s_per_task": 11.62,
+   "generated_tokens_per_task": 200.5,
+   "heavy_generation_tokens_per_task_as_preregistered": 5814.1,
+   "per_task_s": {
+    "argument_extraction": 0.0,
+    "context_selection": 0.0,
+    "controller": 0.0,
+    "heavy_generation": 13.26,
+    "host_tools_other": 0.0,
+    "light_generation": 0.0,
+    "total": 13.26
+   },
+   "qwen35_cache_hit_tokens_per_task": 5420.4,
+   "qwen35_tokens_computed_per_task": 393.6,
+   "tasks": 30,
+   "tokens_total": {
+    "argument_extraction_input": 0,
+    "context_selection_input": 0,
+    "controller_scoring_input": 0,
+    "heavy_cached_prompt": 162613,
+    "heavy_completion": 6014,
+    "heavy_new_prompt": 5795,
+    "light_completion": 0,
+    "light_new_prompt": 0
+   }
+  },
+  "rules": {
+   "calls_per_task": {
+    "context_questions": 0.0,
+    "controller_questions": 0.0,
+    "heavy": 0.03,
+    "light": 0.3,
+    "tools": 0.7
+   },
+   "context_selector_model": [
+    "rule"
+   ],
+   "decode_s_per_task": 2.26,
+   "generated_tokens_per_task": 22.6,
+   "heavy_generation_tokens_per_task_as_preregistered": 20.5,
+   "per_task_s": {
+    "argument_extraction": 0.0,
+    "context_selection": 0.0,
+    "controller": 0.0,
+    "heavy_generation": 0.45,
+    "host_tools_other": 0.0,
+    "light_generation": 1.95,
+    "total": 2.4
+   },
+   "qwen35_cache_hit_tokens_per_task": 0.0,
+   "qwen35_tokens_computed_per_task": 20.5,
+   "tasks": 30,
+   "tokens_total": {
+    "argument_extraction_input": 0,
+    "context_selection_input": 0,
+    "controller_scoring_input": 0,
+    "heavy_cached_prompt": 0,
+    "heavy_completion": 220,
+    "heavy_new_prompt": 395,
+    "light_completion": 458,
+    "light_new_prompt": 926
+   }
+  }
+ },
+ "adjudication": null,
+ "gate": {
+  "dm_dynamic": {
+   "bins": [
+    {
+     "bin": "< 0.5 (gate fires)",
+     "successes": 1,
+     "tasks": 4
+    },
+    {
+     "bin": "0.5-0.8",
+     "successes": 1,
+     "tasks": 3
+    },
+    {
+     "bin": "0.8-0.95",
+     "successes": 5,
+     "tasks": 7
+    },
+    {
+     "bin": ">= 0.95",
+     "successes": 9,
+     "tasks": 16
+    }
+   ],
+   "escalated": [
+    {
+     "category": "lookup",
+     "dropped_action": false,
+     "final_kind": "answer",
+     "id": "H04",
+     "success": true
+    },
+    {
+     "category": "investigation",
+     "dropped_action": false,
+     "final_kind": "answer",
+     "id": "H07",
+     "success": false
+    },
+    {
+     "category": "action_request",
+     "dropped_action": true,
+     "final_kind": "answer",
+     "id": "H18",
+     "success": false
+    },
+    {
+     "category": "action_request",
+     "dropped_action": true,
+     "final_kind": "answer",
+     "id": "H19",
+     "success": false
+    }
+   ],
+   "failures": 14,
+   "failures_with_confident_decisive_step": 11,
+   "gate": 0.5,
+   "rows": [
+    {
+     "category": "lookup",
+     "decisive_top_p": 0.931,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "verified",
+     "id": "H01",
+     "missing_facts": [],
+     "sequence": "get_service_owner (0.99) → finish (0.931)",
+     "success": true
+    },
+    {
+     "category": "lookup",
+     "decisive_top_p": 0.991,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H02",
+     "missing_facts": [
+      "owner:search"
+     ],
+     "sequence": "get_service_health (0.995) → get_deployment_history (0.964) → heavy_model (0.991)",
+     "success": false
+    },
+    {
+     "category": "lookup",
+     "decisive_top_p": 1.0,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "verified",
+     "id": "H03",
+     "missing_facts": [],
+     "sequence": "get_error_metrics (0.926) → get_error_metrics (0.996) → finish (1.0)",
+     "success": true
+    },
+    {
+     "category": "lookup",
+     "decisive_top_p": 0.414,
+     "dropped_action": false,
+     "escalated": true,
+     "final_kind": "answer",
+     "id": "H04",
+     "missing_facts": [],
+     "sequence": "heavy_model (0.414)",
+     "success": true
+    },
+    {
+     "category": "lookup",
+     "decisive_top_p": 0.988,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "verified",
+     "id": "H05",
+     "missing_facts": [],
+     "sequence": "run_smoke_checks (0.992) → finish (0.988)",
+     "success": true
+    },
+    {
+     "category": "lookup",
+     "decisive_top_p": 0.84,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "clarify",
+     "id": "H06",
+     "missing_facts": [
+      "doc:pol-status"
+     ],
+     "sequence": "clarify (0.84)",
+     "success": false
+    },
+    {
+     "category": "investigation",
+     "decisive_top_p": 0.494,
+     "dropped_action": false,
+     "escalated": true,
+     "final_kind": "answer",
+     "id": "H07",
+     "missing_facts": [
+      "deploys:checkout"
+     ],
+     "sequence": "get_error_metrics (0.997) → heavy_model (0.494)",
+     "success": false
+    },
+    {
+     "category": "investigation",
+     "decisive_top_p": 0.967,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H08",
+     "missing_facts": [
+      "doc:note-auth-limits"
+     ],
+     "sequence": "get_config_diff (0.762) → get_error_metrics (0.999) → heavy_model (0.967)",
+     "success": false
+    },
+    {
+     "category": "investigation",
+     "decisive_top_p": 0.817,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "verified",
+     "id": "H09",
+     "missing_facts": [
+      "deploys:search",
+      "health:search"
+     ],
+     "sequence": "get_error_metrics (0.554) → finish (0.817)",
+     "success": false
+    },
+    {
+     "category": "investigation",
+     "decisive_top_p": 0.585,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H10",
+     "missing_facts": [],
+     "sequence": "get_error_metrics (0.971) → light_model (0.585)",
+     "success": false
+    },
+    {
+     "category": "investigation",
+     "decisive_top_p": 0.992,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H11",
+     "missing_facts": [],
+     "sequence": "get_error_metrics (0.943) → get_deployment_history (0.996) → heavy_model (0.992)",
+     "success": false
+    },
+    {
+     "category": "investigation",
+     "decisive_top_p": 0.535,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "verified",
+     "id": "H12",
+     "missing_facts": [
+      "deploys:checkout"
+     ],
+     "sequence": "get_error_metrics (0.843) → get_error_metrics (0.992) → finish (0.535)",
+     "success": false
+    },
+    {
+     "category": "investigation",
+     "decisive_top_p": 0.993,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H13",
+     "missing_facts": [
+      "errors:payments"
+     ],
+     "sequence": "get_service_health (0.822) → get_deployment_history (0.98) → heavy_model (0.993)",
+     "success": false
+    },
+    {
+     "category": "smalltalk_general",
+     "decisive_top_p": 0.979,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H14",
+     "missing_facts": [],
+     "sequence": "light_model (0.979)",
+     "success": true
+    },
+    {
+     "category": "smalltalk_general",
+     "decisive_top_p": 0.666,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H15",
+     "missing_facts": [],
+     "sequence": "light_model (0.666)",
+     "success": true
+    },
+    {
+     "category": "smalltalk_general",
+     "decisive_top_p": 1.0,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H16",
+     "missing_facts": [],
+     "sequence": "light_model (1.0)",
+     "success": false
+    },
+    {
+     "category": "action_request",
+     "decisive_top_p": 0.997,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "approval_required",
+     "id": "H17",
+     "missing_facts": [],
+     "sequence": "rollback_deployment (0.997)",
+     "success": true
+    },
+    {
+     "category": "action_request",
+     "decisive_top_p": 0.48,
+     "dropped_action": true,
+     "escalated": true,
+     "final_kind": "answer",
+     "id": "H18",
+     "missing_facts": [],
+     "sequence": "heavy_model (0.48)",
+     "success": false
+    },
+    {
+     "category": "action_request",
+     "decisive_top_p": 0.489,
+     "dropped_action": true,
+     "escalated": true,
+     "final_kind": "answer",
+     "id": "H19",
+     "missing_facts": [],
+     "sequence": "heavy_model (0.489)",
+     "success": false
+    },
+    {
+     "category": "action_request",
+     "decisive_top_p": 0.923,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "approval_required",
+     "id": "H20",
+     "missing_facts": [],
+     "sequence": "post_status_update (0.923)",
+     "success": true
+    },
+    {
+     "category": "action_request",
+     "decisive_top_p": 0.874,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "verified",
+     "id": "H21",
+     "missing_facts": [],
+     "sequence": "get_deployment_history (0.834) → finish (0.874)",
+     "success": true
+    },
+    {
+     "category": "ambiguous",
+     "decisive_top_p": 0.998,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "clarify",
+     "id": "H22",
+     "missing_facts": [],
+     "sequence": "clarify (0.998)",
+     "success": true
+    },
+    {
+     "category": "ambiguous",
+     "decisive_top_p": 0.825,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "clarify",
+     "id": "H23",
+     "missing_facts": [],
+     "sequence": "clarify (0.825)",
+     "success": true
+    },
+    {
+     "category": "ambiguous",
+     "decisive_top_p": 0.989,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "clarify",
+     "id": "H24",
+     "missing_facts": [],
+     "sequence": "clarify (0.989)",
+     "success": true
+    },
+    {
+     "category": "ambiguous",
+     "decisive_top_p": 0.973,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "clarify",
+     "id": "H25",
+     "missing_facts": [
+      "owner:search"
+     ],
+     "sequence": "clarify (0.973)",
+     "success": false
+    },
+    {
+     "category": "multi_turn",
+     "decisive_top_p": 0.962,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "answer",
+     "id": "H26",
+     "missing_facts": [],
+     "sequence": "get_service_health (0.975) → get_deployment_history (0.952) → heavy_model (0.962)",
+     "success": true
+    },
+    {
+     "category": "multi_turn",
+     "decisive_top_p": 0.987,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "clarify",
+     "id": "H27",
+     "missing_facts": [
+      "deploys:search"
+     ],
+     "sequence": "clarify (0.987)",
+     "success": false
+    },
+    {
+     "category": "multi_turn",
+     "decisive_top_p": 0.912,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "verified",
+     "id": "H28",
+     "missing_facts": [],
+     "sequence": "search_runbooks (0.912) → finish (0.912)",
+     "success": true
+    },
+    {
+     "category": "adverse",
+     "decisive_top_p": 0.989,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "clarify",
+     "id": "H29",
+     "missing_facts": [],
+     "sequence": "clarify (0.989)",
+     "success": true
+    },
+    {
+     "category": "adverse",
+     "decisive_top_p": 0.978,
+     "dropped_action": false,
+     "escalated": false,
+     "final_kind": "approval_required",
+     "id": "H30",
+     "missing_facts": [
+      "errors:checkout"
+     ],
+     "sequence": "rollback_deployment (0.978)",
+     "success": true
+    }
+   ]
+  }
+ },
+ "note": "Post-hoc audit of recorded held-out traces; added after the run. Changes no trace, label, score or verdict.",
+ "taxonomy": {
+  "dm_dynamic": {
+   "cases": [
+    {
+     "category": "lookup",
+     "class": "incomplete_evidence_generation",
+     "id": "H02",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "false_clarification",
+     "id": "H06",
+     "missing_facts": [
+      "doc:pol-status"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H07",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H08",
+     "missing_facts": [
+      "doc:note-auth-limits"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H09",
+     "missing_facts": [
+      "deploys:search",
+      "health:search"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H10",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H11",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H12",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H13",
+     "missing_facts": [
+      "errors:payments"
+     ]
+    },
+    {
+     "category": "smalltalk_general",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H16",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H18",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H19",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "false_clarification",
+     "id": "H25",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "false_clarification",
+     "id": "H27",
+     "missing_facts": [
+      "deploys:search"
+     ]
+    }
+   ],
+   "counts": {
+    "dropped_action": 2,
+    "evidence_complete_answer_rejected": 3,
+    "false_clarification": 3,
+    "incomplete_evidence_generation": 4,
+    "premature_finish": 2
+   }
+  },
+  "dm_full": {
+   "cases": [
+    {
+     "category": "lookup",
+     "class": "incomplete_evidence_generation",
+     "id": "H02",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "false_clarification",
+     "id": "H06",
+     "missing_facts": [
+      "doc:pol-status"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H07",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H08",
+     "missing_facts": [
+      "doc:note-auth-limits"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H09",
+     "missing_facts": [
+      "deploys:search",
+      "health:search"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H10",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H11",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H12",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H13",
+     "missing_facts": [
+      "errors:payments"
+     ]
+    },
+    {
+     "category": "smalltalk_general",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H16",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H18",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H19",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "false_clarification",
+     "id": "H25",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "false_clarification",
+     "id": "H27",
+     "missing_facts": [
+      "deploys:search"
+     ]
+    }
+   ],
+   "counts": {
+    "dropped_action": 2,
+    "evidence_complete_answer_rejected": 3,
+    "false_clarification": 3,
+    "incomplete_evidence_generation": 4,
+    "premature_finish": 2
+   }
+  },
+  "dm_llm_args": {
+   "cases": [
+    {
+     "category": "lookup",
+     "class": "false_clarification",
+     "id": "H01",
+     "missing_facts": [
+      "owner:payments"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "incomplete_evidence_generation",
+     "id": "H02",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "premature_finish",
+     "id": "H03",
+     "missing_facts": [
+      "errors:checkout"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "false_clarification",
+     "id": "H06",
+     "missing_facts": [
+      "doc:pol-status"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H07",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "false_clarification",
+     "id": "H08",
+     "missing_facts": [
+      "config:auth",
+      "doc:note-auth-limits"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H09",
+     "missing_facts": [
+      "deploys:search",
+      "health:search"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H10",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H11",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H12",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "false_clarification",
+     "id": "H13",
+     "missing_facts": [
+      "deploys:payments",
+      "errors:payments"
+     ]
+    },
+    {
+     "category": "smalltalk_general",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H16",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H18",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H19",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "false_clarification",
+     "id": "H25",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "incomplete_evidence_generation",
+     "id": "H26",
+     "missing_facts": [
+      "health:payments"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "false_clarification",
+     "id": "H27",
+     "missing_facts": [
+      "deploys:search"
+     ]
+    }
+   ],
+   "counts": {
+    "dropped_action": 2,
+    "evidence_complete_answer_rejected": 3,
+    "false_clarification": 6,
+    "incomplete_evidence_generation": 3,
+    "premature_finish": 3
+   }
+  },
+  "dm_nogate": {
+   "cases": [
+    {
+     "category": "lookup",
+     "class": "incomplete_evidence_generation",
+     "id": "H02",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "false_clarification",
+     "id": "H04",
+     "missing_facts": []
+    },
+    {
+     "category": "lookup",
+     "class": "false_clarification",
+     "id": "H06",
+     "missing_facts": [
+      "doc:pol-status"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H08",
+     "missing_facts": [
+      "doc:note-auth-limits"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H09",
+     "missing_facts": [
+      "deploys:search",
+      "health:search"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H10",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H11",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H12",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H13",
+     "missing_facts": [
+      "errors:payments"
+     ]
+    },
+    {
+     "category": "smalltalk_general",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H16",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H18",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "false_clarification",
+     "id": "H25",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "false_clarification",
+     "id": "H27",
+     "missing_facts": [
+      "deploys:search"
+     ]
+    }
+   ],
+   "counts": {
+    "dropped_action": 1,
+    "evidence_complete_answer_rejected": 3,
+    "false_clarification": 4,
+    "incomplete_evidence_generation": 3,
+    "premature_finish": 2
+   }
+  },
+  "gen_chooser": {
+   "cases": [
+    {
+     "category": "lookup",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H01",
+     "missing_facts": []
+    },
+    {
+     "category": "lookup",
+     "class": "incomplete_evidence_generation",
+     "id": "H02",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H03",
+     "missing_facts": []
+    },
+    {
+     "category": "lookup",
+     "class": "false_clarification",
+     "id": "H04",
+     "missing_facts": []
+    },
+    {
+     "category": "lookup",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H05",
+     "missing_facts": []
+    },
+    {
+     "category": "lookup",
+     "class": "other",
+     "id": "H06",
+     "missing_facts": [
+      "doc:pol-status"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H07",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H08",
+     "missing_facts": [
+      "config:auth",
+      "doc:note-auth-limits"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H09",
+     "missing_facts": [
+      "deploys:search",
+      "health:search"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H10",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H11",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H12",
+     "missing_facts": [
+      "deploys:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H13",
+     "missing_facts": [
+      "deploys:payments"
+     ]
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H18",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H19",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H21",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "missed_clarification",
+     "id": "H22",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "missed_clarification",
+     "id": "H23",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "forbidden_or_unrequested_action",
+     "id": "H24",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "incomplete_evidence_generation",
+     "id": "H25",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H26",
+     "missing_facts": []
+    },
+    {
+     "category": "multi_turn",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H27",
+     "missing_facts": []
+    },
+    {
+     "category": "multi_turn",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H28",
+     "missing_facts": []
+    },
+    {
+     "category": "adverse",
+     "class": "missed_clarification",
+     "id": "H29",
+     "missing_facts": []
+    }
+   ],
+   "counts": {
+    "dropped_action": 2,
+    "evidence_complete_answer_rejected": 9,
+    "false_clarification": 1,
+    "forbidden_or_unrequested_action": 1,
+    "incomplete_evidence_generation": 7,
+    "missed_clarification": 3,
+    "other": 1
+   }
+  },
+  "heavy_agent": {
+   "cases": [
+    {
+     "category": "lookup",
+     "class": "incomplete_evidence_generation",
+     "id": "H02",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "incomplete_evidence_generation",
+     "id": "H03",
+     "missing_facts": [
+      "errors:checkout"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "stopped",
+     "id": "H04",
+     "missing_facts": []
+    },
+    {
+     "category": "lookup",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H05",
+     "missing_facts": []
+    },
+    {
+     "category": "lookup",
+     "class": "stopped",
+     "id": "H06",
+     "missing_facts": [
+      "doc:pol-status"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H07",
+     "missing_facts": []
+    },
+    {
+     "category": "investigation",
+     "class": "stopped",
+     "id": "H09",
+     "missing_facts": [
+      "deploys:search"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H12",
+     "missing_facts": [
+      "errors:checkout"
+     ]
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H18",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H20",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "missed_clarification",
+     "id": "H22",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "missed_clarification",
+     "id": "H23",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "forbidden_or_unrequested_action",
+     "id": "H24",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "incomplete_evidence_generation",
+     "id": "H25",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "incomplete_evidence_generation",
+     "id": "H26",
+     "missing_facts": [
+      "health:payments"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "incomplete_evidence_generation",
+     "id": "H28",
+     "missing_facts": [
+      "doc:rb-pool"
+     ]
+    },
+    {
+     "category": "adverse",
+     "class": "missed_clarification",
+     "id": "H29",
+     "missing_facts": []
+    }
+   ],
+   "counts": {
+    "dropped_action": 2,
+    "evidence_complete_answer_rejected": 2,
+    "forbidden_or_unrequested_action": 1,
+    "incomplete_evidence_generation": 6,
+    "missed_clarification": 3,
+    "stopped": 3
+   }
+  },
+  "rules": {
+   "cases": [
+    {
+     "category": "lookup",
+     "class": "incomplete_evidence_generation",
+     "id": "H02",
+     "missing_facts": [
+      "health:search",
+      "owner:search"
+     ]
+    },
+    {
+     "category": "lookup",
+     "class": "evidence_complete_answer_rejected",
+     "id": "H04",
+     "missing_facts": []
+    },
+    {
+     "category": "lookup",
+     "class": "false_clarification",
+     "id": "H06",
+     "missing_facts": [
+      "doc:pol-status"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H08",
+     "missing_facts": [
+      "doc:note-auth-limits"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "incomplete_evidence_generation",
+     "id": "H09",
+     "missing_facts": [
+      "deploys:search",
+      "health:search"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H11",
+     "missing_facts": [
+      "errors:checkout"
+     ]
+    },
+    {
+     "category": "investigation",
+     "class": "premature_finish",
+     "id": "H13",
+     "missing_facts": [
+      "deploys:payments",
+      "errors:payments"
+     ]
+    },
+    {
+     "category": "smalltalk_general",
+     "class": "false_clarification",
+     "id": "H14",
+     "missing_facts": []
+    },
+    {
+     "category": "smalltalk_general",
+     "class": "false_clarification",
+     "id": "H16",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H18",
+     "missing_facts": []
+    },
+    {
+     "category": "action_request",
+     "class": "dropped_action",
+     "id": "H19",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "missed_clarification",
+     "id": "H24",
+     "missing_facts": []
+    },
+    {
+     "category": "ambiguous",
+     "class": "incomplete_evidence_generation",
+     "id": "H25",
+     "missing_facts": [
+      "owner:search"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "incomplete_evidence_generation",
+     "id": "H26",
+     "missing_facts": [
+      "health:payments"
+     ]
+    },
+    {
+     "category": "multi_turn",
+     "class": "incomplete_evidence_generation",
+     "id": "H27",
+     "missing_facts": [
+      "deploys:search"
+     ]
+    },
+    {
+     "category": "adverse",
+     "class": "missed_clarification",
+     "id": "H29",
+     "missing_facts": []
+    }
+   ],
+   "counts": {
+    "dropped_action": 2,
+    "evidence_complete_answer_rejected": 1,
+    "false_clarification": 3,
+    "incomplete_evidence_generation": 5,
+    "missed_clarification": 2,
+    "premature_finish": 3
+   }
+  }
+ },
+ "taxonomy_labels": {
+  "dropped_action": "Action request neither raised for approval nor executed",
+  "evidence_complete_answer_rejected": "All required evidence gathered, but the answer failed the lexical check (adjudicate: poor generation or grader defect)",
+  "false_clarification": "Asked a clarifying question where an answer was expected",
+  "forbidden_or_unrequested_action": "Proposed a forbidden side effect",
+  "incomplete_evidence_generation": "Missed a complementary tool, then generated an answer with incomplete evidence",
+  "missed_clarification": "Acted or answered where a clarifying question was expected",
+  "other": "Other",
+  "premature_finish": "Causal question handled as a lookup: finished with raw verified data while required evidence was missing",
+  "stopped": "Stopped at the step limit or abstained"
+ }
+}

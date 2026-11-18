@@ -21,6 +21,7 @@ jobs:
           python -m turnwise_lab.arena
           python -m turnwise_lab.explorer
           python -m turnwise_lab.agent.bench --report
+          python -m turnwise_lab.agent.audit
           python -m turnwise_lab.agent.demo
           python -m turnwise_lab.live_demo --output reports/live-local-run.json
           python -m turnwise_lab.benchmark --output /tmp/trained.json --markdown reports/trained-routing-synthetic.md

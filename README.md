@@ -12,9 +12,9 @@ The target is **not** higher accuracy than a conventional heavy-LLM tool-calling
 
 This is a **quality-constrained efficiency** experiment: first establish an acceptable, independently checked loss margin against an **actually executed heavy-only agent**; only then evaluate total cost, p50/p95 latency, heavy invocations and heavy-context tokens. No such non-inferiority or economic gain has been demonstrated yet. The existing v0.5 results expose risks rather than validating this thesis. v0.6 (below) is a first local, small-model test against this framing, and on that reading it is **inconclusive** (point 9). See the [candidate v0.6 protocol](docs/quality-constrained-efficiency-v06.md) and [independent-evidence issue #3](https://github.com/dgenio/turnwise-decision-lab/issues/3).
 
-## Result (v0.6, held-out)
+## Result (v0.6, held-out): exploratory and inconclusive
 
-30 tasks were written by an independent agent that never saw the routers. Seven architectures ran on the same synthetic incident world, with the same tools, harness, permissions and heavy model, using real local inference (CPU). Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, the answer content, and no forbidden or executed write. No provider was billed, so dollar cost is null; cost is local compute time per attempted and per resolved task, plus heavy-model tokens.
+30 tasks were written by an independent agent that never saw the routers. Seven architectures ran on the same synthetic incident world, with the same tools, harness, permissions and heavy model, using real local inference (CPU). Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, the answer content, and no forbidden or executed write. No provider was billed, so dollar cost is null; cost is local compute time per attempted and per resolved task, plus heavy-model tokens. This is a bounded synthetic test with a 0.8B "heavy" model. A [post-hoc audit](reports/v06/audit.md), added after the owner review, re-reads the same traces. It covers full token accounting, why the escalation gate failed, a failure taxonomy and a blinded adjudication of the investigation answers.
 
 | Architecture | Success | Silent failures | Heavy-model calls | Heavy-model tokens | p50 / p95 latency | Local compute per attempted task | per resolved task |
 |---|---:|---:|---:|---:|---:|---:|---:|
@@ -26,10 +26,15 @@ This is a **quality-constrained efficiency** experiment: first establish an acce
 | D with LLM-only argument construction (ablation) | 13/30 | 11 | 7 | 4,489 | 1.5 s / 20.9 s | 5.71 s | 13.17 s |
 | Small LLM as the controller, no trained head | 6/30 | 21 | 0 | 0 | 8.9 s / 19.8 s | 9.94 s | 49.69 s |
 
+"Heavy-model tokens" is the pre-registered count of heavy *generation* tokens. Point 2 gives the tokens the model actually computed, which tell a different story.
+
 What the experiment found:
 
-1. **Success: comparable, not better.** Decision-driven control resolved 16/30 tasks, the heavy-only agent 13/30 and simple rules 14/30. Gaps of three tasks or fewer are inconclusive by the pre-registered rule.
-2. **Much cheaper for the same success.** With the *same* 0.8B model in both architectures, the decision-driven loop used **96.5% fewer heavy-model tokens** (6,105 vs 174,422). Its median turn took 1.6 s instead of 14.2 s, and it needed 2.3× less local compute per resolved task. The deterministic host policy was cheaper still (5.14 s per resolved task).
+1. **Success: not distinguishable.** Decision-driven control resolved 16/30 tasks, the heavy-only agent 13/30 and simple rules 14/30. The paired 95% interval for decision-driven minus heavy-only runs from −16 to +34 pp (point 9). The pre-registered rule also calls a gap of three tasks or fewer inconclusive.
+2. **Faster per attempted task, but not fewer tokens computed.** Local compute per attempted task was 7.0 s for decision-driven control and 13.3 s for the heavy-only agent (−47%), and 2.4 s for rules. Median turn time was 1.6 s against 14.2 s.
+   - The pre-registered figure of **96.5% fewer heavy-model tokens** (6,105 vs 174,422) counts heavy *generation* only. It includes the heavy-only agent's cache-reused prompt on every call, and it leaves out the controller's own scoring on the same 0.8B model.
+   - Counting the tokens the model actually computed, decision-driven control processed about **45% more** (570 vs 394 per task).
+   - The time saving is mostly decoding: the heavy-only agent generated 200 tokens per task, decision-driven control 57. See [audit §1](reports/v06/audit.md#1-full-local-compute-and-token-accounting).
 3. **The two architectures fail differently, by task family.**
    - **The heavy-only agent** won investigations. It also over-called (16 calls about services the task was not about), requested 6 side effects nobody asked for (all held by the host), and never clarified an ambiguous request.
    - **The decision-driven loop** made **0** wrong-argument calls and **0** unrequested writes, and won lookups, ambiguity and adverse cases. But it **stopped gathering evidence too early on every investigation**: it finished with raw data, or escalated before fetching the deployment history.
@@ -44,18 +49,31 @@ What the experiment found:
 | multi turn | 1/3 | 1/3 | 2/3 |
 | smalltalk general | 3/3 | 1/3 | 2/3 |
 
-4. **"Escalate when uncertain" did not make the system safer (pre-registered P6 falsified).** Without the escalation gate the loop did *better* (17/30, 9 silent failures vs 11). The heavy model it escalated to answered with the evidence it had and never asked for more: the `NEED_MORE_EVIDENCE` protocol fired **0 times in every arm**. The heavy model answered despite missing evidence 4 times in D and 6 times in the heavy-only agent. Escalation is only conservative if the target can notice what is missing; at this scale it could not.
+4. **"Escalate when uncertain" did not make the system safer (pre-registered P6 falsified).** Without the escalation gate the loop did *better* (17/30, 9 silent failures vs 11). The heavy model it escalated to answered with the evidence it had and never asked for more: the `NEED_MORE_EVIDENCE` protocol fired **0 times in every arm**. The heavy model answered despite missing evidence 4 times in D and 6 times in the heavy-only agent. Escalation is only conservative if the target can notice what is missing; at this scale it could not. The [audit](reports/v06/audit.md#2-why-the-conservative-escalation-gate-did-not-help) shows why the gate cannot fix this. 11 of D's 14 failures were *confident*: the probability at the decisive step was at or above the gate. Where the gate did fire on two action requests, it handed the turn to a text-only generator, and both actions were dropped. That is a design defect, not a threshold to tune.
 5. **Deterministic arguments matter.** Constructing arguments only with LLMs cost 3 tasks, added 3 wrong-argument calls, and doubled false clarifications (6 vs 3).
-6. **Dynamic prompt-block selection did not pay here.** Success was identical with full permitted context. Dynamic selection saved only 11% of prompt tokens and cost more decision time (13.15 vs 11.04 s per resolved task).
+6. **Dynamic prompt-block selection did not pay here.** Success was identical with full permitted context. Dynamic selection saved only 11% of generation prompt tokens. It added 1.15 s per task of context-selection questions and was slower: p95 22.4 vs 17.5 s, and 13.15 vs 11.04 s per resolved task.
 7. **A small LLM is not a controller on its own** (6/30, 21 silent failures). What made the same model usable was a tiny trained head over its scores plus typed observation features from the host.
-8. **Safety held everywhere:** 0 writes executed in any arm.
+8. **No write executed in any arm.** That is not the same as handling every action correctly: each arm dropped one or two action requests.
 9. **As a non-inferiority question, the result is inconclusive.** This reading follows the project's [quality-constrained efficiency protocol](docs/quality-constrained-efficiency-v06.md), which was added after v0.6 was frozen. That protocol asks whether a cheaper architecture is *no worse* than the heavy-only agent within a margin agreed in advance; only then does cost count.
    - No margin has been agreed, so no arm passes the quality gate.
    - On the 30 paired tasks, D's success minus A's is +10 pp. The 95% interval runs from −16 to +34 pp (Newcombe paired score interval; D won 10 tasks A lost and lost 7 that A won). Non-inferiority could only be claimed for a margin wider than 16 pp. Rules would need 21 pp, and D without the gate 12 pp.
    - If a margin of that size were acceptable, the efficiency case is clear. Local compute per *attempted* task was 13.3 s for A, 7.0 s for D and 2.4 s for rules. Each heavy call took 1,347 input tokens for A, 1,129 of them its system prompt and tool schemas; D's heavy calls took 521, 149 of them its tool catalogue.
    - Details are in the [quality-constrained view](reports/v06/summary.md#quality-constrained-efficiency-view-added-after-the-run). It also maps the protocol's arms A–F onto what v0.6 ran; protocol arm B (native tool search) was not run.
+10. **Confounds that limit any architectural conclusion:**
+    - The "heavy" model is a 0.8B model, not a capable agent.
+    - The decision head was trained on 614 project-specific synthetic states, while the heavy-only agent was not trained for this world. Architecture and training are therefore confounded.
+    - The held-out author was an LLM agent that shared the world and tool assumptions.
 
-**Bottom line, at this scale.** Compared with letting the LLM run the loop, decision-driven control is far cheaper and better behaved, with comparable success. "Comparable" here means a paired interval from −16 to +34 pp, not demonstrated non-inferiority, and no margin has been agreed. But it is **not more reliable**, it **loses on multi-step investigations**, and **a deterministic host policy matched it** at a fraction of the cost. These data do not establish that a *learned* decision layer beats good rules, or that the conservative policy as built helps. A stronger heavy model and hosted decision services are the obvious next tests.
+**Bottom line: exploratory and inconclusive.**
+- **Where it did better.** At this scale, decision-driven control was faster per attempted task than letting a 0.8B LLM run the loop. It made no wrong-argument calls and attempted no unrequested writes.
+- **Where it did not:**
+  - it did not compute fewer tokens;
+  - it lost every multi-step investigation;
+  - its escalation path dropped two action requests;
+  - a deterministic host policy came within two tasks of its success with about a third of its compute.
+- **What does not follow:** no claim about capable heavy agents, provider cost or reliability, and no non-inferiority (no margin was agreed).
+
+The [next-gate proposal](docs/v07-gate-proposal.md) lists what would settle the question: new tasks, a capable heavy model in every arm, an escalation path that keeps tool access, and a margin and sample size fixed in advance.
 
 All 9 pre-registered predictions, every failure and all component ablations are in [the report](reports/v06/summary.md).
 

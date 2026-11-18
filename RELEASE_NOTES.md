@@ -13,12 +13,14 @@
 
 ## Results (held-out, n = 30; see `reports/v06/summary.md`)
 
+**Status: exploratory and inconclusive.** This is a bounded synthetic test with a 0.8B "heavy" model. Architecture and training are confounded: the decision head was trained on synthetic states from this world.
+
 Decision-driven control vs the heavy-only agent:
 
 - **Success:** 16 vs 13, with rules at 14. Inconclusive by the pre-registered rule.
-- **Cost:** 96.5% fewer heavy-model tokens, p50 1.6 s vs 14.2 s, and 2.3x less compute per resolved task.
+- **Cost:** 47% less local compute per attempted task (7.0 s vs 13.3 s), and p50 1.6 s vs 14.2 s. The pre-registered "96.5% fewer heavy-model tokens" counts heavy generation only, including the heavy-only agent's cache-reused prompt. Counting every token the 0.8B model actually computed, including the controller's own scoring, decision-driven control processed about 45% *more* (`reports/v06/audit.md`).
 - **By task family:** the decision-driven loop lost every investigation; the heavy-only agent lost lookups and ambiguous requests.
-- **Escalation:** the conservative gate did not help (P6 falsified), and the verification protocol never fired.
+- **Escalation:** the conservative gate did not help (P6 falsified), and the verification protocol never fired. Most failures were confident, so the gate could not fire; where it did fire on two action requests, the text-only fallback dropped both actions (post-hoc audit).
 - **Safety:** no write was executed in any arm.
 - **Quality-constrained reading** (added after the run, per `docs/quality-constrained-efficiency-v06.md` from PR #4): inconclusive. No non-inferiority margin has been agreed. Decision-driven minus heavy-only success is +10 pp, with a paired 95% interval of −16 to +34 pp. Local compute per attempted task was 7.0 s vs 13.3 s.
 

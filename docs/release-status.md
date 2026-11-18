@@ -1,6 +1,6 @@
 # Release status: v0.6 (2026-11-18)
 
-v0.6 adds the decision-driven agent loop, real local inference and the heavy-only agent comparison. Its status is in `reports/v06/summary.md`. Not done for v0.6: hosted decision services (no credentials, no approved spend), a heavy model larger than 0.8B, and held-out tasks from a human author. Under the quality-constrained efficiency protocol (PR #4), the v0.6 result is inconclusive: no non-inferiority margin has been agreed, and n = 30 cannot resolve any margin narrower than about 16 pp.
+v0.6 adds the decision-driven agent loop, real local inference and the heavy-only agent comparison. Its status is in `reports/v06/summary.md`. Not done for v0.6: hosted decision services (no credentials, no approved spend), a heavy model larger than 0.8B, and held-out tasks from a human author. **Status: exploratory and inconclusive; HOLD on any scientific claim** (owner review of PR #6, issue #5). Post-hoc audit: `reports/v06/audit.md`. Next gate: `docs/v07-gate-proposal.md`. Under the quality-constrained efficiency protocol (PR #4), the v0.6 result is inconclusive: no non-inferiority margin has been agreed, and n = 30 cannot resolve any margin narrower than about 16 pp.
 
 ## v0.5 status (unchanged)
 

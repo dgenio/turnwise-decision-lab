@@ -184,3 +184,38 @@ class QualityConstrainedViewTests(unittest.TestCase):
             if row["arm"] != "heavy_agent":
                 self.assertTrue(row["quality_gate"].startswith("inconclusive"))
                 self.assertEqual(row["margin_needed_pp"], round(max(0.0, -row["vs_reference"]["ci95_pp"][0]), 1))
+
+
+class PostHocAuditTests(unittest.TestCase):
+    """reports/v06/audit.* is computed from the recorded traces and never changes frozen scores."""
+
+    def test_accounting_matches_the_benchmark_summary(self):
+        from turnwise_lab.agent.audit import audit
+        a = audit()
+        summary = json.loads((ROOT / "reports" / "v06" / "summary.json").read_text())["sets"]["heldout"]
+        for arm, acc in a["accounting"].items():
+            self.assertAlmostEqual(acc["per_task_s"]["total"], summary[arm]["summary"]["local_compute_s_per_task"], places=1)
+            pre = acc["heavy_generation_tokens_per_task_as_preregistered"] * acc["tasks"]
+            self.assertAlmostEqual(pre, summary[arm]["summary"]["heavy_tokens"], delta=1)
+
+    def test_packet_is_blinded_and_deterministic(self):
+        from turnwise_lab.agent.audit import ADJ_ARMS, ADJ_TASKS, build_packet
+        p1, k1 = build_packet()
+        p2, k2 = build_packet()
+        self.assertEqual((p1, k1), (p2, k2))
+        self.assertEqual(len(p1["items"]), len(ADJ_ARMS) * len(ADJ_TASKS))
+        text = json.dumps(p1).lower()
+        for arm in ADJ_ARMS + ("turnwise", "decision model", "heavy-only"):
+            self.assertNotIn(arm.lower(), text)
+        self.assertEqual({(v["scenario"], v["arm"]) for v in k1.values()}, {(s, a) for s in ADJ_TASKS for a in ADJ_ARMS})
+
+    def test_gate_diagnosis_and_taxonomy_are_consistent_with_scores(self):
+        from turnwise_lab.agent.audit import audit
+        a = audit()
+        summary = json.loads((ROOT / "reports" / "v06" / "summary.json").read_text())["sets"]["heldout"]
+        g = a["gate"]["dm_dynamic"]
+        self.assertEqual(sum(b["tasks"] for b in g["bins"]), 30)
+        self.assertEqual(sum(b["successes"] for b in g["bins"]), summary["dm_dynamic"]["summary"]["successes"])
+        self.assertEqual(len(g["escalated"]), summary["dm_dynamic"]["summary"]["escalations"])
+        for arm, t in a["taxonomy"].items():
+            self.assertEqual(sum(t["counts"].values()), 30 - summary[arm]["summary"]["successes"])
