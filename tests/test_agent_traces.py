@@ -90,7 +90,7 @@ class TraceReplayTests(unittest.TestCase):
             scen = {s["id"]: s for s in load_scenarios(SETS[data["set"]])}
             for t in data["traces"]:
                 s = scen[t["scenario_id"]]
-                host = Host(IncidentWorld(s["world_variant"]))
+                host = Host(IncidentWorld(s["world_variant"]), finish_policy="legacy_v06")
                 if data["arm"] == "heavy_agent":
                     tr = run_heavy_agent(s["message"], host=host, lm=ReplayLM(t["steps"]), turn_id=s["id"],
                                          conversation=s.get("conversation", [])).as_json()
