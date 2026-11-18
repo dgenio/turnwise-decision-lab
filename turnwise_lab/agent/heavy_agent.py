@@ -37,10 +37,11 @@ def tool_schemas() -> list[dict]:
     return out
 
 
-def system_block(host: Host, arch: str) -> str:
+def system_block(host: Host, arch: str, *, include_incident_record: bool = True) -> str:
     tools = "\n".join(json.dumps(t, ensure_ascii=False) for t in tool_schemas())
-    record = json.dumps(host.host_facts(), sort_keys=True)
-    sys_text = f"{SYSTEM}\nVerified incident record: {record}"
+    sys_text = SYSTEM
+    if include_incident_record:  # the handoff passes the principal's permission; the baseline keeps the default
+        sys_text += f"\nVerified incident record: {json.dumps(host.host_facts(), sort_keys=True)}"
     if arch == "qwen3_5":  # the model's own native template (tools block first, XML-style calls)
         return ("<|im_start|>system\n# Tools\n\nYou have access to the following functions:\n\n<tools>\n" + tools +
                 "\n</tools>\n\nIf you choose to call a function ONLY reply in the following format with NO suffix:\n\n<tool_call>\n"

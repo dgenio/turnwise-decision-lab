@@ -7,9 +7,12 @@ from typing import Any
 OPERATIONS = ("call_tool", "call_workflow", "call_model", "finish", "clarify", "abstain", "handoff")
 TIERS = ("light", "heavy")
 
-# Host-owned action statuses (#12/#13). Only the host sets them, from its own receipts; no model output can.
-# ``executed`` is part of the vocabulary but unreachable in this host: it has no approval-execution path.
-ACTION_STATUSES = ("pending", "held_for_approval", "needs_confirmation", "not_attempted", "executed")
+# Host-owned action statuses (#12/#13). Only the host sets them, from user wording and its own receipts.
+# requested/unverified/not_requested come from the host intent resolver; held_for_approval, needs_confirmation,
+# not_attempted and rejected from the handoff. ``executed`` is unreachable here: this host never executes writes.
+ACTION_STATUSES = ("requested", "unverified", "not_requested", "held_for_approval", "needs_confirmation",
+                   "not_attempted", "rejected", "executed")
+ACTION_SOURCES = ("user_request", "controller_candidate", "heavy_agent_proposal")
 
 # What a provider's number means. Never present one kind as another.
 SCORE_RULE = "none: deterministic rule"
