@@ -49,6 +49,9 @@ class Limits:
     max_retries_per_call: int = 1
     max_rejections: int = 2
     max_generation_tokens: dict = field(default_factory=lambda: {"light": 96, "heavy": 220})
+    # Capability-preserving handoff (#12). Its model rounds share max_steps with the controller's steps.
+    max_handoff_tool_calls: int = 8
+    max_handoff_computed_tokens: int | None = None  # optional cap on newly computed heavy tokens (None: rounds bound it)
 
 
 @dataclass
@@ -109,6 +112,12 @@ class Host:
             if d.model_tier not in TIERS:
                 return Validation(False, d, "rejected", f"model tier {d.model_tier!r} is not one of {list(TIERS)}")
             return Validation(True, d, "accepted", f"{d.model_tier} generation permitted")
+        if d.operation == "handoff":
+            # Hands the unresolved turn to the tool-capable heavy agent. Nothing is authorised by this:
+            # the continuation runs under this host's tools, permissions, approval hold and budget.
+            if d.model_tier != "heavy":
+                return Validation(False, d, "rejected", "a handoff goes to the heavy tool-capable agent only")
+            return Validation(True, d, "accepted", "handoff to the tool-capable heavy agent; host keeps tools, approvals and budget")
         if d.operation == "finish" and not any(o.status == "ok" for o in executed):
             return Validation(False, d, "rejected", "finish needs at least one verified observation")
         return Validation(True, d, "accepted", f"{d.operation} permitted")
@@ -141,6 +150,11 @@ class Host:
         args = ", ".join(f"{k}={v}" for k, v in obs.arguments.items())
         return (f"{obs.target}({args}) needs approval from an authorised person. Nothing was executed; "
                 "the request has been recorded for approval.")
+
+    @staticmethod
+    def confirm_actions_message(actions: list[str]) -> str:
+        return ("Before anything is requested: did you want " + "; ".join(actions) + "? Nothing has been requested or "
+                "executed. Confirm the action and its target and it will go to an authorised person for approval.")
 
     @staticmethod
     def clarify_message() -> str:

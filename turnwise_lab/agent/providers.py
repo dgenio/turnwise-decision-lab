@@ -13,7 +13,7 @@ import re
 import time
 
 from .context import BLOCKS_BY_ID, eligible_blocks, select_full, select_heuristic, select_lexical
-from .contracts import (SCORE_LM, SCORE_RULE, SCORE_SCRIPTED, ContextDecision, Decision, Question)
+from .contracts import (SCORE_LM, SCORE_RULE, SCORE_SCRIPTED, ActionIntent, ContextDecision, Decision, Handoff, Question)
 from .host import CATALOG, CATALOG_BY_ID, Host
 from .world import SERVICES
 
@@ -28,6 +28,22 @@ def named_services(text: str) -> list[str]:
         if s and s not in out:
             out.append(s)
     return out
+
+
+def user_referents(message: str, conversation) -> list[str]:
+    """Services the *user* referred to: this message first, else the latest earlier user turn naming any.
+
+    Only user-authored text counts (never model output or tool data), so a model cannot launder a target.
+    """
+    named = named_services(message)
+    if named:
+        return named
+    for m in reversed(list(conversation or [])):
+        if m.get("role") == "user":
+            found = named_services(str(m.get("content", "")))
+            if found:
+                return found
+    return []
 
 
 def _decision_from_target(target: str, service: str | None, state, provider: str, model: str, qs, rationale="") -> Decision:
@@ -321,6 +337,35 @@ def _finalize_op(op, state, provider, model, qs, args_builder, rationale=""):
     return Decision(op, provider=provider, model=model, questions=qs, rationale=rationale)
 
 
+# What the conservative gate does with an uncertain step. "text_v06" is the frozen v0.6 behaviour (a text-only
+# heavy generation call; it cannot call tools or raise approvals, which dropped H18/H19's actions).
+# "handoff" (#12) hands the unresolved turn to the tool-capable heavy agent instead.
+GATE_FALLBACKS = ("text_v06", "handoff")
+
+
+def handoff_decision(op: str, top: float, gate: float, state, provider: str, model: str, qs) -> Decision:
+    """Capability-preserving fallback for an uncertain step. Makes no model call and grants nothing.
+
+    If the operation the controller would have taken is a write, it is carried as a pending intent, so the gate
+    can never remove an action the controller itself would have proposed. Its target is filled only from what the
+    user wrote, and only when that is unambiguous; otherwise it stays incomplete and must be clarified.
+    """
+    intents = []
+    cap = CATALOG_BY_ID.get(op)
+    if cap is not None and cap.side_effect:
+        args = {}
+        if "service" in cap.params:
+            named = user_referents(state.user_message, state.conversation)
+            if len(named) == 1:
+                args = {"service": named[0]}
+        elif "message" in cap.params:
+            args = {"message": state.user_message[:300]}
+        intents.append(ActionIntent(cap.id, args, "controller_candidate"))
+    return Decision("handoff", model_tier="heavy", provider=provider, model=model, questions=qs,
+                    rationale=f"uncertain ({op} at {top:.2f}); hand the unresolved turn to the tool-capable heavy agent",
+                    handoff=Handoff("low_confidence", op, round(float(top), 4), gate, intents))
+
+
 class LocalLMDecider:
     """Mechanism 2: the generative chooser alone (argmax over admissible operations)."""
     name = "generative-chooser"
@@ -346,7 +391,11 @@ class LearnedDecider:
     """Mechanism 1: turnwise-dm, a trained head over (chooser scores, s1 heads, typed state)."""
     name = "turnwise-dm"
 
-    def __init__(self, head: dict, chooser: GenerativeChooser, s1, args_builder: ArgumentBuilder, *, gate: float | None = None):
+    def __init__(self, head: dict, chooser: GenerativeChooser, s1, args_builder: ArgumentBuilder, *, gate: float | None = None,
+                 fallback: str = "text_v06"):
+        if fallback not in GATE_FALLBACKS:
+            raise ValueError(f"fallback must be one of {GATE_FALLBACKS}")
+        self.fallback = fallback
         import numpy as np
         self.np = np
         self.head, self.chooser, self.s1, self.args = head, chooser, s1, args_builder
@@ -380,12 +429,20 @@ class LearnedDecider:
                      parts["chooser_tokens"] + parts["s1_tokens"],
                      note=f"chooser {parts['chooser_ms']} ms + s1 {parts['s1_ms']} ms; masked {sorted(set(OPS) - set(allowed))}")
         qs = [q]
-        if top < self.gate and op != "heavy_model":
+        return self.gate_step(op, top, state, qs) or _finalize_op(op, state, self.name, self.model, qs, self.args)
+
+    def gate_step(self, op: str, top: float, state, qs: list) -> Decision | None:
+        """The conservative gate (no numpy needed). None means: confident enough, take ``op``."""
+        if top >= self.gate or op == "heavy_model":
+            return None
+        if self.fallback == "handoff":
             qs.append(Question("escalation", ["keep", "escalate"], "escalate", None, SCORE_RULE, 0.0, None,
-                               note=f"top probability {top:.2f} < gate {self.gate}: conservative escalation to the strong model"))
-            return Decision("call_model", model_tier="heavy", provider=self.name, model=self.model, questions=qs,
-                            rationale=f"uncertain ({op} at {top:.2f}); escalate to the strong model with verification")
-        return _finalize_op(op, state, self.name, self.model, qs, self.args)
+                               note=f"top probability {top:.2f} < gate {self.gate}: handoff to the tool-capable heavy agent"))
+            return handoff_decision(op, top, self.gate, state, self.name, self.model, qs)
+        qs.append(Question("escalation", ["keep", "escalate"], "escalate", None, SCORE_RULE, 0.0, None,
+                           note=f"top probability {top:.2f} < gate {self.gate}: conservative escalation to the strong model"))
+        return Decision("call_model", model_tier="heavy", provider=self.name, model=self.model, questions=qs,
+                        rationale=f"uncertain ({op} at {top:.2f}); escalate to the strong model with verification")
 
 
 class LocalLMContextSelector:

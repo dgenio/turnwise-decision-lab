@@ -4,8 +4,12 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-OPERATIONS = ("call_tool", "call_workflow", "call_model", "finish", "clarify", "abstain")
+OPERATIONS = ("call_tool", "call_workflow", "call_model", "finish", "clarify", "abstain", "handoff")
 TIERS = ("light", "heavy")
+
+# Host-owned action statuses (#12/#13). Only the host sets them, from its own receipts; no model output can.
+# ``executed`` is part of the vocabulary but unreachable in this host: it has no approval-execution path.
+ACTION_STATUSES = ("pending", "held_for_approval", "needs_confirmation", "not_attempted", "executed")
 
 # What a provider's number means. Never present one kind as another.
 SCORE_RULE = "none: deterministic rule"
@@ -28,6 +32,29 @@ class Question:
     note: str = ""
 
 
+@dataclass(frozen=True)
+class ActionIntent:
+    """A side-effecting operation this turn may need. A record for the host, never an authorisation."""
+    capability: str
+    arguments: dict[str, Any]
+    source: str  # controller_candidate | heavy_agent_proposal
+
+
+@dataclass
+class Handoff:
+    """Why a controller hands an unresolved turn to the tool-capable heavy agent (#12).
+
+    Diagnostic hints only. The host builds the authoritative continuation contract
+    itself (request, conversation, permissions, receipts, budget) and re-checks
+    every hinted intent; a decision provider cannot add permissions or approvals.
+    """
+    reason: str  # e.g. low_confidence
+    controller_choice: str | None = None
+    controller_score: float | None = None
+    gate: float | None = None
+    pending_intents: list[ActionIntent] = field(default_factory=list)
+
+
 @dataclass
 class Decision:
     operation: str
@@ -39,6 +66,7 @@ class Decision:
     model: str = ""
     questions: list[Question] = field(default_factory=list)
     rationale: str = ""
+    handoff: Handoff | None = None  # only for operation == "handoff"
 
     @property
     def latency_ms(self) -> float | None:
@@ -52,6 +80,8 @@ class Decision:
 
     def as_json(self) -> dict:
         d = asdict(self)
+        if d["handoff"] is None:  # keep the v0.6 trace schema unchanged for every other operation
+            del d["handoff"]
         d["latency_ms"] = self.latency_ms
         d["input_tokens"] = self.input_tokens
         return d

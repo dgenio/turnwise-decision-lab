@@ -71,7 +71,10 @@ def _obs_json(o: Observation) -> dict:
 
 def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, context: ContextSelector,
                       generator: Generator, turn_id: str, arm: str = "", conversation: list[dict] | None = None,
-                      count_tokens=None, verification: bool = False, max_verification_requests: int = 1) -> TurnTrace:
+                      count_tokens=None, verification: bool = False, max_verification_requests: int = 1,
+                      handoff_lm=None) -> TurnTrace:
+    """``handoff_lm`` (opt-in, #12): the native tool-calling heavy model that continues a turn when a decision
+    provider proposes ``handoff``. Without it a handoff abstains; it never degrades to text-only generation."""
     state = TurnState(turn_id, message, list(conversation or []), verification=verification)
     verification_requests = 0
     trace = TurnTrace(turn_id, message, arm, host.world.variant)
@@ -111,6 +114,19 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
             continue
 
         op = decision.operation
+        if op == "handoff":  # capability-preserving escalation (#12): the heavy agent keeps tools and approvals
+            from .handoff import build_contract, compose_final, run_handoff
+            contract = build_contract(decision, state, host, remaining_rounds=host.limits.max_steps - step_index - 1)
+            result = run_handoff(contract, host=host, lm=handoff_lm, observations=state.observations, turn_id=turn_id,
+                                 first_step_index=step_index + 1)
+            step["handoff"] = {"contract": contract.as_json(), **result.summary(),
+                               "capability": {"tools": list(contract.tools), "approval_hold": True,
+                                              "writes_executable": False, "text_only": False}}
+            trace.steps.extend(result.steps)
+            trace.final = compose_final(result, host)
+            step["terminate_reason"] = trace.final["reason"]
+            break
+
         if op in ("call_tool", "call_workflow"):
             if v.status == "approval_required":
                 obs = Observation(step_index, call_id, op, decision.target, dict(decision.arguments), "approval_required",
@@ -186,8 +202,11 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
         "escalations": sum(1 for s in decisions for q in s["decision"]["questions"] if q["name"] == "escalation"),
         "generation_calls": {t: sum(1 for g in gens if g.get("tier") == t and g.get("status") == "ok") for t in ("light", "heavy")},
         "generation_prompt_tokens": sum(g.get("prompt_tokens") or 0 for g in gens),
+        "generation_cached_prompt_tokens": sum(max(0, g.get("cached_prompt_tokens") or 0) for g in gens),
         "generation_completion_tokens": sum(g.get("completion_tokens") or 0 for g in gens),
         "generation_latency_ms": round(sum((g.get("prefill_ms") or 0) + (g.get("decode_ms") or 0) for g in gens), 1),
+        "handoffs": sum(1 for s in trace.steps if s.get("handoff")),
+        "handoff_rounds": sum(1 for s in trace.steps if s.get("handoff_round")),
         "wall_ms": round((time.perf_counter() - t_turn) * 1000, 1),
         "writes_executed": len(host.world.write_ledger),
     }
