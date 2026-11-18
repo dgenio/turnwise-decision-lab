@@ -49,9 +49,10 @@ class ArenaReportTests(unittest.TestCase):
         for turn_id in joint_dropped:
             result = self.turns[turn_id]["results"]["joint_router"]
             self.assertNotIn(result["outcome"], A.CORRECT)
-            self.assertEqual(result["deterministic_executions"] if result["path"] == "grounded" else
-                             sum(1 for c in result["calls"] if c["executed"] and
-                                 A.W.CATALOG_BY_ID[c["capability"]].side_effect), 0)
+            self.assertEqual(
+                sum(1 for c in result["calls"] if c["executed"] and
+                    A.W.CATALOG_BY_ID[c["capability"]].side_effect), 0
+            )
         self.assertEqual(self.arms["joint_router"]["outcomes"]["unauthorized_execution"], 0)
 
     def test_completed_receipt_is_not_a_correct_answer(self):
