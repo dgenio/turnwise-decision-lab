@@ -276,7 +276,14 @@ def merge_adjudication(scen: dict) -> dict | None:
                         "unsupported_or_contradicted_causal_claims": sum(1 for r in rs if r["causal_claim"] in ("unsupported", "contradicted")),
                         "severity": {s: cnt("severity", s) for s in ("none", "minor", "major", "critical")},
                         "agrees_with_frozen_check": sum(1 for r in rs if (r["outcome"] == "correct") == r["frozen_success"])}
-    return {"adjudicator": json.loads(gp.read_text()).get("adjudicator"), "rows": rows, "per_arm": per_arm}
+    inv = [t for t in ADJ_TASKS if scen[t]["category"] == "investigation"]
+    investigations = {arm: {o: sum(1 for r in rows if r["arm"] == arm and r["scenario"] in inv and r["outcome"] == o)
+                            for o in ("correct", "partial", "incorrect")} for arm in ADJ_ARMS}
+    lenient = [{"scenario": r["scenario"], "arm": r["arm"], "outcome": r["outcome"], "severity": r["severity"]}
+               for r in rows if r["frozen_success"] and r["outcome"] != "correct"]
+    critical = [{"scenario": r["scenario"], "arm": r["arm"]} for r in rows if r["severity"] == "critical"]
+    return {"adjudicator": json.loads(gp.read_text()).get("adjudicator"), "rows": rows, "per_arm": per_arm,
+            "investigations": investigations, "investigation_tasks": inv, "frozen_pass_not_correct": lenient, "critical": critical}
 
 
 # ------------------------------------------------------------------- report
@@ -375,7 +382,20 @@ def render_markdown(a: dict) -> str:
             s = p["severity"]
             L.append(f"| {arm} | {p['items']} | {p['correct']} | {p['partial']} | {p['incorrect']} | {p['unsupported_or_contradicted_causal_claims']} | "
                      f"{s['none']} / {s['minor']} / {s['major']} / {s['critical']} | {p['agrees_with_frozen_check']}/{p['items']} |")
-        L += ["", "| Task | Arm | Frozen check | Adjudicated | Causal claim | Severity | Rationale |", "|---|---|---|---|---|---|---|"]
+        fp = adj["frozen_pass_not_correct"]
+        L += ["", f"Investigations only ({', '.join(adj['investigation_tasks'])}), correct / partial / incorrect: "
+              + "; ".join(f"`{arm}` {v['correct']} / {v['partial']} / {v['incorrect']}" for arm, v in adj["investigations"].items()) + ".", "",
+              "Reading:",
+              f"- **No reply on these {len(adj['investigation_tasks'])} investigations and {len(ADJ_TASKS) - len(adj['investigation_tasks'])} action requests "
+              "was judged fully correct, in any architecture.**",
+              f"- **The frozen lexical check is lenient.** Of its {len(fp)} passes among these items, none was judged correct. "
+              f"{sum(1 for x in fp if x['outcome'] == 'incorrect')} were judged incorrect: "
+              + ", ".join(f"{x['scenario']} ({x['arm']}, {x['severity']})" for x in fp if x["outcome"] == "incorrect")
+              + ". The frozen scores are unchanged, but they overstate success on these tasks.",
+              "- **Critical replies:** " + ", ".join(f"{x['scenario']} ({x['arm']})" for x in adj["critical"]) + ".",
+              "- **Partial credit is mostly raw data.** The rules policy's partial credit is mostly verified data with no stated conclusion. "
+              "On these items, the decision-driven arm's generated answers often invented causes or contradicted the evidence they had.", "",
+              "| Task | Arm | Frozen check | Adjudicated | Causal claim | Severity | Rationale |", "|---|---|---|---|---|---|---|"]
         for r in adj["rows"]:
             L.append(f"| {r['scenario']} | {r['arm']} | {'pass' if r['frozen_success'] else 'fail'} | {r['outcome']} | {r['causal_claim']} | "
                      f"{r['severity']} | {(r['rationale'] or '').replace('|', '/')} |")

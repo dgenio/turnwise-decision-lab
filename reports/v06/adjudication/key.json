@@ -1,0 +1,110 @@
+{
+ "J01": {
+  "arm": "heavy_agent",
+  "scenario": "H12"
+ },
+ "J02": {
+  "arm": "heavy_agent",
+  "scenario": "H11"
+ },
+ "J03": {
+  "arm": "heavy_agent",
+  "scenario": "H10"
+ },
+ "J04": {
+  "arm": "rules",
+  "scenario": "H07"
+ },
+ "J05": {
+  "arm": "rules",
+  "scenario": "H09"
+ },
+ "J06": {
+  "arm": "dm_dynamic",
+  "scenario": "H13"
+ },
+ "J07": {
+  "arm": "dm_dynamic",
+  "scenario": "H07"
+ },
+ "J08": {
+  "arm": "rules",
+  "scenario": "H13"
+ },
+ "J09": {
+  "arm": "rules",
+  "scenario": "H08"
+ },
+ "J10": {
+  "arm": "rules",
+  "scenario": "H18"
+ },
+ "J11": {
+  "arm": "rules",
+  "scenario": "H10"
+ },
+ "J12": {
+  "arm": "heavy_agent",
+  "scenario": "H13"
+ },
+ "J13": {
+  "arm": "heavy_agent",
+  "scenario": "H08"
+ },
+ "J14": {
+  "arm": "dm_dynamic",
+  "scenario": "H10"
+ },
+ "J15": {
+  "arm": "heavy_agent",
+  "scenario": "H09"
+ },
+ "J16": {
+  "arm": "dm_dynamic",
+  "scenario": "H18"
+ },
+ "J17": {
+  "arm": "rules",
+  "scenario": "H11"
+ },
+ "J18": {
+  "arm": "heavy_agent",
+  "scenario": "H07"
+ },
+ "J19": {
+  "arm": "dm_dynamic",
+  "scenario": "H12"
+ },
+ "J20": {
+  "arm": "dm_dynamic",
+  "scenario": "H08"
+ },
+ "J21": {
+  "arm": "dm_dynamic",
+  "scenario": "H09"
+ },
+ "J22": {
+  "arm": "dm_dynamic",
+  "scenario": "H19"
+ },
+ "J23": {
+  "arm": "heavy_agent",
+  "scenario": "H19"
+ },
+ "J24": {
+  "arm": "rules",
+  "scenario": "H12"
+ },
+ "J25": {
+  "arm": "rules",
+  "scenario": "H19"
+ },
+ "J26": {
+  "arm": "dm_dynamic",
+  "scenario": "H11"
+ },
+ "J27": {
+  "arm": "heavy_agent",
+  "scenario": "H18"
+ }
+}

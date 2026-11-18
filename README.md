@@ -36,8 +36,14 @@ What the experiment found:
    - Counting the tokens the model actually computed, decision-driven control processed about **45% more** (570 vs 394 per task).
    - The time saving is mostly decoding: the heavy-only agent generated 200 tokens per task, decision-driven control 57. See [audit §1](reports/v06/audit.md#1-full-local-compute-and-token-accounting).
 3. **The two architectures fail differently, by task family.**
-   - **The heavy-only agent** won investigations. It also over-called (16 calls about services the task was not about), requested 6 side effects nobody asked for (all held by the host), and never clarified an ambiguous request.
+   - **The heavy-only agent** won investigations by the frozen lexical check (4/7). It also over-called (16 calls about services the task was not about), requested 6 side effects nobody asked for (all held by the host), and never clarified an ambiguous request.
    - **The decision-driven loop** made **0** wrong-argument calls and **0** unrequested writes, and won lookups, ambiguity and adverse cases. But it **stopped gathering evidence too early on every investigation**: it finished with raw data, or escalated before fetching the deployment history.
+   - **A blinded adjudication changes the investigation picture** ([audit §4](reports/v06/audit.md#4-blinded-adjudication-of-investigations-and-action-requests); an independent LLM grader, not a human). It graded the 7 investigations and 2 action requests for the three main architectures:
+     - **None of the 27 replies was judged fully correct.**
+     - On investigations (correct / partial / incorrect): heavy-only 0 / 3 / 4, rules 0 / 5 / 2, decision-driven 0 / 1 / 6.
+     - Two heavy-only replies that passed the frozen check were judged incorrect. One of them (H11) offered to roll back a deployment that does not exist.
+     - One decision-driven reply (H10) claimed a rollback had been performed.
+     - The frozen scores stay as they are, but on these tasks they overstate success.
 
 | Task family | Heavy-only agent | Rules | Decision-driven (D) |
 |---|---:|---:|---:|

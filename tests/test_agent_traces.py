@@ -219,3 +219,28 @@ class PostHocAuditTests(unittest.TestCase):
         self.assertEqual(len(g["escalated"]), summary["dm_dynamic"]["summary"]["escalations"])
         for arm, t in a["taxonomy"].items():
             self.assertEqual(sum(t["counts"].values()), 30 - summary[arm]["summary"]["successes"])
+
+
+class AdjudicationRecordTests(unittest.TestCase):
+    """The committed blinded adjudication is complete, matches its key and its packet, and uses only rubric values."""
+
+    def test_grades_key_and_packet_line_up(self):
+        from turnwise_lab.agent.audit import ADJ, build_packet
+        packet, key = build_packet()
+        self.assertEqual(json.loads((ADJ / "packet.json").read_text()), json.loads(json.dumps(packet)))
+        self.assertEqual(json.loads((ADJ / "key.json").read_text()), key)
+        grades = json.loads((ADJ / "grades.json").read_text())["grades"]
+        self.assertEqual([g["item"] for g in grades], sorted(key))
+        allowed = {"outcome": {"correct", "partial", "incorrect"}, "causal_claim": {"none", "supported", "unsupported", "contradicted"},
+                   "severity": {"none", "minor", "major", "critical"}, "acknowledges_missing_evidence": {"yes", "no", "na"},
+                   "action_handling": {"raised", "raised_wrong", "dropped", "claimed_executed", "na"}}
+        for g in grades:
+            for field, values in allowed.items():
+                self.assertIn(g[field], values, (g["item"], field))
+
+    def test_audit_merges_every_graded_item(self):
+        from turnwise_lab.agent.audit import ADJ_ARMS, ADJ_TASKS, audit
+        adj = audit()["adjudication"]
+        self.assertEqual(len(adj["rows"]), len(ADJ_ARMS) * len(ADJ_TASKS))
+        for arm, p in adj["per_arm"].items():
+            self.assertEqual(p["correct"] + p["partial"] + p["incorrect"], len(ADJ_TASKS))
