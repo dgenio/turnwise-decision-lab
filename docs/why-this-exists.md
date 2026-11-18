@@ -28,9 +28,9 @@ Sources and live docs:
 
 Not a 99% fixture label score. A result such as:
 
-> "Against fully configured native router and plain-rule baselines on held-out tasks, the additional per-turn context/flow gate increased end-to-end correctness by X with Y change in p95 latency, under a fixed task budget. These are the cases where it lost."
+> "Against a real heavy-only tool-calling agent, on independently held-out tasks, the candidate preserved end-to-end task success within the pre-registered non-inferiority margin while changing total cost per attempted task by X%, p95 end-to-end latency by Y%, and input tokens per unavoidable heavy call by Z%. These are the cases where it lost."
 
-Only publish that sentence once **X** and **Y** have been measured with exact source code, provider IDs, configurations and raw per-turn receipts. The existing 8-case fixture replay is **not** such evidence: the simple rule baseline already matches the same 8/8 authored route labels with zero classifier calls. The six-turn exhibit is **not independent** evaluation data.
+Only publish that sentence once the actual heavy-only baseline has run, **X/Y/Z** and paired quality uncertainty have been measured with exact source code, provider IDs, configurations, prices and raw per-turn receipts; the safety and statistical gates must be reported. The hypothesis does not require accuracy *improvement*, only a bounded, justified loss if efficiency improves materially. See [candidate v0.6 protocol](quality-constrained-efficiency-v06.md). The existing 8-case fixture replay is **not** such evidence: the simple rule baseline already matches the same 8/8 authored route labels with zero classifier calls. The six-turn exhibit is **not independent** evaluation data.
 
 ## What would falsify the idea?
 
