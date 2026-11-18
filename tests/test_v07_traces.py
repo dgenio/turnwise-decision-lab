@@ -134,8 +134,9 @@ class ReplayTests(unittest.TestCase):
                 self.assertEqual((again["final"].get("kind"), again["final"].get("text")), (tr["final"].get("kind"), tr["final"].get("text")), where)
                 a, b = bench.score(task, again), bench.score(task, tr)
                 self.assertEqual({k: a[k] for k in SCORE_FIELDS}, {k: b[k] for k in SCORE_FIELDS}, where)
-                self.assertEqual({k: tr["score"][k] for k in SCORE_FIELDS if k in tr["score"]}, {k: b[k] for k in SCORE_FIELDS if k in tr["score"]},
-                                 f"{where}: the score stored at run time differs from a fresh score")
+                if data["set"] == "locked":  # the scorer was frozen before the locked run, so the stored score must still hold
+                    self.assertEqual({k: tr["score"][k] for k in SCORE_FIELDS}, {k: b[k] for k in SCORE_FIELDS},
+                                     f"{where}: the score stored at run time differs from a fresh score")
                 checked += 1
         self.assertGreater(checked, 0)
 

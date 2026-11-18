@@ -20,6 +20,7 @@ and says so in the trace.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+import json
 import re
 
 from ..agent.render import render_facts
@@ -213,10 +214,11 @@ class ExitGate:
         about_incident = bool(have) or (bool(k.claim.entities) and not re.search(GENERAL, message.lower()))
         evidence_bearing = about_incident and k.claim.type in ("lookup", "causal", "verification", "action", "untyped", "ambiguous")
         if evidence_bearing:
-            allowed_text = " ".join([render_facts(have), " ".join(d["text"] for d in derive(observations, k.claim)), message,
+            allowed_text = " ".join([render_facts(have), json.dumps(have, sort_keys=True), " ".join(d["text"] for d in derive(observations, k.claim)), message,
                                      " ".join(m.get("content", "") for m in conversation or []),
                                      " ".join(f"{a} {b}" for a, b in host_facts.items())])
-            allowed = values_in(allowed_text) | {("time", v[11:16].lstrip("0")) for v in host_facts.values() if re.match(r"\d{4}-\d\d-\d\dT", str(v))}
+            stamps = re.findall(r"\d{4}-\d\d-\d\dT(\d\d:\d\d)", allowed_text)  # a receipt's timestamp grounds its clock time
+            allowed = values_in(allowed_text) | {("time", t.lstrip("0")) for t in stamps}
             for label, value in sorted(values_in(text) - allowed):
                 violations.append({"kind": "ungrounded_value", "text": f"{label} {value}"})
         out = {"checked": True, "ok": not violations, "violations": violations, "evidence_bearing": evidence_bearing}

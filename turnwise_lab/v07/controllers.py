@@ -64,6 +64,16 @@ class GatedDecider:
             terminal = "answer"
         if d.operation in ("call_tool", "call_workflow") and d.target in CATALOG_BY_ID and CATALOG_BY_ID[d.target].side_effect:
             terminal = "write"
+            reason = self.gate.veto(state.user_message, state.conversation, d.target)
+            if reason:
+                # The controller insists on a write the user declined or never made. The gate does not hand that back to it
+                # (a deterministic controller would only repeat it): it ends the turn on what the contract supports.
+                self.events.append({"step_index": len(state.observations), "terminal": "write", "action": "veto", "reason": reason,
+                                    "proposed": {"operation": d.operation, "model_tier": None, "target": d.target, "arguments": dict(d.arguments)}})
+                self.interventions += 1
+                d = Decision("finish", provider=self.gate.name, model="host rule", rationale=reason,
+                             questions=d.questions + [Question("exit_gate", [], "veto", None, GATE_SCORE, 0.0, None, note=reason)])
+                terminal = "finish"
         if terminal is None:
             return d
         v = self.gate.review(message=state.user_message, conversation=state.conversation, observations=state.observations,
