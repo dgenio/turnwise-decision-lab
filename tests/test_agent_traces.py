@@ -17,6 +17,7 @@ from turnwise_lab.agent.bench import SETS, load_scenarios, score
 from turnwise_lab.agent.contracts import ContextDecision, Decision
 from turnwise_lab.agent.heavy_agent import run_heavy_agent
 from turnwise_lab.agent.host import Host
+from turnwise_lab.agent.frozen_v06_replay import FrozenV06ReplayHost
 from turnwise_lab.agent.loop import execute_user_turn
 from turnwise_lab.agent.world import IncidentWorld
 from turnwise_lab.local_models import Generation
@@ -90,7 +91,9 @@ class TraceReplayTests(unittest.TestCase):
             scen = {s["id"]: s for s in load_scenarios(SETS[data["set"]])}
             for t in data["traces"]:
                 s = scen[t["scenario_id"]]
-                host = Host(IncidentWorld(s["world_variant"]))
+                # Recorded observations and scores must replay under the original v0.6 host;
+                # the corrected host is separately tested on prospective regressions.
+                host = FrozenV06ReplayHost(IncidentWorld(s["world_variant"]))
                 if data["arm"] == "heavy_agent":
                     tr = run_heavy_agent(s["message"], host=host, lm=ReplayLM(t["steps"]), turn_id=s["id"],
                                          conversation=s.get("conversation", [])).as_json()
