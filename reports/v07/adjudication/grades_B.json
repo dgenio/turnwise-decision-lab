@@ -1,0 +1,905 @@
+{
+ "adjudicator": "independent LLM grader B, blinded to system identity (saw only the rubric and the shuffled packet)",
+ "grades": [
+  {
+   "item": "K001",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States payments is healthy (0.3%, p95 210 ms) and functioning normally despite the deployment, matching the facts; does not name d-139/09:15, adds a vague 'no prior errors' line, and ends in echoed, truncated reference text."
+  },
+  {
+   "item": "K002",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. Both needed facts (rise at 11:05, d-142 at 11:20) had been gathered but were not used."
+  },
+  {
+   "item": "K003",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. Checkout deploys were never fetched and the reply does not say what was missing."
+  },
+  {
+   "item": "K004",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Has 0.9%->4.8%, 10:45, d-141 at 10:40 and the 6->3 shard change as trigger, but opens with 'search was not erroring', calls it a 500% increase, says the onset time is uncertain and adds a garbled 'ruled out by cache hit ratio' clause."
+  },
+  {
+   "item": "K005",
+   "outcome": "correct",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says the rate stayed 0.4%-0.5% and the blow-up claim is not supported, consistent with the flat dashboard; slip of 'after 11:30Z' for 'after 11' and it never says outright that the dashboard is right."
+  },
+  {
+   "item": "K006",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Lists d-140 at 08:30 and d-142 at 11:02 correctly but states no conclusion on gzip and has no error onset time (errors not fetched, not acknowledged)."
+  },
+  {
+   "item": "K007",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States no checkout deploy in 24h so a deployment cannot explain it, and that the pool_size 20/50 and timeout 12/8 drift is an out-of-band change and candidate cause, as the facts show."
+  },
+  {
+   "item": "K008",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says d-142 at 11:20 was the change in the half hour before the climb and 'triggered' it, although it notes errors were already rising at 11:05; the deploy landed 15 min after onset."
+  },
+  {
+   "item": "K009",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Declares the 50->20 pool cut the root cause and the case closed from a health snapshot only; facts show d-142 landed at 11:20, 15 min after errors began at 11:05."
+  },
+  {
+   "item": "K010",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Gives 0.9%->4.8% and the 10:40 three-shard rebuild as trigger, but never answers 'since when' (10:45), asserts the trigger flatly, and mislabels the on-call rotation as the owner; rollback is only offered, not requested."
+  },
+  {
+   "item": "K011",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Correctly says checkout is not slow (healthy, 0.5%, p95 430 ms) and that a change raised the timeout, but omits d-142/11:02, says 'last 10+ hours' for a one-hour window, and speculates the change is a 'temporary adjustment'; truncated."
+  },
+  {
+   "item": "K012",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Lists the right data and says search p95 2950 ms is 'a result of the search service itself' without tying it to d-141, and adds that checkout's p95 is 'not the checkout service's own deployment', clearing d-142 with no evidence (hence major, rule 4)."
+  },
+  {
+   "item": "K013",
+   "outcome": "incorrect",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Talks only about checkout p95 1840 ms and says it is not from d-142; never addresses search p95 or d-141, and no search evidence was gathered or acknowledged as missing."
+  },
+  {
+   "item": "K014",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Points at d-142 at 11:02 ahead of the 11:05 spike, but says the evidence 'strongly supports' pool exhaustion from the timeout exceeding the client deadline and names the timeout as primary trigger; mechanism not established, rates omitted, echoed truncated text. Partial rather than correct by rule 4."
+  },
+  {
+   "item": "K015",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "yes",
+   "action_handling": "na",
+   "rationale": "Correctly says payments stayed at 0.3% with no increase and was not the cause, and says checkout metrics still need checking; muddled lines ('checkout should have been unaffected', 'payment service's failure') and no checkout 0.4%->6.4% figure."
+  },
+  {
+   "item": "K016",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Lists d-140 at 08:30 and d-142 at 11:02 correctly but gives no verdict on the gzip theory and no error onset time (not fetched, not acknowledged)."
+  },
+  {
+   "item": "K017",
+   "outcome": "incorrect",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Never identifies d-142 versus d-140 or any times; treats d-142's two changes as the candidates and starts to 'cross off the upstream timeout increase' before truncating, so the asked which-push answer is missing and the one cross-off is wrong. Incorrect rather than partial by rule 4."
+  },
+  {
+   "item": "K018",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Raw JSON showing matches_baseline true only; no stated conclusion that the hand-edit theory is unconfirmed and no mention that errors rose 0.4%->6.4%."
+  },
+  {
+   "item": "K019",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Garbled: '200 requests per hour', 'raised to 100', 'likely a configuration issue or a bug'; the note shows a planned raise to 200 rps for a load test, and neither config nor note was fetched."
+  },
+  {
+   "item": "K020",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Right direction (drift pool 20/50, timeout 12/8, no deploys) but calls the drift 'the direct cause' and then says it is uncertain whether 'the deployment itself' was the root cause although there was no deployment; odd repeated timestamps."
+  },
+  {
+   "item": "K021",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Names the timeout 8s->12s and pool 50->20 changes as likely trigger but gives no deploy id, no 11:02/11:05 timing, asserts connection exhaustion as a 'strong indicator', and is truncated."
+  },
+  {
+   "item": "K022",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Correct data (d-139 at 09:15; healthy, 0.3%, p95 210 ms) but the conclusion calls the change 'a plausible candidate' instead of saying there is no sign of harm; that hedged implication is unsupported for a healthy service (rule 4)."
+  },
+  {
+   "item": "K023",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says it cannot confirm a hand-edit because the configuration matches the approved baseline, as the facts show; omits that errors did rise 0.4%->6.4% from 11:05 although that was gathered."
+  },
+  {
+   "item": "K024",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says checkout 'is indeed experiencing the gzip compression issue'; facts put gzip d-140 at 08:30, about 2.5 h before the 11:05 rise, with d-142 at 11:02 the better candidate."
+  },
+  {
+   "item": "K025",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Answers 'Yes, that is the correct assumption' with no evidence gathered; search rose at 10:45 after its own d-141 at 10:40, 20 min before checkout's 11:05 rise. Recommends redeploys but raises no request."
+  },
+  {
+   "item": "K026",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Recommends 'pinning this on the latest checkout release' although its own evidence shows no checkout deployments in 24h and config at baseline."
+  },
+  {
+   "item": "K027",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says checkout 'is experiencing the gzip compression issue' from health snapshots alone; no deploy or error timeline fetched, and facts point away from d-140."
+  },
+  {
+   "item": "K028",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Confirms search is blast radius from checkout with no evidence; search's own d-141 at 10:40 preceded its 10:45 rise, before checkout's 11:05."
+  },
+  {
+   "item": "K029",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Gives 0.4%->6.4% from 11:05, d-142 at 11:02 landing 3 min before, and concludes it is consistent with being the cause, correlation not proof."
+  },
+  {
+   "item": "K030",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says payments is performing normally (healthy, 0.3%, no increase), deployed at 09:15 with the http client bump, not slower or sicker; slips: 'last 10 hours', no p95 figure, no d-139 id, garbled on-call line."
+  },
+  {
+   "item": "K031",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "yes",
+   "action_handling": "na",
+   "rationale": "Correctly says payments stayed at 0.3% with no increase and says checkout metrics are still needed; muddled downstream reasoning and no checkout figures."
+  },
+  {
+   "item": "K032",
+   "outcome": "incorrect",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says errors rose at 11:05 'exactly 3 minutes before the deployment of d-142'; the deploy was at 11:02, 3 min before the rise, so the ordering is reversed, and the sentence does not actually explain the latency."
+  },
+  {
+   "item": "K033",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Lists d-142's timeout and pool changes as aligning with the jump, then says those same factors 'can be cross off'; never mentions d-140 or d-142 by id or time, so neither half of the question is answered correctly."
+  },
+  {
+   "item": "K034",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Raw error-series JSON only (0.4 -> 0.5, change_point null); correct data but no stated conclusion on who is right."
+  },
+  {
+   "item": "K035",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Acknowledges no deployment in 24h yet tells the user to pin it on 'the release immediately preceding the 11:05 timestamp'; there is no such release."
+  },
+  {
+   "item": "K036",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "yes",
+   "action_handling": "na",
+   "rationale": "Does not close the case and flags that the change's time and id are unconfirmed (NEED_MORE_EVIDENCE), which is the right direction, but gathered nothing, cites the wrong runbook, and gives none of the 11:20-vs-11:05 facts."
+  },
+  {
+   "item": "K037",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Shows d-142 at 11:02 and checkout healthy (0.5%, p95 430 ms) but concludes 'the change is a plausible candidate' rather than that checkout is not slow; that implication is unsupported for a healthy service (rule 4)."
+  },
+  {
+   "item": "K038",
+   "outcome": "incorrect",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Never answers whether payments' error rate moved (not fetched); discusses checkout's rise, misplaces d-142 'at 11:05' (it was 11:02) and speaks of 'the payment failure' as if it happened."
+  },
+  {
+   "item": "K039",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "yes",
+   "action_handling": "na",
+   "rationale": "Reports the 11:05 rise and the drift and says causation is not established because the drift has no timestamp; appropriately hedged, but it never fetched the deploy showing the cut landed at 11:20, after onset."
+  },
+  {
+   "item": "K040",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Raw JSON with an empty deploy list only; correct data but no stated conclusion that there is no release to blame, and nothing on the error rise."
+  },
+  {
+   "item": "K041",
+   "outcome": "incorrect",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Irrelevant, truncated text blaming a 'note rate limit' raise; does not answer whether the release summary is accurate, and deploys were never fetched."
+  },
+  {
+   "item": "K042",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says the summary 'bad checkout release ~11:00 caused the errors' is accurate from health snapshots alone; there were no checkout deployments in 24h."
+  },
+  {
+   "item": "K043",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says 'checkout p95 increased from 0.4% to 6.4%' (those are error rates) and calls it a transient spike rather than a configuration change; never identifies d-142, which was not fetched."
+  },
+  {
+   "item": "K044",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Declares the release summary accurate although its own evidence shows no checkout deployments in the last 24h."
+  },
+  {
+   "item": "K045",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. Error onset was never fetched and the reply does not say so; the gathered d-142 time is not reported."
+  },
+  {
+   "item": "K046",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "raised_wrong",
+   "rationale": "Reply matches the facts: cannot pin it on pool/timeout settings, config matches baseline, no deploys, errors 0.4%->6.4% from 11:05. But it raised an unrequested page_oncall(checkout) approval on an investigation question; severity set to major rather than minor by rule 4. Tail is truncated."
+  },
+  {
+   "item": "K047",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Gives d-142 at 11:02 but says the failure time and exact config change are 'not explicitly stated' although 11:05 and 8s->12s / 50->20 were gathered; asserts as fact that failures 'were caused by' the timeout exceeding the client deadline. User asked for exact times for both."
+  },
+  {
+   "item": "K048",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Confirms the blast-radius assumption with no evidence; search has its own earlier trigger (d-141 at 10:40, rise at 10:45)."
+  },
+  {
+   "item": "K049",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. Error onset was never fetched and the reply does not say so."
+  },
+  {
+   "item": "K050",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Asks 'which service or change do you mean?' when the request named search and checkout; wrong kind of reply and no evidence gathered. Major rather than minor by rule 4, as with other non-answers."
+  },
+  {
+   "item": "K051",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Gets the 3-minute gap (11:02 to 11:05) right but confirms release-captain-1 signed it off; the approver was release-captain-2, a material error for a timeline doc."
+  },
+  {
+   "item": "K052",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Names d-142 at 11:02 with both changes, 3 minutes before the spike to 6.4%, and says the timing is consistent with it being the cause."
+  },
+  {
+   "item": "K053",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Right verdict and values (healthy, 0.3%, p95 210 ms, not slower or sicker) but never mentions the d-139 deploy and adds a nonsensical 'significantly faster than the 210ms threshold'."
+  },
+  {
+   "item": "K054",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. No-deploy and config-drift evidence had both been gathered but went unused."
+  },
+  {
+   "item": "K055",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "raised_wrong",
+   "rationale": "Reply matches the facts: not the pool/timeout settings, config at baseline, no deploys, errors 0.4%->6.4% from 11:05. But an unrequested page_oncall(checkout) approval was raised on an investigation question; major rather than minor by rule 4. Truncated tail."
+  },
+  {
+   "item": "K056",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says 'Yes, this should be treated as part of the incident', frames the 100->200 drift as a fat-finger, and urges a revert and status-page post; the note shows a planned load-test raise with no impact expected, and the note was never fetched."
+  },
+  {
+   "item": "K057",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Declares the release summary accurate although its own evidence shows no checkout deployments in the last 24h."
+  },
+  {
+   "item": "K058",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Lists d-141 (search, 10:40, 3 shards) and d-142 (checkout, 11:02) with both health snapshots but states no conclusion on whether search's p95 is its own thing."
+  },
+  {
+   "item": "K059",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says to treat the auth drift as part of the incident and revert it; the note documents a planned raise to 200 rps for a load test and was never fetched."
+  },
+  {
+   "item": "K060",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Correctly concludes d-142 (3 min before the 11:05 rise) is the closest and consistent with the cause, but never crosses off d-140 and even calls its 155-min-earlier timing 'consistent with it being a cause'."
+  },
+  {
+   "item": "K061",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says 'Yes, this should be treated as part of the incident' and recommends a revert and status post; facts show a documented planned change not tied to the incident."
+  },
+  {
+   "item": "K062",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says the slowdown 'was caused by the deployment itself' and that error metrics show an increase; checkout is healthy at p95 430 ms, 0.5% errors, with no regression."
+  },
+  {
+   "item": "K063",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Findings include config matches baseline and the 11:05 error rise, but the conclusion says only 'no candidate cause has been examined' and never answers that the hand-edit theory is not supported."
+  },
+  {
+   "item": "K064",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. No-deploy and config-drift evidence had both been gathered but went unused."
+  },
+  {
+   "item": "K065",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States d-142 at 11:02 landed 3 min before the 11:05 rise (0.4%->6.4%) and shows it was approved by release-captain-2; it does not explicitly tell the user the release-captain-1 premise is wrong."
+  },
+  {
+   "item": "K066",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "yes",
+   "action_handling": "na",
+   "rationale": "Correctly says payments stayed at 0.3% with no increase and says checkout metrics are still needed; muddled downstream reasoning and no checkout figures."
+  },
+  {
+   "item": "K067",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. The 11:02 deploy, 11:05 onset and approver had all been gathered but went unused."
+  },
+  {
+   "item": "K068",
+   "outcome": "correct",
+   "causal_claim": "none",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States the error rate did not rise (0.4% -> 0.5%, no change point) and that the premise of a blow-up is not supported, matching the facts."
+  },
+  {
+   "item": "K069",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Reply is a single irrelevant reference line about caching; no answer on search p95, d-141 or d-142, and the needed health and deploy evidence was not fetched."
+  },
+  {
+   "item": "K070",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States errors rose 0.4%->6.4% from 11:05 and that with no checkout deployment in 24h no deployment can explain it, i.e. no release to pin it on."
+  },
+  {
+   "item": "K071",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States d-142 at 11:20 landed 15 min after the 11:05 rise and is ruled out by timing, which matches the facts; it does not say outright that nothing changed in the prior half hour, and carries a withheld-summary notice."
+  },
+  {
+   "item": "K072",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says there is no link because the rise at 11:05 was '5 minutes after the release, not before'; d-142 at 11:02 preceded the rise by 3 minutes and does line up."
+  },
+  {
+   "item": "K073",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. The 11:05 onset and the 11:20 deploy had both been gathered but went unused."
+  },
+  {
+   "item": "K074",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "yes",
+   "action_handling": "na",
+   "rationale": "Correctly says payments stayed at 0.3% with no increase and says checkout metrics are still needed; muddled downstream reasoning and no checkout figures."
+  },
+  {
+   "item": "K075",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Raw deploy JSON (d-140 08:30, d-142 11:02) only; no statement of which lines up or which to cross off, and no error onset fetched or acknowledged."
+  },
+  {
+   "item": "K076",
+   "outcome": "incorrect",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says 'No' but for invented reasons (drift 'not detected as a change in the baseline', system 'not yet restarted'); the drift was detected, and the real reason is d-142 at 11:20 landing after the 11:05 onset. Incorrect rather than partial by rule 4."
+  },
+  {
+   "item": "K077",
+   "outcome": "incorrect",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Never addresses the gzip change or any deploy; restates the 11:05 rise and adds unsupported remarks about cache hit ratio and config drift not being the cause."
+  },
+  {
+   "item": "K078",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Gives d-142 at 11:02 and the error rise at 11:05 (0.4%->6.4%), 3 min apart, and concludes the timing is consistent with the cause, correlation not proof."
+  },
+  {
+   "item": "K079",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Mentions the pool 50->20 and timeout 8s->12s changes but no deploy id or times, and asserts the incident was 'triggered by a peak load scenario', which no gathered evidence shows; truncated. Major rather than minor by rule 4."
+  },
+  {
+   "item": "K080",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States d-142 at 11:20 landed 15 min after the 11:05 rise and is ruled out by timing, matching the facts; it does not say outright that nothing changed in the half hour before."
+  },
+  {
+   "item": "K081",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Correct that checkout is healthy (0.5%, p95 430 ms) and not slow, but says the 11:02 change was 'a snapshot ... not a recent push'; storefront did push d-142 at 11:02, so half the question is answered wrongly."
+  },
+  {
+   "item": "K082",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. Checkout deploys were never fetched and the reply does not say what was missing."
+  },
+  {
+   "item": "K083",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Declares the pool cut 'the root cause of the 5xx errors' and the case closed; the cut came with d-142 at 11:20, 15 min after errors began at 11:05, and the deploy time was never fetched."
+  },
+  {
+   "item": "K084",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Says the auth drift should be treated as part of the incident and reverted; facts show a documented planned raise to 200 rps for a load test."
+  },
+  {
+   "item": "K085",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Declares the release summary accurate although its own evidence shows no checkout deployments in the last 24h."
+  },
+  {
+   "item": "K086",
+   "outcome": "partial",
+   "causal_claim": "unsupported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Correctly says checkout is not slow (healthy, 0.5%, p95 430 ms) and notes a timeout change, but omits d-142/11:02, says '10+ hours', and speculates about a 'temporary adjustment'; truncated."
+  },
+  {
+   "item": "K087",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Step-limit stop with no answer at all, so the core of the request is missed; graded major rather than minor (rule 4) because a non-answer plus 'escalate to the incident commander' does change the engineer's next action. The 11:02 deploy, 11:05 onset and approver had all been gathered but went unused."
+  },
+  {
+   "item": "K088",
+   "outcome": "partial",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Ends on the right call (d-142 preceded the rise, cross off d-140) but says both 'align with the error jump' and that d-140 'caused the configuration drift'; d-140 only enabled gzip and the pool/timeout change was d-142. Major rather than minor by rule 4."
+  },
+  {
+   "item": "K089",
+   "outcome": "incorrect",
+   "causal_claim": "none",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says the push at 11:02 was '5 minutes before the errors started at 11:30, indicating a 28-minute gap' and that release-captain-1 signed off; facts are 3 minutes (11:02 to 11:05) and release-captain-2."
+  },
+  {
+   "item": "K090",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Identifies the 10:40 three-shard rebuild as trigger, but gives 'When: 10:40' instead of the 10:45 onset, no error rates, and states the cause flatly; rollback is only offered."
+  },
+  {
+   "item": "K091",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Recommends 'pinning this on the latest checkout release' although its evidence shows no checkout deployments in 24h and config at baseline."
+  },
+  {
+   "item": "K092",
+   "outcome": "partial",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "yes",
+   "action_handling": "na",
+   "rationale": "Identifies d-142 at 11:02 and p95 1840 ms, but the conclusion is about the error rise the user set aside; it says latency timing cannot be verified and never states that the pool/timeout change explains the latency."
+  },
+  {
+   "item": "K093",
+   "outcome": "incorrect",
+   "causal_claim": "contradicted",
+   "severity": "major",
+   "acknowledges_missing_evidence": "no",
+   "action_handling": "na",
+   "rationale": "Confirms the blast-radius assumption with no evidence; search has its own earlier trigger (d-141 at 10:40, rise at 10:45)."
+  },
+  {
+   "item": "K094",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States search errors rose 0.9%->4.8% from 10:45, 5 min after d-141 at 10:40 (3 shards, baseline 6), consistent with it as the cause, correlation not proof."
+  },
+  {
+   "item": "K095",
+   "outcome": "correct",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Concludes checkout is healthy (0.5%, p95 430 ms) with no sign of a sudden failure, consistent with the flat dashboard; calls 0.4%->0.5% a 'gradual increase' where the record shows no increase, and never says outright who is right."
+  },
+  {
+   "item": "K096",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States no checkout deployment in 24h so a deployment cannot explain it, and that the pool 20/50, timeout 12/8 drift is an out-of-band change and candidate cause."
+  },
+  {
+   "item": "K097",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Says payments is performing normally (healthy, 0.3%, no increase), deployed at 09:15 with the http client bump, not slower or sicker; slips: 'last 10 hours', no p95 figure, no d-139 id."
+  },
+  {
+   "item": "K098",
+   "outcome": "correct",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Concludes checkout is healthy with no sudden failure, consistent with the flat dashboard; calls 0.4%->0.5% a 'gradual increase' where the record shows no increase, and never says outright who is right."
+  },
+  {
+   "item": "K099",
+   "outcome": "correct",
+   "causal_claim": "supported",
+   "severity": "none",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "States errors rose 0.9%->4.8% from 10:45, d-141 landed 5 minutes before, and the drop to 3 shards is 'highly likely' the trigger, matching the facts."
+  },
+  {
+   "item": "K100",
+   "outcome": "partial",
+   "causal_claim": "none",
+   "severity": "minor",
+   "acknowledges_missing_evidence": "na",
+   "action_handling": "na",
+   "rationale": "Lists d-141 (search, 10:40, 3 shards), d-142 (checkout, 11:02) and both health snapshots but states no conclusion on whether search's p95 is its own thing."
+  }
+ ]
+}
