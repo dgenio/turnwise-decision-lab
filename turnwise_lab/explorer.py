@@ -489,7 +489,7 @@ function select(tid, arm, scroll){
   }
   var cf = el("table", {cls:"cf"});
   ["direct","deterministic","grounded","agentic","hold"].forEach(function(p){ cf.appendChild(el("tr", null, [el("td", {text:p}), el("td", {text:t.cf[p]})])); });
-  d.appendChild(el("div", {cls:"dsec"}, [el("h3", {text:"If this turn were forced down each path"}), cf]));
+  d.appendChild(el("div", {cls:"dsec"}, [el("h3", {text:"Illustrative path assumptions — not executed"}), el("p", {cls:"why", text:"These descriptions use authored outcome labels and simplifying assumptions. They are NOT executed counterfactual runs or measured model answers. To inspect observed behavior, select another strategy cell in the comparison matrix."}), cf]));
   if (scroll && window.matchMedia("(max-width:920px)").matches) d.scrollIntoView({behavior:"smooth", block:"start"});
 }
 select(selected.turn, selected.arm, false);
