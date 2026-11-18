@@ -16,7 +16,7 @@ class ExplorerTests(unittest.TestCase):
         cls.html = explorer.render(cls.report)
 
     def test_committed_page_is_generated_from_committed_report(self):
-        self.assertEqual((ROOT / "demo" / "index.html").read_text(encoding="utf-8"), self.html)
+        self.assertEqual((ROOT / "demo" / "v05-explorer.html").read_text(encoding="utf-8"), self.html)
 
     def test_headline_numbers_come_from_the_report(self):
         h = explorer.headline(self.report)

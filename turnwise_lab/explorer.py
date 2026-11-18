@@ -12,7 +12,7 @@ import json
 
 ROOT = Path(__file__).resolve().parents[1]
 REPORT = ROOT / "reports" / "arena.json"
-OUT = ROOT / "demo" / "index.html"
+OUT = ROOT / "demo" / "v05-explorer.html"
 REPO = "https://github.com/dgenio/turnwise-decision-lab"
 
 SHORT = {"agent_baseline": "Agent", "stateless_router": "v0.4 rules", "joint_router": "Joint",
@@ -79,7 +79,7 @@ TEMPLATE = r"""<!doctype html>
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Turnwise Routing Experiment</title>
+<title>Turnwise v0.5 Explorer</title>
 <meta name="description" content="Seven per-turn routing designs replayed on the same {{turns}} synthetic agent turns. Real tool execution, outcome-checked answers, no model calls, pre-registered hypotheses, all failures shown.">
 <style>
 :root{
@@ -327,7 +327,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);font-si
 
 <footer>
 <p><strong>Reproduce</strong> (Python 3.10+, no dependencies, no network): <code>python -m turnwise_lab.arena</code> regenerates <a href="{{REPO}}/blob/main/reports/arena.md">reports/arena.md</a> and <a href="{{REPO}}/blob/main/reports/arena.json">arena.json</a>; <code>python -m turnwise_lab.explorer</code> rebuilds this page. CI checks that both are byte-identical to what is committed.</p>
-<p>Earlier exhibits: <a href="local-run.html">v0.4 execution receipts</a> · <a href="planning-contract.html">v0.4 planning contract (fixture decisions)</a>. All data is synthetic and was invented for this experiment. MIT licensed. Not affiliated with other projects named "Turnwise".</p>
+<p><strong>Historical v0.5 exhibit.</strong> Current: <a href="index.html">the v0.6 decision-driven agent loop</a>. Earlier exhibits: <a href="local-run.html">v0.4 execution receipts</a> · <a href="planning-contract.html">v0.4 planning contract (fixture decisions)</a>. All data is synthetic and was invented for this experiment. MIT licensed. Not affiliated with other projects named "Turnwise".</p>
 </footer>
 </main>
 <script type="application/json" id="data">__DATA__</script>

@@ -1,7 +1,7 @@
 [project]
 name = "turnwise-decision-lab"
-version = "0.5.0"
-description = "Outcome-scored experiment on per-turn routing: when an agent turn needs a model, a tool, a workflow or nothing"
+version = "0.6.0"
+description = "Decision-driven agent control: a lightweight learned decision model chooses each next operation; compared with a heavy-only LLM agent"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -10,6 +10,8 @@ dependencies = []
 
 [project.optional-dependencies]
 jev = ["typesafe-sdk"]
+# Optional real local inference (CPU). Tests and CI never need these.
+local = ["onnxruntime>=1.18", "tokenizers>=0.19", "numpy>=1.24", "onnx>=1.16"]
 
 [project.scripts]
 turnwise-lab = "turnwise_lab.__main__:main"

@@ -1,14 +1,105 @@
 # Turnwise: route the work, not just the model
 
-Model routers choose *which* model answers a turn. That may be one decision too late. Many agent turns need no model at all: they need a verified fact, a read tool, or a workflow that already exists. The turns that do need a model need the right evidence in front of it.
+Model routers choose *which* model answers a turn. That may be one decision too late. Turnwise tests a different control architecture for agents. A **lightweight decision model chooses the next operation, again and again within one user request**: a tool, an existing workflow, a light or heavy generation model, finishing with verified data, or a clarifying question. An independent host validates every proposal before it runs, and every result can trigger a new decision. The project then measures whether that architecture can compete with a conventional agent whose whole loop is a capable LLM.
 
-**Turnwise is a small, reproducible experiment that tests that idea and keeps the parts where it fails.** It is not a framework or a router product.
+It is an experiment with real, recorded inference and its failures kept, not a framework or a product.
 
-**[Explore every turn under every design →](https://dgenio.github.io/turnwise-decision-lab/)** · [Full report](reports/arena.md) · [Pre-registration](docs/preregistration-v0.5.md)
+**[See one request handled by both architectures, step by step →](https://dgenio.github.io/turnwise-decision-lab/)** · [v0.6 report](reports/v06/summary.md) · [Pre-registration](docs/preregistration-v0.6.md) · [Architecture](docs/v06-architecture.md) · [Models](docs/v06-models.md)
 
-[![The explorer. Rows are turns and columns are routing designs. The selected cell, "Who approved that change?", has a harness receipt of completed but fails the outcome check: the router carried the wrong service from the previous turn.](docs/img/explorer-matrix.jpg)](https://dgenio.github.io/turnwise-decision-lab/)
+<!-- V06-RESULTS -->
 
-## Result (v0.5)
+## How one user turn runs
+
+```text
+user message ─► compact state (request + every observation so far)
+                   │
+                   ▼
+   turnwise-dm decision ──uncertain (p<0.5)──► heavy model + verification protocol
+   (trained head over one cached Qwen3.5-0.8B scoring pass,
+    s1-llm-auto-router heads and typed state; 14 operations, action mask)
+                   │
+   ┌───────────────┼──────────────────┬───────────────┬────────────┐
+ tool / workflow   light model     heavy model       finish        clarify
+   │  argument cascade: deterministic → light LLM → heavy LLM → clarify
+   ▼  host validation: schema, permission, side effects, repeats, retries
+ LocalHarness executes reads; writes become approval requests (never executed)
+   │
+   └─► observation appended to state ─► decide again (bounded: 8 steps)
+
+ model call: context decision (yes/no per eligible block) → host assembles the prompt
+             (mandatory blocks, permissions, budget, redaction) → generate
+             → final answer, or NEED_MORE_EVIDENCE → decide again
+```
+
+Every step is recorded: `user_turn_id`, `step_index`, `decision_call_id`, the decision model and version, every option it scored and **what kind of score** it is, the argument mechanism, the host's validation, the tool result, the blocks included and excluded, the exact assembled prompt, the generation, tokens, latency, and why the loop continued or stopped.
+
+## What is real, and what is not
+
+| Real (observed and recorded) | Not run, or not real |
+|---|---|
+| Every decision: local inference of turnwise-dm, s1-llm-auto-router and Qwen3.5-0.8B on CPU | OpenAI Decisions and Jev / System One: adapters and fake-server tests only (no credentials, no approved spend) |
+| Every tool and workflow call, through the host and `LocalHarness`, against a synthetic world | Frontier models: "heavy" is Qwen3.5-0.8B, the strongest reasoner within the ~4 GB budget |
+| Every generation, by Qwen2.5-0.5B (light) and Qwen3.5-0.8B (heavy, and the heavy-only agent) | Dollar costs (nothing was billed) and hosted latency |
+| Token counts from each model's tokenizer; latency measured on the CPU named in each trace | Answer quality beyond lexical outcome checks |
+
+The public page **replays** recorded traces and says when and where they were recorded. CI re-executes the host side of every recorded trace: it feeds back the recorded decisions and generations, and checks that every tool observation, outcome and score reproduces exactly.
+
+## Reproduce
+
+```bash
+python -m unittest discover -s tests                 # no models, no network
+python -m turnwise_lab.agent.bench --report          # rebuild reports/v06/summary.{json,md} from recorded traces
+python -m turnwise_lab.agent.demo                    # rebuild demo/index.html
+```
+
+Re-running real inference (CPU, about 3 GB of pinned weights, outside the repository):
+
+```bash
+pip install ".[local]"
+python -m scripts.fetch_models                       # pinned revisions, sha256-verified
+python -m turnwise_lab.agent.dm_train                # optional: retrain turnwise-dm (about 10 min)
+python -m turnwise_lab.agent.bench --set heldout --arms all
+```
+
+Decoding is greedy, so outputs reproduce on the same software stack and only latency varies. Other CPUs or onnxruntime versions may flip close decisions.
+
+## Where this is weak
+
+- **Scale.** The heavy model is 0.8B parameters and every conclusion holds at this scale only. A frontier heavy model would very likely raise the heavy-only agent's success; whether the gap closes, widens or reverses is unknown.
+- **Authorship.** The 30 held-out tasks were written by an independent LLM agent that never saw the routers. The development set, the world, the tools and the procedures that labelled turnwise-dm's training data were all written by the project author.
+- **Lexical outcome checks.** They catch missing evidence, wrong outcome types and wrong content, but accept some poor answers.
+- **n = 30.** Differences of three tasks or fewer are treated as inconclusive.
+- **Untested components.** Tool-schema savings are not isolated as a separate arm, and hosted decision services were not run.
+
+## How this relates to existing work
+
+- [LiteLLM auto routing](https://docs.litellm.ai/docs/proxy/auto_routing) routes **between models**; the completion always goes to a model.
+- [vLLM Semantic Router](https://github.com/vllm-project/semantic-router) does signal-driven model selection. Its [vision paper](https://arxiv.org/abs/2603.21354) frames joint (model, tool) selection as a research opportunity.
+- [OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions) and TypeSafe Jev are hosted decision services this loop is designed to use. Adapters are in `turnwise_lab/agent/remote.py`.
+- Provider tool search reduces the cost of tool schemas, a component not isolated here.
+
+This repository adds a reproducible, outcome-scored comparison of *decision-driven control* against *LLM-driven control* with the model held fixed, with every step inspectable.
+
+## Useful contributions
+
+1. **Run the hosted arms.** With your own key and a spending cap, run OpenAI Decisions or Jev as the controller (`agent/remote.py`) on the frozen held-out set.
+2. **Swap in a stronger heavy model.** Run both architectures with it: the most important open question.
+3. **Write more held-out tasks**, in the schema of `fixtures/v06_heldout.json`, without reading the router code.
+4. **Fix a failure mechanism** from the report, then evaluate the fix on *new* tasks.
+
+## Repository map
+
+| Path | What it is |
+|---|---|
+| `turnwise_lab/agent/` | v0.6: loop, host, context blocks, providers, heavy-only agent, hosted adapters, benchmark, trace viewer |
+| `turnwise_lab/local_models.py` | Local ONNX runners (s1 classifier; Qwen constrained scoring and generation with KV/state cache) |
+| `models/` | Pinned model manifest and the trained turnwise-dm head (weights are never committed) |
+| `fixtures/v06_*.json` | Development set, independent held-out set, decision training data |
+| `reports/v06/` | Recorded traces, summary, latency repeats |
+| `turnwise_lab/arena.py`, `world.py`, `explorer.py` | v0.5 outcome-scored routing experiment (historical) |
+| `turnwise_lab/core.py`, `runtime.py`, `benchmark.py` | v0.4 planner contract, `LocalHarness`, route-label benchmark |
+
+## v0.5 (historical): outcome-scored routing without a model
 
 46 synthetic incident-investigation turns in 10 multi-turn sessions were replayed through seven routing designs. Every tool and workflow call really ran (local Python over synthetic data, through the same permission harness). Turns are labelled with the **facts a correct answer needs, not with a route**, so each design is scored on what it actually returned. **No model was called**: a model path counts as correct when the needed evidence was in its context or could be fetched. That assumption, and the assumption that the baseline agent always picks the right tools, both favour calling the model.
 

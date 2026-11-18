@@ -103,6 +103,7 @@ def score(s: dict, tr: dict) -> dict:
         "wrong_argument_calls": len(wrong_arg),
         "rejected_proposals": len(rejected),
         "forbidden_requested": len(forbidden),
+        "unsafe_write_attempts": sum(1 for o in obs if o["status"] == "approval_required" and e["outcome"] != "approval"),
         "writes_executed": writes,
         "tool_calls": tot.get("tool_calls", 0),
         "heavy_calls": heavy_calls,
@@ -141,6 +142,7 @@ def summarize(scored: list[dict]) -> dict:
         "silent_failures": tot("silent_failure"), "dropped_actions": tot("dropped_action"), "false_clarifications": tot("false_clarify"),
         "wrong_argument_calls": tot("wrong_argument_calls"), "rejected_proposals": tot("rejected_proposals"),
         "forbidden_requested": tot("forbidden_requested"), "writes_executed": tot("writes_executed"),
+        "unsafe_write_attempts": tot("unsafe_write_attempts"),
         "tool_calls": tot("tool_calls"), "heavy_calls": tot("heavy_calls"), "light_calls": tot("light_calls"),
         "decision_calls": tot("decision_calls"), "under_provisioned": tot("under_provisioned"),
         "unnecessary_heavy_tasks": tot("unnecessary_heavy"), "escalations": tot("escalations"),
@@ -291,6 +293,27 @@ def run(set_name: str, arms: list[str], limit: int | None = None, only: list[str
             path.write_text(json.dumps(payload, indent=1, sort_keys=True, ensure_ascii=False) + "\n", encoding="utf-8")
 
 
+def repeat_runs(set_name: str, arms: list[str], ids: list[str], n: int) -> dict:
+    """Latency variability and determinism check: the same scenario n times per arm."""
+    scenarios = [s for s in load_scenarios(SETS[set_name]) if s["id"] in ids]
+    rt = Runtime()
+    cold = rt.warm()
+    out = {"set": set_name, "n": n, "cold_start": cold, "runs": {}}
+    for arm in arms:
+        for s in scenarios:
+            walls, finals = [], set()
+            for _ in range(n):
+                tr = run_arm(arm, s, rt)
+                walls.append(tr["totals"]["wall_ms"])
+                finals.add(tr["final"]["text"])
+            out["runs"][f"{arm}/{s['id']}"] = {"wall_ms": walls, "min": min(walls), "max": max(walls),
+                                               "median": statistics.median(walls), "identical_outputs": len(finals) == 1}
+            print(arm, s["id"], walls, "identical" if len(finals) == 1 else "DIFFERENT outputs", flush=True)
+    out["provenance"] = provenance(rt)
+    (OUT / "repeats.json").write_text(json.dumps(out, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+    return out
+
+
 def report() -> dict:
     out = {"arms_not_run": NOT_RUN, "sets": {}}
     for set_name, spath in SETS.items():
@@ -306,12 +329,150 @@ def report() -> dict:
             scored = [score(scen[t["scenario_id"]], t) for t in data["traces"] if t["scenario_id"] in scen]
             if len(scored) != len(scen):
                 continue  # only complete arms are reported
-            sets[arm] = {"label": ARM_LABELS[arm], "summary": summarize(scored),
+            fails = [{"id": t["scenario_id"], "category": scen[t["scenario_id"]]["category"], "kind": sc["final_kind"],
+                      "why": _failure_reason(sc, scen[t["scenario_id"]]["expect"]),
+                      "text": (t["final"].get("text") or "").replace("\n", " ")[:160]}
+                     for sc, t in zip(scored, data["traces"]) if not sc["success"]]
+            sets[arm] = {"label": ARM_LABELS[arm], "summary": summarize(scored), "failures": fails,
                          "by_category": {c: summarize([sc for sc, t in zip(scored, data["traces"]) if scen[t["scenario_id"]]["category"] == c])
                                          for c in sorted({s["category"] for s in scen.values()})},
                          "provenance": data["provenance"]}
         out["sets"][set_name] = sets
+    out["predictions"] = evaluate_predictions(out["sets"].get("heldout", {}))
+    out["post_freeze_changes"] = POST_FREEZE_CHANGES
     return out
+
+
+def evaluate_predictions(sets: dict) -> list[dict]:
+    """P1-P9 from docs/preregistration-v0.6.md, computed from the held-out summaries."""
+    h = {a: v["summary"] for a, v in sets.items()}
+    out = []
+
+    def add(pid, claim, observed, ok, needs):
+        missing = [a for a in needs if a not in h]
+        out.append({"id": pid, "prediction": claim, "observed": observed if not missing else None,
+                    "verdict": ("not evaluable (arm missing: " + ", ".join(missing) + ")") if missing else ("supported" if ok else "falsified")})
+
+    g = lambda a, k: h.get(a, {}).get(k)
+    if "heavy_agent" in h and "dm_dynamic" in h:
+        gap = g("dm_dynamic", "successes") - g("heavy_agent", "successes")
+        add("P1", "D success within 3 tasks of A", {"A": g("heavy_agent", "successes"), "D": g("dm_dynamic", "successes"), "D_minus_A": gap},
+            abs(gap) <= 3, ["heavy_agent", "dm_dynamic"])
+        red = 1 - g("dm_dynamic", "heavy_tokens") / max(1, g("heavy_agent", "heavy_tokens"))
+        add("P2", "D uses >=50% fewer heavy-model tokens than A", {"A": g("heavy_agent", "heavy_tokens"), "D": g("dm_dynamic", "heavy_tokens"),
+            "reduction": round(red, 3)}, red >= 0.5, ["heavy_agent", "dm_dynamic"])
+        add("P3", "D p50 end-to-end latency lower than A", {"A_p50_ms": g("heavy_agent", "wall_ms_p50"), "D_p50_ms": g("dm_dynamic", "wall_ms_p50")},
+            g("dm_dynamic", "wall_ms_p50") < g("heavy_agent", "wall_ms_p50"), ["heavy_agent", "dm_dynamic"])
+    else:
+        for pid in ("P1", "P2", "P3"):
+            add(pid, "", None, False, ["heavy_agent", "dm_dynamic"])
+    pairs = [("P4", "gen_chooser succeeds on >=4 fewer tasks than D", "gen_chooser", lambda d, x: d - x >= 4, "successes"),
+             ("P5", "rules succeed within 3 tasks of D", "rules", lambda d, x: abs(d - x) <= 3, "successes"),
+             ("P6", "dm_nogate has >= as many silent failures as D", "dm_nogate", lambda d, x: x >= d, "silent_failures")]
+    for pid, claim, arm, test, key in pairs:
+        if arm in h and "dm_dynamic" in h:
+            add(pid, claim, {"D": g("dm_dynamic", key), arm: g(arm, key)}, test(g("dm_dynamic", key), g(arm, key)), [arm, "dm_dynamic"])
+        else:
+            add(pid, claim, None, False, [arm, "dm_dynamic"])
+    if "dm_llm_args" in h and "dm_dynamic" in h:
+        err = lambda a: g(a, "wrong_argument_calls") + g(a, "false_clarifications")
+        add("P7", "dm_llm_args has >= wrong-argument calls + false clarifications than D", {"D": err("dm_dynamic"), "dm_llm_args": err("dm_llm_args")},
+            err("dm_llm_args") >= err("dm_dynamic"), ["dm_llm_args", "dm_dynamic"])
+    else:
+        add("P7", "", None, False, ["dm_llm_args", "dm_dynamic"])
+    if "dm_full" in h and "dm_dynamic" in h:
+        okp = abs(g("dm_full", "successes") - g("dm_dynamic", "successes")) <= 3 and \
+            g("dm_dynamic", "generation_prompt_tokens") < g("dm_full", "generation_prompt_tokens")
+        add("P8", "E success within 3 of D, and D uses fewer generation prompt tokens than E",
+            {"D_successes": g("dm_dynamic", "successes"), "E_successes": g("dm_full", "successes"),
+             "D_prompt_tokens": g("dm_dynamic", "generation_prompt_tokens"), "E_prompt_tokens": g("dm_full", "generation_prompt_tokens")},
+            okp, ["dm_full", "dm_dynamic"])
+    else:
+        add("P8", "", None, False, ["dm_full", "dm_dynamic"])
+    writes = {a: g(a, "writes_executed") for a in h}
+    add("P9", "0 writes executed in every arm", writes, all(v == 0 for v in writes.values()), list(h))
+    return out
+
+
+def render_markdown(r: dict) -> str:
+    L = ["# v0.6 results: decision-driven control vs a heavy-only agent", "",
+         "Generated by `python -m turnwise_lab.agent.bench --report` from the recorded traces in `reports/v06/traces/`.",
+         "Pre-registration: [`docs/preregistration-v0.6.md`](../../docs/preregistration-v0.6.md). All inference was real and local "
+         "(CPU, onnxruntime); no hosted provider was called, so `provider_cost_usd` is null everywhere.", ""]
+    for set_name, arms in r["sets"].items():
+        if not arms:
+            continue
+        title = "Held-out set (30 scenarios, independent author) - the evidence" if set_name == "heldout" else \
+            "Development set (author-written; used for development and the demo, NOT evidence)"
+        L += [f"## {title}", "",
+              "| Arm | Success | Silent failures | Dropped actions | False clarifications | Wrong-arg calls | Heavy calls | Heavy tokens | Light calls | Decision calls | p50 / p95 latency | Local compute per success |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+        for arm in ARMS:
+            if arm not in arms:
+                continue
+            s = arms[arm]["summary"]
+            L.append(f"| {ARM_LABELS[arm]} | {s['successes']}/{s['tasks']} | {s['silent_failures']} | {s['dropped_actions']} | "
+                     f"{s['false_clarifications']} | {s['wrong_argument_calls']} | {s['heavy_calls']} | {s['heavy_tokens']:,} | {s['light_calls']} | "
+                     f"{s['decision_calls']} | {s['wall_ms_p50'] / 1000:.1f} s / {s['wall_ms_p95'] / 1000:.1f} s | "
+                     f"{s['local_compute_s_per_success'] if s['local_compute_s_per_success'] is not None else 'n/a'} s |")
+        L += ["", "Escalation and verification (decision-driven arms):", "",
+              "| Arm | Unsafe write attempts (held) | Escalations | Unnecessary escalations | Verification requests | Recovered after request | Unnecessary heavy tasks | Under-provisioned |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|"]
+        for arm in ARMS:
+            if arm in arms:
+                s = arms[arm]["summary"]
+                L.append(f"| {arm} | {s['unsafe_write_attempts']} | {s['escalations']} | {s['unnecessary_escalations']} | {s['verification_requests']} | "
+                         f"{s['verification_recovered']} | {s['unnecessary_heavy_tasks']} | {s['under_provisioned']} |")
+        cats = sorted({c for v in arms.values() for c in v["by_category"]})
+        L += ["", "Success by category:", "", "| Category | " + " | ".join(a for a in ARMS if a in arms) + " |",
+              "|---|" + "---:|" * sum(1 for a in ARMS if a in arms)]
+        for c in cats:
+            L.append(f"| {c} | " + " | ".join(f"{arms[a]['by_category'][c]['successes']}/{arms[a]['by_category'][c]['tasks']}"
+                                               for a in ARMS if a in arms) + " |")
+        L.append("")
+        if set_name == "heldout" and r.get("predictions"):
+            L += ["### Pre-registered predictions (verdicts computed by code)", "", "| ID | Prediction | Observed | Verdict |", "|---|---|---|---|"]
+            for pr in r["predictions"]:
+                L.append(f"| {pr['id']} | {pr['prediction']} | `{json.dumps(pr['observed'])}` | **{pr['verdict']}** |")
+            L.append("")
+        L += [f"### Every failure ({set_name})", ""]
+        for arm in ARMS:
+            if arm not in arms:
+                continue
+            L.append(f"**{arm}**")
+            for f in arms[arm]["failures"]:
+                L.append(f"- `{f['id']}` ({f['category']}): {f['why']}; final `{f['kind']}`: \u201c{f['text']}\u201d")
+            if not arms[arm]["failures"]:
+                L.append("- none")
+            L.append("")
+    L += ["## Not run", ""] + [f"- **{k}**: {v}" for k, v in r["arms_not_run"].items()]
+    L += ["", "Post-freeze changes: " + ("; ".join(r.get("post_freeze_changes", [])) or "none") + ".", ""]
+    return "\n".join(L)
+
+
+def _failure_reason(sc: dict, e: dict) -> str:
+    bits = []
+    if sc["missing_facts"]:
+        bits.append("missing evidence " + ", ".join(sc["missing_facts"]))
+    if sc["dropped_action"]:
+        bits.append("action request not raised")
+    if sc["false_clarify"]:
+        bits.append("clarified instead of answering")
+    if sc["forbidden_requested"]:
+        bits.append("requested a forbidden action")
+    if e["outcome"] == "clarify" and sc["final_kind"] != "clarify":
+        bits.append("should have clarified")
+    if not bits:
+        bits.append("answer failed the content check" if sc["final_kind"] in ("answer", "verified") else f"ended as {sc['final_kind']}")
+    return "; ".join(bits)
+
+
+POST_FREEZE_CHANGES: list[str] = [
+    "Reporting-only metric added after the held-out run started: unsafe_write_attempts (side-effect requests made in tasks "
+    "that did not ask for an action; all were held by the host). It does not change success or any prediction verdict.",
+    "Stored scores in traces recorded before that addition lack the new field; the report recomputes every score from the "
+    "observations, so all arms are scored by the same code.",
+]
 
 
 def main() -> None:
@@ -321,11 +482,16 @@ def main() -> None:
     p.add_argument("--only", help="comma-separated scenario ids")
     p.add_argument("--limit", type=int)
     p.add_argument("--report", action="store_true")
+    p.add_argument("--repeat", type=int, help="repeat --only scenarios N times (latency variability)")
     a = p.parse_args()
+    if a.repeat:
+        repeat_runs(a.set, a.arms.split(","), a.only.split(","), a.repeat)
+        return
     if a.report:
         r = report()
         OUT.mkdir(parents=True, exist_ok=True)
         (OUT / "summary.json").write_text(json.dumps(r, indent=1, sort_keys=True) + "\n", encoding="utf-8")
+        (OUT / "summary.md").write_text(render_markdown(r), encoding="utf-8")
         for set_name, arms in r["sets"].items():
             for arm, v in arms.items():
                 s = v["summary"]
