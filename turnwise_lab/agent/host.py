@@ -14,7 +14,7 @@ import json
 
 from ..core import Capability as HarnessCapability, Plan, Request
 from ..runtime import HostIdentity, LocalHarness, RegisteredAction
-from .contracts import OPERATIONS, TIERS, Decision, Observation
+from .contracts import MODEL_OUTCOMES, OPERATIONS, PROPOSABLE, TIERS, Decision, ModelOutcome, Observation
 from .world import HOST_FACTS, SERVICES, IncidentWorld
 
 
@@ -98,6 +98,10 @@ class Host:
             if cap.permission not in self.identity.permissions and not cap.side_effect:
                 return Validation(False, d, "rejected", f"principal lacks permission {cap.permission!r}")
             if cap.side_effect:
+                proposed = {"operation": d.operation, "target": cap.id, "arguments": args}
+                if any(o.proposal == proposed for o in executed):  # only typed model proposals (#34) set this
+                    return Validation(False, d, "rejected", "write first proposed by a model in this turn: not sent for "
+                                      "approval; it needs the user's own confirmation")
                 return Validation(True, d, "approval_required", "side-effecting capability: requires independent human approval")
             prior = [o for o in executed if o.target == cap.id and o.arguments == args]
             if any(o.status == "ok" for o in prior):
@@ -112,6 +116,32 @@ class Host:
         if d.operation == "finish" and not any(o.status == "ok" for o in executed):
             return Validation(False, d, "rejected", "finish needs at least one verified observation")
         return Validation(True, d, "accepted", f"{d.operation} permitted")
+
+    def review_model_outcome(self, gen: dict) -> ModelOutcome | None:
+        """Type-check a generator's optional typed outcome (#34). ``None``: untyped, frozen v0.6 semantics.
+
+        Malformed or unknown outcomes fail closed as ``error`` (an observation, never an answer). A proposed
+        call is recorded for the decision policy only: it is validated by ``validate`` if, and only if, the
+        policy adopts it, and nothing is executed here.
+        """
+        raw = gen.get("outcome")
+        if raw is None:
+            return None
+        if not isinstance(raw, dict) or raw.get("kind") not in MODEL_OUTCOMES:
+            return ModelOutcome("error", "unknown model outcome")
+        kind, call = raw["kind"], raw.get("proposed_call")
+        if kind == "tool_proposal":
+            if not (isinstance(call, dict) and call.get("operation") in PROPOSABLE and isinstance(call.get("target"), str)
+                    and isinstance(call.get("arguments"), dict)):
+                return ModelOutcome("error", "malformed tool proposal")
+            return ModelOutcome(kind, "model proposal: the decision policy chooses; the host validates only if adopted",
+                                {"operation": call["operation"], "target": call["target"], "arguments": dict(call["arguments"])})
+        if call is not None:
+            return ModelOutcome("error", f"{kind} cannot carry a proposed call")
+        if kind == "answer_candidate" and not (gen.get("text") or "").strip():
+            return ModelOutcome("error", "empty answer candidate")
+        return ModelOutcome(kind, {"answer_candidate": "typed answer candidate", "needs_evidence": "model reports missing evidence",
+                                   "error": "model reported an error"}[kind])
 
     # ------------------------------------------------------------ execution
     def execute(self, d: Decision, *, step_index: int, call_id: str, user_text: str) -> Observation:

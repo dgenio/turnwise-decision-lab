@@ -6,6 +6,11 @@ from typing import Any
 
 OPERATIONS = ("call_tool", "call_workflow", "call_model", "finish", "clarify", "abstain")
 TIERS = ("light", "heavy")
+# Typed result of one generation call (#34). Only an ``answer_candidate`` can end a turn; every other kind
+# is an observation that returns control to the decision policy. A generator that reports no outcome keeps
+# the frozen v0.6 semantics (text is the answer unless ``requires_continuation``).
+MODEL_OUTCOMES = ("answer_candidate", "tool_proposal", "needs_evidence", "error")
+PROPOSABLE = ("call_tool", "call_workflow")
 
 # What a provider's number means. Never present one kind as another.
 SCORE_RULE = "none: deterministic rule"
@@ -70,6 +75,17 @@ class ContextDecision:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class ModelOutcome:
+    """Host-reviewed typed result of one generation call (#34). Never an authorisation to execute anything."""
+    kind: str  # one of MODEL_OUTCOMES
+    reason: str
+    proposed_call: dict[str, Any] | None = None  # {"operation", "target", "arguments"}; tool_proposal only
+
+    def as_json(self) -> dict:
+        return asdict(self)
+
+
 @dataclass
 class Observation:
     step_index: int
@@ -77,10 +93,11 @@ class Observation:
     operation: str
     target: str | None
     arguments: dict[str, Any]
-    status: str  # ok | error | approval_required | blocked | rejected | generated | pending
+    status: str  # ok | error | approval_required | blocked | rejected | generated | pending | tool_proposal | needs_evidence | model_error
     facts: dict[str, Any] = field(default_factory=dict)
     text: str = ""
     reason: str = ""
+    proposal: dict[str, Any] | None = None  # a model-proposed call: data for the policy, never an authorisation
 
     def summary(self, limit: int = 420) -> str:
         """Compact, bounded rendering for the decision model's state."""
@@ -90,6 +107,10 @@ class Observation:
             compact = {k: ({kk: vv for kk, vv in v.items() if kk != "series"} if isinstance(v, dict) else v)
                        for k, v in self.facts.items()}
             body = json.dumps(compact, separators=(",", ":"), sort_keys=True)
+        elif self.proposal:
+            p = self.proposal
+            body = f"proposes {p['target']}({', '.join(f'{k}={v}' for k, v in p['arguments'].items())})"
+            body += f": {self.text}" if self.text else ""
         elif self.text:
             body = self.text
         else:

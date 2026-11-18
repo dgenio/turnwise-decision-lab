@@ -44,6 +44,8 @@ class ContextSelector(Protocol):
 
 
 class Generator(Protocol):
+    # The returned dict may carry an optional typed ``outcome`` (#34): {"kind": one of MODEL_OUTCOMES,
+    # "proposed_call": {"operation", "target", "arguments"} for tool_proposal}. Without it: v0.6 semantics.
     def generate(self, prompt, tier: str, max_new_tokens: int) -> dict: ...
 
 
@@ -65,8 +67,23 @@ class TurnTrace:
 
 
 def _obs_json(o: Observation) -> dict:
-    return {"step_index": o.step_index, "call_id": o.call_id, "operation": o.operation, "target": o.target,
-            "arguments": o.arguments, "status": o.status, "facts": o.facts, "text": o.text, "reason": o.reason}
+    d = {"step_index": o.step_index, "call_id": o.call_id, "operation": o.operation, "target": o.target,
+         "arguments": o.arguments, "status": o.status, "facts": o.facts, "text": o.text, "reason": o.reason}
+    if o.proposal is not None:  # absent for every untyped (v0.6) observation: recorded trace schema unchanged
+        d["proposal"] = o.proposal
+    return d
+
+
+def _proposal_disposition(p: Observation, later: list[Observation]) -> dict:
+    """What became of one model proposal (#34). Every proposal is reported at the end of the turn."""
+    call = p.proposal
+    key = (call["operation"], call["target"], call["arguments"])
+    match = next((o for o in later if (o.operation, o.target, o.arguments) == key), None)
+    outcomes = {"ok": "executed", "error": "executed_with_error", "approval_required": "held_for_approval"}
+    disposition = "not_adopted" if match is None else outcomes.get(match.status, "rejected_by_host")
+    return {"proposed_by": p.target, "proposed_at": p.call_id, "proposed_call": call, "disposition": disposition,
+            "resolved_at": match.call_id if match else None,
+            "reason": match.reason if match else "the decision policy did not adopt it"}
 
 
 def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, context: ContextSelector,
@@ -140,6 +157,17 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
                        "no generation backend configured; prompt recorded")
                 break
             text = (gen.get("text") or "").strip()
+            outcome = host.review_model_outcome(gen)  # None: untyped generation, frozen v0.6 semantics below
+            if outcome is not None:
+                step["model_outcome"] = outcome.as_json()
+                if outcome.kind != "answer_candidate":  # never terminal, whatever requires_continuation says
+                    status = "model_error" if outcome.kind == "error" else outcome.kind  # not a retryable tool error
+                    obs = Observation(step_index, call_id, op, f"{tier}_model", {}, status, text=text[:300],
+                                      reason=outcome.reason, proposal=outcome.proposed_call)
+                    state.observations.append(obs)
+                    step["observation"] = _obs_json(obs)
+                    step["continue_reason"] = "typed model outcome is not an answer; control returns to the decision policy"
+                    continue
             if verification and text.upper().startswith("NEED_MORE_EVIDENCE") and verification_requests < max_verification_requests:
                 verification_requests += 1
                 obs = Observation(step_index, call_id, op, f"{tier}_model", {}, "needs_evidence", text=text[:300])
@@ -153,7 +181,8 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
                 step["observation"] = _obs_json(obs)
                 step["continue_reason"] = "intermediate model output added to state; deciding again"
                 continue
-            finish("answer", gen.get("text", ""), f"{tier} model: {gen.get('model', '')}", step, "final answer generated")
+            finish("answer", gen.get("text", ""), f"{tier} model: {gen.get('model', '')}", step,
+                   "final answer generated" if outcome is None else "host accepted a typed answer candidate")
             break
 
         if op == "finish":
@@ -169,6 +198,10 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
         finish("step_limit", host.abstain_message(f"step limit of {host.limits.max_steps} reached"), "host", None, "step_limit")
 
     trace.observations = [_obs_json(o) for o in state.observations]
+    proposals = [i for i, o in enumerate(state.observations) if o.proposal is not None]
+    if proposals:  # no proposal is silently dropped, whichever way the turn ended
+        trace.final["model_proposals"] = [_proposal_disposition(state.observations[i], state.observations[i + 1:])
+                                          for i in proposals]
     decisions = [s for s in trace.steps if s.get("decision")]
     ctx_q = [q for s in trace.steps if s.get("context") for q in s["context"]["decision"]["questions"]]
     gens = [s["generation"] for s in trace.steps if s.get("generation")]
