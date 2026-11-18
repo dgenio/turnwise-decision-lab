@@ -93,9 +93,12 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
                                 "decision": None, "validation": {"status": "rejected", "reason": f"decision provider error: {type(exc).__name__}"}})
             finish("abstain", host.abstain_message("decision provider unavailable"), "host", trace.steps[-1], "provider_error")
             break
-        v = host.validate(decision, state.observations)
+        v = host.validate(decision, state.observations,
+                          user_message=state.user_message, conversation=state.conversation)
         step = {"step_index": step_index, "decision_call_id": call_id, "snapshot": snapshot,
                 "decision": decision.as_json(), "validation": {"status": v.status, "reason": v.reason}}
+        if v.evidence is not None:
+            step["validation"]["evidence"] = v.evidence
         trace.steps.append(step)
 
         if not v.ok:
@@ -157,7 +160,7 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
             break
 
         if op == "finish":
-            finish("verified", host.render_verified(state.observations), "host (deterministic)", step,
+            finish("verified", host.render_verified(state.observations, evidence=v.evidence), "host (deterministic)", step,
                    "decision: verified tool output answers the request")
             break
         if op == "clarify":
