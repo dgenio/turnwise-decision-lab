@@ -1,0 +1,84 @@
+{
+ "cold_start": {
+  "chooser_prefix_fill_ms": 6638.9,
+  "heavy_agent_prefix_fill_ms": 8027.2
+ },
+ "n": 3,
+ "provenance": {
+  "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+  "cpu_threads": 4,
+  "decision_head_sha256": "bf9b64ea98d8dcef842530039f625fe9d589e5a4e9c6b29fa2c61e41bcd8ee82",
+  "decoding": "greedy (no sampling): repeated runs give identical outputs; only latency varies",
+  "git_commit_at_run": "334b3210bb3af80f72fc006e28a7b3f2ec792086",
+  "models": {
+   "dm_lm": {
+    "graph_fingerprint": "768428655d2738c2",
+    "version": "onnx-community/Qwen3.5-0.8B-ONNX@8fe9dbe3fb39"
+   },
+   "light": {
+    "graph_fingerprint": "47e5b178787800da",
+    "version": "onnx-community/Qwen2.5-0.5B-Instruct@22942cb7d7ba"
+   },
+   "roles": {
+    "decision chooser + heavy tier + heavy-only agent": "dm_lm",
+    "fixed-head classifier": "s1",
+    "light tier": "light"
+   },
+   "s1": {
+    "graph_fingerprint": null,
+    "version": "decisionmodels/s1-llm-auto-router@572c5b6cdb53"
+   }
+  },
+  "onnxruntime": "1.29.0",
+  "python": "3.13.18",
+  "recorded_at_utc": "2026-11-18T17:54Z",
+  "where": "local CPU inside the development container; not a hosted provider"
+ },
+ "runs": {
+  "dm_dynamic/B-health": {
+   "identical_outputs": true,
+   "max": 1391.7,
+   "median": 1342.0,
+   "min": 1265.6,
+   "wall_ms": [
+    1342.0,
+    1265.6,
+    1391.7
+   ]
+  },
+  "dm_dynamic/C-investigation": {
+   "identical_outputs": true,
+   "max": 21810.0,
+   "median": 21137.2,
+   "min": 20954.3,
+   "wall_ms": [
+    21810.0,
+    21137.2,
+    20954.3
+   ]
+  },
+  "heavy_agent/B-health": {
+   "identical_outputs": true,
+   "max": 4099.0,
+   "median": 3744.2,
+   "min": 3628.9,
+   "wall_ms": [
+    4099.0,
+    3628.9,
+    3744.2
+   ]
+  },
+  "heavy_agent/C-investigation": {
+   "identical_outputs": true,
+   "max": 22717.0,
+   "median": 22670.7,
+   "min": 21060.1,
+   "wall_ms": [
+    22717.0,
+    21060.1,
+    22670.7
+   ]
+  }
+ },
+ "set": "dev"
+}

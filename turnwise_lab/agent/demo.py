@@ -110,7 +110,8 @@ main{max-width:1240px;margin:0 auto;padding:24px 16px 72px}
 h1{font-size:clamp(1.8rem,4.2vw,3rem);line-height:1.08;letter-spacing:-.025em;margin:0 0 14px;max-width:24ch}
 h2{font-size:1.4rem;margin:0 0 6px}.lede{font-size:1.05rem;color:var(--text-2);max-width:74ch;margin:0}
 section{margin-top:44px}.sub{color:var(--text-2);max-width:78ch;margin:0 0 14px}
-.prov{margin-top:18px;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 14px;font-size:.88rem;color:var(--text-2)}
+.prov{margin-top:18px;border:1px solid var(--line);background:var(--surface);border-radius:12px;padding:12px 14px;font-size:.88rem;color:var(--text-2);overflow-wrap:anywhere}
+.card,.small,.request,.col{overflow-wrap:anywhere;min-width:0}
 .legend{display:flex;flex-wrap:wrap;gap:6px 16px;margin-top:10px;font-size:.82rem;color:var(--text-2)}
 .legend span{display:inline-flex;gap:6px;align-items:center}.dot{width:10px;height:10px;border-radius:3px;display:inline-block}
 .picker{display:flex;flex-wrap:wrap;gap:6px;margin:12px 0}
@@ -201,7 +202,7 @@ function ms(v){return v==null?"n/a":(v>=1000?(v/1000).toFixed(1)+" s":Math.round
 (function(){var r=document.documentElement,b=document.getElementById("theme");try{var t=localStorage.getItem("tw-theme");if(t)r.setAttribute("data-theme",t);}catch(e){}
 b.addEventListener("click",function(){var dark=r.getAttribute("data-theme")?r.getAttribute("data-theme")==="dark":matchMedia("(prefers-color-scheme: dark)").matches;var n=dark?"light":"dark";r.setAttribute("data-theme",n);try{localStorage.setItem("tw-theme",n);}catch(e){}});})();
 (function(){var p=D.provenance.dm_dynamic||{};var box=document.getElementById("prov");
-box.appendChild(el("div",null,[el("strong",{text:"Recorded, then replayed. "}),"Inference ran on "+(p.recorded_at_utc||"?")+" on "+(p.cpu||"a local CPU")+" ("+(p.cpu_threads||"?")+" threads, onnxruntime "+(p.onnxruntime||"?")+"), "+(p.where||"")+". Decoding was greedy. One-off prefix cache fills (not charged to any turn): "+JSON.stringify(p.cold_start||{})+"."]));
+box.appendChild(el("div",null,[el("strong",{text:"Recorded, then replayed. "}),"Inference ran on "+(p.recorded_at_utc||"?")+" on "+(p.cpu||"a local CPU")+" ("+(p.cpu_threads||"?")+" threads, onnxruntime "+(p.onnxruntime||"?")+"), "+(p.where||"")+". Decoding was greedy. One-off prefix cache fills, not charged to any turn: "+Object.keys(p.cold_start||{}).map(function(k){return k.replace(/_/g," ").replace(/ ms$/,"")+" "+ms(p.cold_start[k]);}).join(", ")+"."]));
 var lg=el("div",{cls:"legend"});[["dec","observed decision-model inference"],["tool","executed tool or workflow call"],["gen","observed generation-model inference"],["host","host decision (validation, finalisation)"]].forEach(function(x){lg.appendChild(el("span",null,[el("i",{cls:"dot",style:"background:var(--"+x[0]+")"}),x[1]]));});
 lg.appendChild(el("span",{text:"World data is synthetic. Bars are model scores; see each card for what the score means."}));box.appendChild(lg);})();
 function bars(q){var b=el("div",{cls:"bars"});(q.top||[]).forEach(function(kv){var sel=kv[0]===q.answer;b.appendChild(el("div",{cls:"bar"+(sel?" sel":"")},[el("span",{cls:"lab",title:kv[0],text:(sel?"▶ ":"")+kv[0]}),el("div",{cls:"tr"},[el("div",{cls:"fl",style:"width:"+(100*kv[1]).toFixed(1)+"%"})]),el("span",{cls:"v",text:kv[1].toFixed(2)})]));});return b;}

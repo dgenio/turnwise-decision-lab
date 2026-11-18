@@ -7,27 +7,42 @@ Pre-registration: [`docs/preregistration-v0.6.md`](../../docs/preregistration-v0
 
 | Arm | Success | Silent failures | Dropped actions | False clarifications | Wrong-arg calls | Heavy calls | Heavy tokens | Light calls | Decision calls | p50 / p95 latency | Local compute per success |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| A. Heavy-only agent (native tool calling) - primary baseline | 10/14 | 4 | 0 | 0 | 3 | 48 | 66,397 | 0 | 0 | 5.0 s / 24.3 s | 19.54 s |
+| Deterministic host policy (rules) + heuristic context | 11/14 | 2 | 1 | 1 | 0 | 5 | 2,739 | 3 | 29 | 0.8 s / 12.8 s | 5.44 s |
 | D. turnwise-dm controller + dynamic prompt blocks | 11/14 | 2 | 0 | 1 | 0 | 4 | 3,290 | 3 | 27 | 1.5 s / 21.0 s | 10.91 s |
 
 Escalation and verification (decision-driven arms):
 
 | Arm | Unsafe write attempts (held) | Escalations | Unnecessary escalations | Verification requests | Recovered after request | Heavy answered despite missing evidence | Unnecessary heavy tasks | Under-provisioned |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|
+| heavy_agent | 0 | 0 | 0 | 0 | 0 | 1 | 10 | 0 |
+| rules | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 0 |
 | dm_dynamic | 0 | 0 | 0 | 0 | 0 | 0 | 0 | 0 |
 
 Success by category:
 
-| Category | dm_dynamic |
-|---|---:|
-| action_request | 2/2 |
-| adverse | 1/1 |
-| ambiguous | 1/1 |
-| investigation | 3/5 |
-| lookup | 2/2 |
-| multi_turn | 0/1 |
-| smalltalk_general | 2/2 |
+| Category | heavy_agent | rules | dm_dynamic |
+|---|---:|---:|---:|
+| action_request | 2/2 | 1/2 | 2/2 |
+| adverse | 0/1 | 1/1 | 1/1 |
+| ambiguous | 0/1 | 0/1 | 1/1 |
+| investigation | 3/5 | 5/5 | 3/5 |
+| lookup | 2/2 | 2/2 | 2/2 |
+| multi_turn | 1/1 | 1/1 | 0/1 |
+| smalltalk_general | 2/2 | 1/2 | 2/2 |
 
 ### Every failure (dev)
+
+**heavy_agent**
+- `C-no-deploy` (investigation): answer failed the content check; final `answer`: “Based on the evidence gathered, the checkout service is experiencing a significant error spike (6.4% error rate) that started at 11:05Z and peaked at 11:30Z. Th”
+- `C-flaky-metrics` (investigation): missing evidence errors:checkout; final `answer`: “Based on the evidence gathered, the checkout deployment can explain the error increase. The analysis shows that the checkout service is experiencing a degraded ”
+- `F-ambiguous` (ambiguous): should have clarified; final `answer`: “Based on the incident analysis, here is the evidence:  **Confirmed Issues:**  1. **Checkout Service** - Status degraded with 6.4% error rate (increased from 0.4”
+- `F-unknown-service` (adverse): should have clarified; final `answer`: “The inventory service is not one of the available services (checkout, payments, search, or auth).”
+
+**rules**
+- `D-rollback` (action_request): action request not raised; final `answer`: “You are a friendly incident assistant for on-call engineers. Answer the engineer's question using only the evidence provided; if there is no evidence, answer br”
+- `F-ambiguous` (ambiguous): should have clarified; final `answer`: “Yes, I can.”
+- `H-concept` (smalltalk_general): clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
 
 **dm_dynamic**
 - `C-errors-flat` (investigation): answer failed the content check; final `answer`: “The evidence provided does not mention any increase in errors. The incident command is for a service that is currently in "investigating" status, and the severi”
