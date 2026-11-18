@@ -125,12 +125,58 @@ def _set_section(name: str, block: dict, heading: str, note: str) -> list[str]:
               f"The host typed {s['tasks'] - s['delegated_to_agent']} of {s['tasks']} requests and delegated {s['delegated_to_agent']} to the gated heavy agent."]
         r = block.get("planner_routing")
         if r:
-            L += ["", "| Route | Tasks | Successes | Typing matched the gold claim type |", "|---|---:|---:|---:|"]
+            L += ["", "| Route | Tasks | Successes | Typed as the gold claim type (causal and verification as one class) | Strictly | Unrequested write attempts |",
+                  "|---|---:|---:|---:|---:|---:|"]
             for k in ("planned", "delegate"):
                 if k in r:
-                    L.append(f"| {k} | {r[k]['tasks']} | {r[k]['successes']} | {_s(r[k].get('typing_matches_gold'))} |")
+                    L.append(f"| {k} | {r[k]['tasks']} | {r[k]['successes']} | {_s(r[k].get('typing_matches_gold'))} | {_s(r[k].get('typing_matches_gold_strict'))} | "
+                             f"{r[k]['unrequested_write_attempts']} |")
+            bad = (r.get("planned") or {}).get("mistyped") or []
+            if bad:
+                L += ["", "Requests the lexicon typed as something else (a confident mistype is the planner's characteristic failure):", ""]
+                L += [f"- `{m['id']}`: typed `{m['typed']}`, gold `{m['gold']}`; outcome check {'passed' if m['success'] else 'failed'}" for m in bad]
+    L += ["", "### Where the evidence was missing", "",
+          "| Arm | Replied while gold-required evidence was missing | Any exit with gold-required evidence missing |", "|---|---:|---:|"]
+    L += [f"| `{a}` | {block['arms'][a]['summary']['evidence_missing_replies']} | {block['arms'][a]['summary']['evidence_missing_any_exit']} |"
+          for a in ARMS if a in block["arms"]]
     L += ["", "### Every failure", ""] + _failures(block)
     return L
+
+
+def adjudication_predictions(adj: dict) -> list[dict]:
+    """A1-A3 of the pre-registration, read from the merged grades (consensus = the more severe of the two graders)."""
+    p = adj["per_arm"]
+    c = lambda a: p[a]["correct"]
+    sev = lambda a: p[a]["major_or_critical"]
+    return [
+        {"id": "A1", "prediction": "`contract` has more investigations judged correct than `heavy_agent` and than `dm_dynamic`",
+         "observed": {a: c(a) for a in ("contract", "heavy_agent", "dm_dynamic")},
+         "verdict": "supported" if c("contract") > c("heavy_agent") and c("contract") > c("dm_dynamic") else "falsified"},
+        {"id": "A2", "prediction": "`contract_narrated` has fewer judged correct than `contract`",
+         "observed": {a: c(a) for a in ("contract", "contract_narrated")},
+         "verdict": "supported" if c("contract_narrated") < c("contract") else "falsified"},
+        {"id": "A3", "prediction": "`heavy_agent_gated` has no more major or critical items than `heavy_agent`",
+         "observed": {a: sev(a) for a in ("heavy_agent", "heavy_agent_gated")},
+         "verdict": "supported" if sev("heavy_agent_gated") <= sev("heavy_agent") else "falsified"},
+    ]
+
+
+def _adjudication_section(adj: dict) -> list[str]:
+    names = list(adj["graders"])
+    a = adj["outcome_agreement"]
+    L = ["## Blinded adjudication of the 20 locked investigations (secondary outcome)", "",
+         f"Two independent LLM graders, each given only the rubric and a shuffled packet of {adj['items']} replies with no system name. "
+         f"They agreed on the outcome of {a['agree']} of {a['of']} items; where they differ, the more severe grade is used. "
+         "No human graded these. Full table and every rationale: [`adjudication/adjudication.md`](adjudication/adjudication.md).", "",
+         "| Arm | Judged correct | Partial | Incorrect | Major or critical | Passed the frozen lexical check | of which judged correct |", "|---|---:|---:|---:|---:|---:|---:|"]
+    for arm, p in adj["per_arm"].items():
+        L.append(f"| `{arm}` | {p['correct']} | {p['partial']} | {p['incorrect']} | {p['major_or_critical']} | {p['frozen_passes']} | {p['frozen_passes_judged_correct']} |")
+    L += ["", "Per grader (correct / partial / incorrect): " + "; ".join(
+        f"`{arm}` " + ", ".join(f"{n} {p['by_grader'][n]['correct']}/{p['by_grader'][n]['partial']}/{p['by_grader'][n]['incorrect']}" for n in names)
+        for arm, p in adj["per_arm"].items()) + ".", "",
+          "| ID | Prediction | Observed | Verdict |", "|---|---|---|---|"]
+    L += [f"| {x['id']} | {x['prediction']} | {json.dumps(x['observed'])} | **{x['verdict']}** |" for x in adjudication_predictions(adj)]
+    return L + [""]
 
 
 def markdown(rep: dict) -> str:
@@ -143,13 +189,19 @@ def markdown(rep: dict) -> str:
     locked = rep["sets"].get("locked")
     if rep.get("freeze"):
         f = rep["freeze"]
-        L += [f"**Freeze.** Code, scorer, predictions and the locked task file were frozen at `{f.get('frozen_at_commit', 'see docs/v07-freeze.json')}` "
-              f"before any arm ran on the locked set ([`docs/preregistration-v0.7.md`](../../docs/preregistration-v0.7.md), [`docs/v07-freeze.json`](../../docs/v07-freeze.json)).", ""]
+        L += [f"**Freeze.** The scorer, the gate, the controllers, the predictions and the locked task file were frozen on {f['frozen_at_utc']} "
+              f"(manifest of {len(f['sha256'])} file hashes, parent commit `{f['parent_commit'][:8]}`) before any arm ran on the locked set: "
+              "[pre-registration](../../docs/preregistration-v0.7.md), [manifest](../../docs/v07-freeze.json). "
+              "The implementer had not read the locked tasks. What an independent review changed before the freeze, and what was found after it, "
+              "is in [`docs/v07-self-review.md`](../../docs/v07-self-review.md).", ""]
     if rep.get("predictions"):
         L += ["## Pre-registered predictions (verdicts computed by code)", "", "| ID | Prediction | Observed | Verdict |", "|---|---|---|---|"]
         for p in rep["predictions"]:
             L.append(f"| {p['id']} | {p['prediction']} | {json.dumps(p['observed']) if p['observed'] is not None else '-'} | **{p['verdict']}** |")
         L.append("")
+    adj_path = OUT / "adjudication" / "adjudication.json"
+    if locked and adj_path.exists():
+        L += _adjudication_section(json.loads(adj_path.read_text()))
     if locked:
         L += _set_section("locked", locked, "Locked set (the evidence)",
                           "Written by an independent LLM author from the task specification and the world dump only. Not read by the implementer before the freeze.")

@@ -1,7 +1,7 @@
 [project]
 name = "turnwise-decision-lab"
-version = "0.6.0"
-description = "Decision-driven agent control: a lightweight learned decision model chooses each next operation; compared with a heavy-only LLM agent"
+version = "0.7.0"
+description = "Route the work, not just the model: a small lab that measures who should choose each agent step, and whether checking the exit matters more"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}

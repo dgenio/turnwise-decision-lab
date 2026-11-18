@@ -153,7 +153,7 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);font-si
 </head>
 <body>
 <main>
-<div class="top"><span>Turnwise Decision Lab · v0.6</span><nav><a href="#trace">Trace</a><a href="#results">Held-out results</a><a href="#limits">Limits</a><a href="v05-explorer.html">v0.5 explorer</a><a href="{{REPO}}">Source</a></nav><button type="button" id="theme">Theme</button></div>
+<div class="top"><span>Turnwise Decision Lab · v0.6</span><nav><a href="#trace">Trace</a><a href="#results">Held-out results</a><a href="#limits">Limits</a><a href="microscope.html">v0.7 Decision Microscope</a><a href="v05-explorer.html">v0.5 explorer</a><a href="{{REPO}}">Source</a></nav><button type="button" id="theme">Theme</button></div>
 <p class="eyebrow">Route the work, not just the model · decision-driven agent control</p>
 <h1>One user turn, many decisions, each one made after the last result came back.</h1>
 <p class="lede">A trained lightweight decision model picks the agent's next operation: a tool, a workflow, a light or heavy generation model, finishing with verified data, or a clarifying question. An independent host validates every proposal before it runs, and each result feeds the next decision. Below, the same request handled by this loop and by a conventional agent whose whole loop is the heavy LLM.</p>
