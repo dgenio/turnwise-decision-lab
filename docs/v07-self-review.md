@@ -65,3 +65,14 @@ The locked run falsified four of the twelve mechanical predictions (G3, G4, C3, 
 - **Delegation hides in the planner's average.** The planner passed 41 of the 49 requests it typed and only 3 of the 11 it delegated to the 0.8B agent. With a capable fallback agent that split would look different, in a direction this study cannot tell.
 - **The latency comparison is local CPU with free tools.** At 500 ms per tool call the planner's 2.8 s per task becomes about 3.7 s; the ordering against the agent does not change, the margin does (sensitivity table in the report).
 - **Both task authors and both graders are LLM agents** of the same family as the implementer.
+
+### What the blinded adjudication changed
+
+Two independent LLM graders read the 20 investigations for five arms without system names and agreed on 91 of 100 outcomes.
+
+- **The lexical check overstated the planner.** 14 passes; 6 judged correct, 11 partial, 3 incorrect. The partial ones have the right findings and a verdict that does not answer the question asked ("a plausible candidate" about a service the same reply shows to be healthy; no explicit "the gzip deploy is not it"). The verdict templates are generic, and the graders noticed.
+- **The planner was rarely wrong.** None of its 16 typed investigations was judged incorrect. All 3 incorrect replies were requests it could not type and delegated to the 0.8B agent.
+- **The gate did not improve the agent's replies.** 18 of 20 investigations received the same grade with and without it; major or critical problems went from 14 to 15 (A3 falsified). The outcome check had shown +2 investigations and fewer one-sided claims. Both readings are true: the gate changed what evidence was gathered, and the model's reasoning over it did not change.
+- **Narration by the 0.8B model tripled the incorrect replies** (3 → 9) while keeping about the same number correct (6 → 5).
+
+This is the main correction to the headline. "Gate the exit" is supported as a way to get the right evidence in and to stop some replies going out; it is **not** supported as a way to make a weak model answer correctly. The quality in the planner arm comes from the host computing the relations, not from the gate.

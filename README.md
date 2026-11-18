@@ -23,17 +23,28 @@ The study runs three v0.6 controllers unchanged, each with and without that gate
 | v0.6 trained decision head | 25/60 | 35/60 | +16.7 pp (+6.1 to +26.4) | 7.2 s | 835 |
 | **Contract planner** (no model chooses a step; untyped requests go to the gated agent) | | **44/60** | +28.3 pp against the ungated agent (+13.0 to +41.7) | 2.8 s | 82 |
 
-"Passed" is a frozen lexical outcome check. It is lenient on generated text and easy for host-written text. <!--ADJ-->
+"Passed" is a frozen lexical outcome check. It is lenient on generated text and easy for host-written text, so the 20 investigations were also graded blind by two independent LLM graders (they agreed on 91 of 100 replies; the stricter grade is used):
+
+| Investigations (20) | Judged correct | Partial | Incorrect | Major or critical problem | Passed the lexical check |
+|---|---:|---:|---:|---:|---:|
+| LLM agent | 1 | 6 | 13 | 14 | 2 |
+| LLM agent + gate | 1 | 7 | 12 | 15 | 4 |
+| v0.6 trained head | 0 | 9 | 11 | 11 | 5 |
+| Contract planner | 6 | 11 | 3 | 3 | 14 |
+| Contract planner, model narrates | 5 | 6 | 9 | 10 | 10 |
+
+Read the two tables together. The planner's 14 lexical passes are 6 correct replies: the host states the right findings and a generic verdict, and often does not answer the exact question. But it is rarely wrong: none of the 16 investigations it typed was judged incorrect, and all 3 of its incorrect replies came from requests it handed to the 0.8B agent.
 
 What the locked run says, with the pre-registered predictions it settled:
 
-1. **Checking the exit helped every controller, and broke almost nothing.** Pooled, the gate fixed 31 tasks and broke 2. Replies sent while required evidence was missing fell from 44 to 15. The gain is clear for the two cheap controllers and **not distinguishable from zero for the agent**. *(G1, G2 supported.)*
+1. **Checking the exit helped every controller on the outcome check, and broke almost nothing.** Pooled, the gate fixed 31 tasks and broke 2. Replies sent while required evidence was missing fell from 44 to 15. The gain is clear for the two cheap controllers and **not distinguishable from zero for the agent**. *(G1, G2 supported.)*
+   - **For the agent, the graders saw no improvement at all.** With the gate it gathered the missing evidence and then wrote the same quality of reply: 18 of 20 investigations got the same grade, and major or critical problems went from 14 to 15. Getting the evidence in front of a 0.8B model does not make it reason over it. *(A3 falsified.)*
 2. **A trained per-step decision head is not needed.** Behind the gate, plain rules passed 38 tasks and the trained head 35, at 49 against 835 model tokens per task. Whatever the head learned, the gate replaces it for 6% of the tokens. *(G5 supported.)*
-3. **When the contract determines the next call, nobody has to choose it.** The planner asked no model for 49 of 60 requests and passed 41 of them. It delegated 11 to the agent and passed 3. Overall: more tasks than the agent at under a quarter of its compute. *(C1, C2 supported.)*
+3. **When the contract determines the next call, nobody has to choose it.** The planner asked no model for 49 of 60 requests and passed 41 of them. It delegated 11 to the agent and passed 3. Overall: more tasks than the agent at under a quarter of its compute, and on investigations 6 replies judged correct against the agent's 1, with 3 major problems against 14. *(C1, C2, A1 supported.)*
 4. **The controller still matters.** The gate did not flatten the three controllers; it reordered them. The spread grew from 4 tasks to 7. *(G4 falsified.)*
 5. **The action latch is the part that failed.** A lexicon that turns "the user asked for a side effect" into an approval request halved the dropped actions, did not remove them, and once raised an approval for **the wrong service** (`L56`). A lexicon is the wrong instrument for action intent. *(G3 and S1 falsified.)*
 6. **The lexicon is confidently wrong one time in five.** It typed 49 requests and got 39 right. *(C3 falsified.)*
-7. **Letting the 0.8B model phrase the host's findings made things worse** (39 against 44). The grounding check catches invented values. It does not catch "the rise at 11:05 came three minutes *before* the deploy at 11:02". *(C4 supported.)*
+7. **Letting the 0.8B model phrase the host's findings made things worse** (39 against 44 on the outcome check; 9 investigations judged incorrect against 3). The grounding check catches invented values. It does not catch "the rise at 11:05 came three minutes *before* the deploy at 11:02". *(C4, A2 supported.)*
 
 No write was executed in any arm. No hosted model was called and nothing was spent.
 
@@ -41,7 +52,7 @@ No write was executed in any arm. No hosted model was called and nothing was spe
 
 | | Decision | Why |
 |---|---|---|
-| Exit-side sufficiency check and host-derived findings | **Keep** | The only part that helped every controller on tasks it had never seen, at no model cost. |
+| Exit-side sufficiency check and host-derived findings | **Keep, and narrow the claim** | The check got the evidence in for every controller at no model cost, and host-computed findings were the only replies the graders rarely found wrong. It did not improve what a weak model then wrote. |
 | Trained per-step decision head (v0.6's centrepiece) | **Stop** | Matched by rules behind the gate at a fraction of the compute; commodity decision APIs exist if one is ever needed. |
 | Synthesising write intents from a lexicon (the action latch) | **Stop in this form** | It dropped actions and raised a wrong one. Keep the host's *veto*; let a model's typed tool call be the only source of a write. |
 | Lexicon claim typing | **Shrink** | Useful as a fast path, wrong 20% of the time. A single constrained model pass is the next thing to try. |
@@ -80,7 +91,8 @@ Decoding is greedy, so outputs reproduce on the same software stack; latency var
 ## Where this is weak
 
 - **Scale.** A 0.8B model over-calls tools, loops and sometimes answers with no evidence. A capable agent may already satisfy the contract unprompted, in which case the gate would rarely fire. This study cannot tell.
-- **The primary outcome is lexical** and favours host-written replies. The adjudication is the fairer reading, and it is LLM-graded.
+- **The primary outcome is lexical** and favours host-written replies: 14 lexical passes were 6 correct replies. The adjudication is the fairer reading, and it is LLM-graded.
+- **Host findings are right but generic.** 10 of the planner's 16 typed investigations were judged partial: correct evidence, a verdict that does not answer the question asked.
 - **The lexicon.** It was hardened by an adversarial review before the freeze and still mistyped 10 of 49 requests on the locked set. A wrong type is a confident wrong reply.
 - **One synthetic world, LLM authors, LLM graders, one run per arm, one CPU.**
 - **Shared authorship.** The gate, the planner and the scorer's safety audits were written by the same implementer.

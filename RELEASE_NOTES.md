@@ -22,15 +22,16 @@ Stacked on v0.6 (PR #6), which it does not change: v0.6's traces, labels, scores
 | v0.6 rules | 23 | 38 | +25.0 pp (+13.7 to +35.0) |
 | v0.6 learned head | 25 | 35 | +16.7 pp (+6.1 to +26.4) |
 
-- **Contract planner:** 44/60 at 2.8 s and 82 model tokens per task, against the agent's 27/60 at 12.3 s and 396. The outcome check is lexical and favours host-written replies; the blinded adjudication in the report is the fairer reading.
+- **Contract planner:** 44/60 at 2.8 s and 82 model tokens per task, against the agent's 27/60 at 12.3 s and 396. The outcome check is lexical and favours host-written replies.
+- **Blinded adjudication of the 20 investigations** (two independent LLM graders, 91 of 100 in agreement, stricter grade used; correct / partial / incorrect): agent 1 / 6 / 13, agent with gate 1 / 7 / 12, trained head 0 / 9 / 11, planner 6 / 11 / 3, planner with model narration 5 / 6 / 9. The planner's 14 lexical passes are 6 correct replies. None of the 16 investigations it typed was judged incorrect. **The gate did not improve what the agent wrote** (A3 falsified).
 - **A learned per-step head adds nothing behind the gate:** gated rules 38 against gated head 35, at 49 against 835 tokens per task.
-- **Eight of twelve pre-registered predictions supported, four falsified.** Falsified: the action latch (it halved dropped actions but did not remove them, and once raised an approval for the wrong target), "the controller matters less behind the gate" (the spread grew), the lexicon's typing accuracy (80%, under the 85% threshold), and "the planner has the fewest serious failures" (7 against gated rules' 5).
+- **Ten of fifteen pre-registered predictions supported, five falsified** (twelve computed from traces, three from the adjudication). Falsified: the action latch (it halved dropped actions but did not remove them, and once raised an approval for the wrong target), "the controller matters less behind the gate" (the spread grew), the lexicon's typing accuracy (80%, under the 85% threshold), and "the planner has the fewest serious failures" (7 against gated rules' 5), and "the gated agent has no more major problems than the ungated one" (15 against 14).
 - **Safety:** no write executed in any arm.
 - **Not run:** any capable heavy model, any hosted decision service, any human grader.
 
 ## Verdict for the mechanism
 
-**SHRINK.** Keep the exit-side sufficiency check and host-derived findings. Stop investing in the trained per-step decision head. Do not synthesise write intents from a lexicon; let a model's typed tool call be the only source of a write and keep the host's veto. Hold every claim about capable agents until the Level C pilot (`docs/v07-level-c-protocol.md`), which needs owner approval.
+**SHRINK.** Keep the exit-side sufficiency check and host-derived findings, with the narrower claim that they get the right evidence in and are rarely wrong, not that they make a weak model's reply better. Stop investing in the trained per-step decision head. Do not synthesise write intents from a lexicon; let a model's typed tool call be the only source of a write and keep the host's veto. Hold every claim about capable agents until the Level C pilot (`docs/v07-level-c-protocol.md`), which needs owner approval.
 
 ---
 
