@@ -33,7 +33,7 @@ LOOKUPS = {
     "errors": r"\b(?:errors?|error.rate|failures?|spikes?|trend)\b",
     "deploys": r"\b(?:deploy\w*|releas\w*|rollout|shipped|change history)\b",
     "config": r"\b(?:config\w*|drift|settings?|baseline)\b",
-    "owner": r"\b(?:owners?|ownership|on.call|responsible|who approved|who manages)\b",
+    "owner": r"\b(?:owners?|owns|ownership|on.call|responsible|who approved|who manages)\b",
     "smoke": r"\b(?:smoke.checks?|smoke.tests?|run checks)\b",
 }
 CAUSAL = re.compile(

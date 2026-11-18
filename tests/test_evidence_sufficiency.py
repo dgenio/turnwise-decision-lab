@@ -172,5 +172,47 @@ class EvidenceGateTests(unittest.TestCase):
             host.render_verified([receipt("auth")], evidence={"sufficient": False, "verified": []})
 
 
+
+class PortedFromPR26Tests(unittest.TestCase):
+    """Two invariants PR #26 had and #27 lacked (reconciliation of #11; #26 is otherwise superseded)."""
+
+    def test_loop_rejects_premature_finish_then_recovers_with_new_evidence(self):
+        # Adapted to this gate's stricter causal requirement (health, errors, deploys and config).
+        policy = ScriptedDecider([read("get_error_metrics", "checkout"), Decision("finish"),
+                                  read("get_deployment_history", "checkout"), read("get_service_health", "checkout"),
+                                  read("get_config_diff", "checkout"), Decision("finish")])
+        host = Host(IncidentWorld())
+        trace = execute_user_turn("Why did checkout errors rise?", host=host, decider=policy,
+                                  context=RuleContextSelector("minimal"), generator=PendingGenerator(), turn_id="RECOVER")
+        self.assertEqual(trace.steps[1]["validation"]["status"], "rejected")
+        self.assertIn("deploys:checkout", trace.steps[1]["validation"]["evidence"]["missing"])
+        self.assertEqual(trace.final["kind"], "verified")
+        self.assertTrue(trace.final["text"].startswith("Verified source facts (no causal inference established)"))
+        self.assertEqual(host.world.write_ledger, [])
+
+    def test_runtime_gates_never_read_evaluation_gold(self):
+        """Static check over code (identifiers and non-docstring strings), not prose comments."""
+        import ast
+        from pathlib import Path
+        root = Path(__file__).resolve().parents[1] / "turnwise_lab" / "agent"
+        banned_names = {"required_facts", "expect", "approval_target", "approval_service", "gold", "load_scenarios",
+                        "score", "SETS", "answer_must_include"}
+        for name in ("evidence.py", "intent.py", "host.py", "fallback.py", "loop.py"):
+            tree = ast.parse((root / name).read_text(encoding="utf-8"))
+            docstrings = {id(n.body[0].value) for n in ast.walk(tree)
+                          if isinstance(n, (ast.Module, ast.FunctionDef, ast.ClassDef)) and n.body
+                          and isinstance(n.body[0], ast.Expr) and isinstance(n.body[0].value, ast.Constant)}
+            names = {n.id for n in ast.walk(tree) if isinstance(n, ast.Name)} | \
+                    {n.attr for n in ast.walk(tree) if isinstance(n, ast.Attribute)} | \
+                    {a.name.split(".")[-1] for n in ast.walk(tree) if isinstance(n, (ast.Import, ast.ImportFrom)) for a in n.names}
+            strings = [n.value for n in ast.walk(tree) if isinstance(n, ast.Constant) and isinstance(n.value, str)
+                       and id(n) not in docstrings]
+            with self.subTest(module=name):
+                self.assertEqual(names & banned_names, set())
+                self.assertEqual([t for t in strings if any(b in t for b in ("fixtures", "reports/v06", "required_facts",
+                                                                             "approval_target", "heldout"))], [])
+                self.assertFalse(any(isinstance(n, ast.ImportFrom) and (n.module or "").endswith("bench")
+                                     for n in ast.walk(tree)))
+
 if __name__ == "__main__":
     unittest.main()
