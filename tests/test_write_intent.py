@@ -404,6 +404,19 @@ class RecordedH18H19Tests(unittest.TestCase):
                 self.assertTrue(score(self.scen[sid], tr2.as_json())["success"])
                 self.assertEqual(host2.world.write_ledger, [])
 
+    def test_capability_is_preserved_in_the_continuation(self):
+        """Ported from PR #33: the escalated step sees every native tool schema (writes included) and the exact request."""
+        from turnwise_lab.agent.host import CATALOG
+        tr, _, lm = handoff(H19_MSG, [native("page_oncall", service="search")])
+        prompt = lm.prompts[0]
+        tools_block = prompt[prompt.index("<tools>\n"):prompt.index("\n</tools>")]
+        for cap in CATALOG:
+            self.assertIn(f'"name": "{cap.id}"', tools_block)
+        self.assertIn(json.dumps(H19_MSG)[1:-1], prompt)
+        record = tr.steps[0]["handoff"]
+        self.assertEqual((record["tool_capable"], record["writes_executable"]), (True, False))
+        self.assertEqual(tr.final["kind"], "approval_required")
+
     def test_handoff_costs_are_counted_separately_and_by_the_scorer(self):
         before = [Decision("call_tool", "get_service_health", {"service": "search"},
                            questions=[])]
