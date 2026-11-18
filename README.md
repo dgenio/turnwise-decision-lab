@@ -4,6 +4,12 @@ Model routers choose *which* model answers a turn. That may be one decision too 
 
 **Turnwise is a small, reproducible experiment that tests that idea and keeps the parts where it fails.** It is not a framework or a router product.
 
+### The next hypothesis: near-baseline quality, much lower cost
+
+The target is **not** higher accuracy than a conventional heavy-LLM tool-calling agent. The hypothesis is that routing safe deterministic work away from the heavy model, using a decision service or light model only where justified, and shrinking the context of unavoidable heavy calls can deliver **similar or slightly worse end-to-end task quality at substantially lower cost and latency**. When unsure, prefer a heavy fallback; do not silently guess.
+
+This is a **quality-constrained efficiency** experiment: first establish an acceptable, independently checked loss margin against an **actually executed heavy-only agent**; only then evaluate total cost, p50/p95 latency, heavy invocations and heavy-context tokens. No such non-inferiority or economic gain has been demonstrated yet. The existing v0.5 results expose risks rather than validating this thesis. See the [candidate v0.6 protocol](docs/quality-constrained-efficiency-v06.md) and [independent-evidence issue #3](https://github.com/dgenio/turnwise-decision-lab/issues/3).
+
 **[Explore every turn under every design →](https://dgenio.github.io/turnwise-decision-lab/)** · [Full report](reports/arena.md) · [Pre-registration](docs/preregistration-v0.5.md)
 
 [![The explorer. Rows are turns and columns are routing designs. The selected cell, "Who approved that change?", has a harness receipt of completed but fails the outcome check: the router carried the wrong service from the previous turn.](docs/img/explorer-matrix.jpg)](https://dgenio.github.io/turnwise-decision-lab/)
@@ -42,7 +48,7 @@ What the experiment found:
 
 Two smaller measured facts: tool schemas make up 72% of the always-agent's input characters, and the median turn goes from 2 sequential model calls to 0 under the joint router.
 
-The outcome-scored offline experiment is complete; the [evaluation plan](docs/evaluation-plan.md) now separates that exploratory result from a future independently authored, live-model study. The [v0.5 preregistration](docs/preregistration-v0.5.md) remains unchanged.
+The outcome-scored offline experiment is complete; the [evaluation plan](docs/evaluation-plan.md) and [candidate v0.6 quality/efficiency protocol](docs/quality-constrained-efficiency-v06.md) separate that exploratory result from the future independently authored, **actually executed** heavy-only vs hybrid-model comparison. The [v0.5 preregistration](docs/preregistration-v0.5.md) remains unchanged.
 
 ## Reproduce (Python 3.10+, no dependencies, no network, no keys)
 
