@@ -152,8 +152,10 @@ class TerminationTests(unittest.TestCase):
     def test_transient_tool_error_then_retry(self):
         d = ScriptedDecider([tool("get_error_metrics", service="checkout"), tool("get_error_metrics", service="checkout"), Decision("finish")])
         tr, _, _ = run(d, variant="metrics_flaky")
-        self.assertEqual([o["status"] for o in tr.observations], ["error", "ok"])
-        self.assertEqual(tr.final["kind"], "verified")
+        self.assertEqual([o["status"] for o in tr.observations], ["error", "ok", "rejected"])
+        self.assertEqual(tr.steps[2]["validation"]["status"], "rejected")
+        self.assertIn("deploys:checkout", tr.steps[2]["validation"]["sufficiency"]["missing"])
+        self.assertEqual(tr.final["kind"], "abstain")  # scripted policy ran out; never claims completeness
 
     def test_retry_budget_is_bounded(self):
         w = IncidentWorld("metrics_flaky")
