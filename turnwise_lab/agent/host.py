@@ -5,6 +5,13 @@ capability, the argument schema, the caller's permissions, side-effect
 metadata, repeats and budgets, and only then executes through the same
 ``LocalHarness`` boundary used since v0.4. Writes are never executed here:
 they end in an approval request. Nothing a provider returns can change that.
+
+A write proposal becomes an approval request only when the *user* positively
+requested that action, on that target, in this turn (``intent.py``). Mentioning a
+service is not a request, and neither is model output, tool output, a controller
+hint or an assistant turn. The same check applies to every proposer that reaches
+the host: a controller step, the tool-capable heavy handoff and the heavy-only
+baseline. Final action statuses come from the host's own receipts.
 """
 from __future__ import annotations
 
@@ -17,6 +24,7 @@ from ..core import Capability as HarnessCapability, Plan, Request
 from ..runtime import HostIdentity, LocalHarness, RegisteredAction
 from .contracts import OPERATIONS, TIERS, Decision, Observation
 from .evidence import assess_evidence
+from .intent import analyse as analyse_intent, completion_claims, resolve_write
 from .world import HOST_FACTS, SERVICES, IncidentWorld
 
 
@@ -63,6 +71,7 @@ class Validation:
     reason: str
     dropped: list[str] = field(default_factory=list)
     evidence: dict | None = None
+    intent: dict | None = None  # write proposals only: the host's verdict on whether the user requested it
 
 
 class Host:
@@ -77,6 +86,7 @@ class Host:
         from .context import BLOCKS
         self.permitted_blocks = permitted_blocks if permitted_blocks is not None else frozenset(
             b.id for b in BLOCKS if b.permission is None or b.permission in self.identity.permissions)
+        self._intent_cache: dict = {}
 
     # -------------------------------------------------------------- policy
     def allowed_capabilities(self) -> tuple[Capability, ...]:
@@ -104,7 +114,7 @@ class Host:
             if cap.permission not in self.identity.permissions and not cap.side_effect:
                 return Validation(False, d, "rejected", f"principal lacks permission {cap.permission!r}")
             if cap.side_effect:
-                return Validation(True, d, "approval_required", "side-effecting capability: requires independent human approval")
+                return self.validate_write(d, cap, args, executed, user_message, conversation)
             prior = [o for o in executed if o.target == cap.id and o.arguments == args]
             if any(o.status == "ok" for o in prior):
                 return Validation(False, d, "rejected", "repeated action: identical call already succeeded in this turn")
@@ -133,6 +143,29 @@ class Host:
             return Validation(True, d, "accepted", "task-specific verified evidence sufficient for data-only reply",
                               evidence=review)
         return Validation(True, d, "accepted", f"{d.operation} permitted")
+
+    def validate_write(self, d: Decision, cap: Capability, args: dict, executed: list[Observation],
+                       user_message: str, conversation) -> Validation:
+        """A write is never executed; it is held for approval only if the user requested exactly this action."""
+        verdict = self.check_write_intent(cap.id, args, user_message, conversation)
+        if not verdict["ok"]:
+            return Validation(False, d, "rejected", f"{verdict['code']}: {verdict['reason']}", intent=verdict)
+        if any(o.status == "approval_required" and o.target == cap.id and o.arguments == args for o in executed):
+            return Validation(False, d, "rejected", "duplicate_hold: approval for this action was already requested in this turn",
+                              intent={**verdict, "ok": False, "code": "duplicate_hold"})
+        return Validation(True, d, "approval_required", "side-effecting capability: requires independent human approval",
+                          intent=verdict)
+
+    # ------------------------------------------------------------ user intent
+    def action_intents(self, user_message: str, conversation=()) -> dict:
+        """The host's reading of which writes the user requested, declined or left unclear (no model involved)."""
+        key = (user_message, tuple((m.get("role"), str(m.get("content", ""))) for m in conversation or ()))
+        if key not in self._intent_cache:
+            self._intent_cache[key] = analyse_intent(user_message, conversation)
+        return self._intent_cache[key]
+
+    def check_write_intent(self, capability: str, arguments: dict, user_message: str, conversation=()) -> dict:
+        return resolve_write(capability, arguments, self.action_intents(user_message, conversation))
 
     # ------------------------------------------------------------ execution
     def execute(self, d: Decision, *, step_index: int, call_id: str, user_text: str) -> Observation:
@@ -175,6 +208,53 @@ class Host:
                 "the request has been recorded for approval.")
 
     @staticmethod
+    def confirm_actions_message(actions: list[str]) -> str:
+        return ("Before anything is requested: did you want " + "; ".join(actions) + "? Nothing has been requested or "
+                "executed. Confirm the action and its target and it will go to an authorised person for approval.")
+
+    def review_generated_answer(self, text: str) -> dict:
+        """Claims in a generated reply that a write happened. This host cannot execute writes, so any is unsupported."""
+        return {"unsupported_action_claims": completion_claims(text)}
+
+    @staticmethod
+    def withheld_message(claims: list[dict]) -> str:
+        caps = ", ".join(sorted({c["capability"] for c in claims}))
+        return ("I withheld a generated reply because it described an action as done or under way "
+                f"({caps}) and the host has no record of executing it. No action has been executed in this turn.")
+
+    def compose_final(self, final: dict, ledger: list[dict], denied: list[dict]) -> dict:
+        """Host-owned final envelope: action statuses come from host receipts, never from model prose.
+
+        Every action the user requested ends visibly: held for approval, named in a host
+        confirmation question, listed as not attempted, or recorded as declined. Denied
+        write proposals (from any model or controller) are kept for audit and are never
+        turned into user intents or approval requests.
+        """
+        final = dict(final)
+        kind = final.get("kind")
+        status = [dict(e) for e in ledger]
+        open_ = [e for e in status if e["status"] in ("requested", "needs_clarification")]
+        described = [describe_action(e) for e in open_]
+        if open_ and kind in ("approval_required", "verified", "answer", "clarify"):
+            for e in open_:
+                e["status"] = "needs_confirmation"
+            if kind == "answer":  # model prose cannot speak for a pending action
+                final["model_text"] = final.get("text")
+                final["text"], final["by"] = "", "host"
+            if kind != "approval_required":
+                final["kind"] = "clarify"
+                final["reason"] = f"requested action not submitted for approval ({final.get('reason', '')})"
+            final["text"] = "\n".join(t for t in (final.get("text") or "", self.confirm_actions_message(described)) if t)
+        elif open_:
+            for e in open_:
+                e["status"] = "not_attempted"
+            final["text"] = (final.get("text") or "") + " Not attempted: " + "; ".join(described) + "."
+        final["action_status"] = status
+        final["denied_write_proposals"] = [dict(d) for d in denied]
+        final["writes_executed"] = len(self.world.write_ledger)
+        return final
+
+    @staticmethod
     def clarify_message() -> str:
         return "I need a bit more detail to do this safely: which service or change do you mean?"
 
@@ -185,3 +265,12 @@ class Host:
     @staticmethod
     def host_facts() -> dict:
         return dict(HOST_FACTS)
+
+
+def describe_action(entry: dict) -> str:
+    args = entry.get("arguments")
+    if args is None:
+        return f"{entry['capability']}() with its target not specified"
+    if args.get("message", "") is None:
+        return f"{entry['capability']}() with the text still to be written"
+    return f"{entry['capability']}({', '.join(f'{k}={v}' for k, v in args.items())})"

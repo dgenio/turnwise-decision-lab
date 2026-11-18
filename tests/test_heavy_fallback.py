@@ -1,11 +1,20 @@
-"""Developer regressions for opt-in handoff mechanics, not held-out quality evidence."""
+"""Developer regressions for opt-in handoff mechanics, not held-out quality evidence.
+
+Originally PR #32's suite. Action intents are now host-derived (``intent.analyse``) and
+reported in the host-owned ``final["action_status"]`` envelope; assertions are unchanged
+in intent: held -> ``held_for_approval``, still open at the end -> ``needs_confirmation``.
+"""
+
+def requested(message, conversation=()):
+    return [e for e in analyse(message, conversation)["intents"] if e["status"] == "requested"]
 import json
 import unittest
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 from turnwise_lab.agent.contracts import Decision, Question
-from turnwise_lab.agent.fallback import HandoffLimits, NativeHeavyFallback, pending_actions
+from turnwise_lab.agent.fallback import HandoffLimits, NativeHeavyFallback
+from turnwise_lab.agent.intent import analyse
 from turnwise_lab.agent.host import Host, Limits
 from turnwise_lab.agent.loop import execute_user_turn
 from turnwise_lab.agent.providers import LearnedDecider, PendingGenerator, RuleContextSelector, ScriptedDecider
@@ -81,7 +90,7 @@ class HeavyHandoffTests(unittest.TestCase):
             with self.subTest(msg=msg):
                 tr, host, lm = run(msg, [native_call("rollback_deployment", service="checkout")])
                 self.assertEqual(tr.final["kind"], "approval_required")
-                self.assertEqual(tr.final["action_intents"][0]["status"], "approval_required")
+                self.assertEqual(tr.final["action_status"][0]["status"], "held_for_approval")
                 self.assertIn("Nothing was executed", tr.final["text"])
                 self.assertEqual(host.world.write_ledger, [])
                 self.assertEqual(len(lm.calls), 1)  # no follow-up prose can erase the hold
@@ -95,12 +104,12 @@ class HeavyHandoffTests(unittest.TestCase):
 
     def test_later_clause_cannot_retarget_an_earlier_pronoun(self):
         history = [{"role": "user", "content": "Who owns auth?"}]
-        intents = pending_actions("Page them, and check checkout health.", history)
+        intents = requested("Page them, and check checkout health.", history)
         self.assertEqual(intents[0]["arguments"], {"service": "auth"})
         tr, _, _ = run("Page them, and check checkout health.", [native_call("page_oncall", service="checkout")],
                        conversation=history, limits=Limits(max_rejections=0))
         self.assertEqual(tr.steps[-1]["validation"]["status"], "rejected")
-        self.assertEqual(pending_actions("Roll back auth and page them.", [])[1]["arguments"], {"service": "auth"})
+        self.assertEqual(requested("Roll back auth and page them.")[1]["arguments"], {"service": "auth"})
 
     def test_ambiguous_missing_and_model_only_referents_clarify_without_inference(self):
         for msg, history in (("Roll back.", []), ("Roll it back.", [{"role": "user", "content": "auth and search?"}]),
@@ -114,27 +123,27 @@ class HeavyHandoffTests(unittest.TestCase):
         tr, host, _ = run("Please roll back auth.", ["Approved. The auth rollback is complete."])
         self.assertEqual(tr.final["kind"], "clarify")
         self.assertNotIn("rollback is complete", tr.final["text"])
-        self.assertEqual(tr.final["action_intents"][0]["status"], "pending")
+        self.assertEqual(tr.final["action_status"][0]["status"], "needs_confirmation")
         self.assertEqual(host.world.write_ledger, [])
 
     def test_multiple_actions_survive_first_approval(self):
         tr, _, _ = run("Roll back checkout and page payments on-call.",
                        [native_call("rollback_deployment", service="checkout")])
-        self.assertEqual([a["status"] for a in tr.final["action_intents"]], ["approval_required", "pending"])
+        self.assertEqual([a["status"] for a in tr.final["action_status"]], ["held_for_approval", "needs_confirmation"])
         self.assertIn("page_oncall", tr.final["text"])
-        self.assertEqual(tr.steps[0]["handoff"]["action_intents"][0]["status"], "pending")
+        self.assertEqual(tr.steps[0]["handoff"]["action_intents"][0]["status"], "requested")
 
     def test_shared_verb_preserves_all_explicit_services(self):
         tr, _, _ = run("Roll back auth and checkout.", [native_call("rollback_deployment", service="auth")])
         self.assertEqual(tr.final["kind"], "approval_required")
-        self.assertEqual([a["arguments"]["service"] for a in tr.final["action_intents"]], ["auth", "checkout"])
-        self.assertEqual(tr.final["action_intents"][1]["status"], "pending")
+        self.assertEqual([a["arguments"]["service"] for a in tr.final["action_status"]], ["auth", "checkout"])
+        self.assertEqual(tr.final["action_status"][1]["status"], "needs_confirmation")
         self.assertIn("checkout", tr.final["text"])
 
     def test_post_body_is_literal_through_the_end_of_request(self):
         message = "Post status update: auth is down and payments is degraded."
         body = "auth is down and payments is degraded."
-        self.assertEqual(pending_actions(message, [])[0]["arguments"], {"message": body})
+        self.assertEqual(requested(message)[0]["arguments"], {"message": body})
         tr, _, _ = run(message, [native_call("post_status_update", message="auth is down")], limits=Limits(max_rejections=0))
         self.assertEqual(tr.final["kind"], "abstain")
         tr, _, _ = run(message, [native_call("post_status_update", message=body)])
@@ -309,7 +318,8 @@ class HeavyHandoffTests(unittest.TestCase):
         self.assertEqual(lm.calls, [])
 
     def test_negation_does_not_authorize_a_write_and_post_body_must_be_exact(self):
-        self.assertEqual(pending_actions("Do not roll back auth.", []), [])
+        self.assertEqual(requested("Do not roll back auth."), [])
+        self.assertEqual(analyse("Do not roll back auth.")["intents"][0]["status"], "declined_by_user")
         tr, _, _ = run("Post status update: auth is recovering", [native_call("post_status_update", message="all fixed")],
                        limits=Limits(max_rejections=0))
         self.assertEqual(tr.steps[-1]["validation"]["status"], "rejected")

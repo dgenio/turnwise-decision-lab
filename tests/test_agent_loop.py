@@ -167,10 +167,19 @@ class TerminationTests(unittest.TestCase):
 
 class AuthorityTests(unittest.TestCase):
     def test_decision_cannot_execute_a_write(self):
-        tr, host, _ = run(ScriptedDecider([tool("rollback_deployment", service="checkout")]))
+        # A requested write is held for approval, never executed. (Before the write-intent gate this test proposed
+        # the rollback on MSG_C, a causal question that requests no action; that proposal is now rejected, below.)
+        tr, host, _ = run(ScriptedDecider([tool("rollback_deployment", service="checkout")]), message="Roll back checkout.")
         self.assertEqual(tr.final["kind"], "approval_required")
         self.assertEqual(host.world.write_ledger, [])
         self.assertEqual(tr.totals["writes_executed"], 0)
+
+    def test_decision_cannot_request_approval_for_an_unrequested_write(self):
+        tr, host, _ = run(ScriptedDecider([tool("rollback_deployment", service="checkout"), Decision("abstain")]))
+        self.assertEqual(tr.observations[0]["status"], "rejected")
+        self.assertTrue(tr.observations[0]["reason"].startswith("not_requested"))
+        self.assertEqual(tr.final["denied_write_proposals"][0]["code"], "not_requested")
+        self.assertEqual(host.world.write_ledger, [])
 
     def test_context_policy_cannot_add_forbidden_or_remove_mandatory_blocks(self):
         st = TurnState("T", "hello")

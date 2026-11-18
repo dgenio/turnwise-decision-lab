@@ -37,7 +37,11 @@ def _decision_from_target(target: str, service: str | None, state, provider: str
     elif "query" in cap.params:
         args = {"query": state.user_message[:300]}
     else:
-        args = {"message": state.user_message[:300]}
+        # A status post carries the literal text the user supplied, not the whole instruction (v0.6 posted the
+        # request itself, e.g. 'post to the status page: "..."'); the host rejects any other text for a literal body.
+        from .intent import literal_status_body
+        body, _ = literal_status_body(state.user_message)
+        args = {"message": (body or state.user_message)[:300]}
     op = "call_workflow" if cap.kind == "workflow" else "call_tool"
     return Decision(op, target, args, provider=provider, model=model, questions=qs, rationale=rationale)
 
@@ -284,6 +288,11 @@ class ArgumentBuilder:
             return {"query": state.user_message[:300]}, Question("arguments", [], "query=user request", None, SCORE_RULE, 0.0, None,
                                                                 note="mechanism: deterministic (query = user request)")
         if "message" in cap.params:
+            from .intent import literal_status_body
+            body, _ = literal_status_body(state.user_message)
+            if body:
+                return {"message": body[:300]}, Question("arguments", [], "message=literal text supplied by the user", None,
+                                                         SCORE_RULE, 0.0, None, note="mechanism: deterministic (literal body)")
             return {"message": state.user_message[:300]}, Question("arguments", [], "message=user request", None, SCORE_RULE, 0.0,
                                                                   None, note="mechanism: deterministic (message = user request)")
         cands = focus_services(state)

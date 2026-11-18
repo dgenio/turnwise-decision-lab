@@ -7,6 +7,10 @@ times as it likes within the step budget; every call goes through the same
 Host validation and LocalHarness as the decision-driven loop, and tool output
 goes back to the model. KV state is reused across steps (the local equivalent
 of provider prompt caching), so each step only processes new tokens.
+
+The baseline shares the host's write-intent gate and final envelope with the
+decision-driven loop (#12/#13, #25 parity): a write it proposes is held only if
+the user requested it, and a reply claiming an unexecuted action is withheld.
 """
 from __future__ import annotations
 
@@ -109,6 +113,8 @@ def run_heavy_agent(message: str, *, host: Host, lm, turn_id: str, conversation:
     pending = convo + f"<|im_start|>user\n{message}<|im_end|>\n" + lm.assistant_header()
     observations: list[Observation] = []
     gens = []
+    denied: list[dict] = []
+    ledger = [dict(e) for e in host.action_intents(message, conversation or [])["intents"]]
     for step_index in range(host.limits.max_steps):
         g, state, past = lm.generate_continue(pending, state, past, max_new_tokens=max_new_tokens)
         gen = {"status": "ok", "tier": "heavy", "model": lm.version, "text": g.text, "prompt_tokens": g.prompt_tokens,
@@ -137,13 +143,19 @@ def run_heavy_agent(message: str, *, host: Host, lm, turn_id: str, conversation:
             op = "call_workflow" if cap and cap.kind == "workflow" else "call_tool"
             d = Decision(op, name, dict(args) if isinstance(args, dict) else {}, provider="heavy-agent", model=lm.version,
                          questions=[Question("tool_call", [], name, None, "none: generated tool call text")])
-            v = host.validate(d, observations)
+            v = host.validate(d, observations, user_message=message, conversation=conversation or [])
             if not v.ok:
                 obs = Observation(step_index, call_id, op, name, d.arguments, "rejected", reason=v.reason)
                 content = json.dumps({"error": v.reason})
+                if v.intent is not None:
+                    denied.append({"capability": name, "arguments": dict(d.arguments), "code": v.intent["code"],
+                                   "reason": v.intent["reason"], "proposed_by": "heavy-agent", "call_id": call_id})
             elif v.status == "approval_required":
                 obs = Observation(step_index, call_id, op, name, d.arguments, "approval_required", reason=v.reason)
                 content = json.dumps({"status": "approval_requested", "executed": False, "note": "a human must approve this action"})
+                index = (v.intent or {}).get("intent_index")
+                if index is not None and index < len(ledger) and ledger[index]["status"] != "held_for_approval":
+                    ledger[index].update(status="held_for_approval", call_id=call_id, held_arguments=dict(d.arguments))
             else:
                 obs = host.execute(d, step_index=step_index, call_id=call_id, user_text=message)
                 content = render_facts(obs.facts) if obs.status == "ok" else json.dumps({"error": obs.status, "reason": obs.reason})
@@ -158,8 +170,15 @@ def run_heavy_agent(message: str, *, host: Host, lm, turn_id: str, conversation:
                        "by": "host", "reason": "step_limit"}
     trace.observations = [_obs_json(o) for o in observations]
     approvals = [o for o in observations if o.status == "approval_required"]
+    if trace.final.get("kind") == "answer":
+        claims = host.review_generated_answer(trace.final["text"])["unsupported_action_claims"]
+        if claims:
+            trace.final = {"kind": "abstain", "text": host.withheld_message(claims), "by": "host",
+                           "reason": "unsupported_action_claim", "model_text": trace.final["text"],
+                           "unsupported_action_claims": claims}
     if approvals and trace.final.get("kind") == "answer":
         trace.final["approval_requested"] = [{"target": o.target, "arguments": o.arguments} for o in approvals]
+    trace.final = host.compose_final(trace.final, ledger, denied)
     trace.totals = {
         "decision_calls": 0, "decision_questions": 0, "decision_latency_ms": 0.0, "decision_input_tokens": 0,
         "tool_calls": sum(1 for o in observations if o.status in ("ok", "error")),
