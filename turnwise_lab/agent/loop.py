@@ -93,9 +93,11 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
                                 "decision": None, "validation": {"status": "rejected", "reason": f"decision provider error: {type(exc).__name__}"}})
             finish("abstain", host.abstain_message("decision provider unavailable"), "host", trace.steps[-1], "provider_error")
             break
-        v = host.validate(decision, state.observations)
+        v = host.validate(decision, state.observations, user_text=message)
         step = {"step_index": step_index, "decision_call_id": call_id, "snapshot": snapshot,
                 "decision": decision.as_json(), "validation": {"status": v.status, "reason": v.reason}}
+        if v.sufficiency is not None:
+            step["validation"]["sufficiency"] = v.sufficiency
         trace.steps.append(step)
 
         if not v.ok:
