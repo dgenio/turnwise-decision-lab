@@ -1,59 +1,75 @@
-# Pre-registered decision test plan — proposed, not yet executed
+# Evaluation plan — completed v0.5 offline experiment and proposed next gate
 
-Status: **blocked on independent labeled data and approved access to contemporary comparator implementations**. The small fixture replay in `reports/` is only a contract/smoke test. No statistical or economic claims can be made from it.
+**Status (2026-11-18):** The v0.5 **offline, authored-synthetic** arena has been executed. This document is the forward-looking evaluation plan, **not** the pre-registration for that run. The contemporaneous pre-registration is [`preregistration-v0.5.md`](preregistration-v0.5.md), the reproducible result is [`reports/arena.md`](../reports/arena.md), and the earlier v0.4 route-label exercise remains separately documented.
 
-## Decision question
+The v0.5 run does **not** establish generative answer quality, production success, cost or latency savings, calibrated confidence, superiority to a provider-native router, or market demand. **No model or hosted decision service was called.** Every deterministic read/flow call ran locally; all model paths were scored under explicit optimistic evidence-availability assumptions.
 
-Does a bounded per-turn planner that jointly chooses no-generation / verified flow / tool / reasoning tier *and* an appropriate context set produce consequential improvement against the strongest simpler alternative?
+## What v0.5 actually established on its authored workload
 
-Primary null: a simple host policy + provider-native tool discovery + existing model auto router is already adequate, so additional classification/context compilation complexity is unjustified.
+- **46 turns across 10 synthetic multi-turn sessions**, seven routing designs. The same author created the world, cases, gold fact requirements and policies. The 46 cases have now been seen; no subsequent tuning on these cases can count as held-out validation.
+- The assumed perfect tool-calling agent had **46/46 potentially correct outcomes and 78 counted model calls**; the session-state joint router had **38/46 potentially correct outcomes, 20 counted model calls, six silent misses and two dropped action requests**. These are **not** observed model invocations or real task outcomes.
+- The joint router resolved **7/8** follow-up lookups/flows without model calls, but state reuse also propagated incorrect entity/capability selections. The context-advantage hypothesis **H3 was falsified** on the synthetic set (3/9 complete route-aware packets vs 2/9 lexical).
+- The host harness prevented all **18 forged write attempts** in the local red-team and the positive control reached the write handler when fully authorised. That is a bounded property of this toy harness, not production safety assurance.
+- **Two action requests were silently dropped before any approval step:** `S2.6` (page on-call) and `S6.4` (revoke rate limit). They were not executed; that does **not** make them successful holds. A host execution gate cannot authorize or reject an action that the router never proposes. Track `action_dropped` separately from `held`, `false_hold`, `silent_miss` and actual unauthorized execution.
+- The explorer's *illustrative path assumptions* are simplified, gold-label-derived explanations **not executed counterfactual runs**. The seven strategy cells show actual offline replay outcomes and no model-generated answers.
 
-## Experiment design
+This is **useful engineering evidence of mechanisms and failure modes**, not comparative product validation. Do not reframe the 46-case results as prospective evidence.
 
-- At least 100 diverse **held-out** public or independently authored synthetic tasks. Record authorship, ground-truth policy, tasks, tool/source catalog IDs and version, difficulty, and domain; keep a separate tuning split. Do not tune on held-out cases.
-- Start with isolated pre-routing choices and context-plan recall; then repeat the same cases end-to-end against actual running models/tools if budget and host policy permit.
-- For enterprise adoption, use only approved local or vendor-cleared model/data routes. Never ingest actual corporate conversations into this public lab.
-- Freeze model IDs, inference parameters, vendor API versions, classifier identity, prompt template, tool catalog and policy revision for every run. Repeat stochastic trials (target >=5 where affordable) and report uncertainty.
-- Compare exactly matched tools/tasks/contexts across arms wherever possible; where provider-native systems work differently, note coverage gaps rather than removing them.
+## Research question for a NEW, independently evaluated experiment
 
-## Required comparator arms
+Does a bounded per-turn planner that jointly selects **no generation / deterministic flow / read tool / reasoning tier** and **which eligible context is provided** materially improve **cost per correctly resolved task**, without consequential quality or safety regression, relative to the strongest simpler policy or native router?
 
-| Arm | Question it answers | Status |
-|---|---|---|
-| Always capable model | Sanity floor only; never sufficient to claim advantage | Offline route-plan placeholder |
-| Simple host policy | Can verified answer / known flow / lexical tool shortlist remove calls without classifier? | Implemented deterministic replay |
-| LiteLLM Auto Router + Jev | Does model-tier classification alone produce the same benefit? | **Not run**, requires real service and config |
-| vLLM Semantic Router / provider native | Is the whole decision/context behavior already natively available? | **Not run**, requires reproducible deployment |
-| Proposed joint planner | Does path + tier + context selection add measurable benefit? | Offline contract fixture only; real Jev **not run** |
+**Null hypothesis:** host rules + standard workflow code + provider-native tool selection / model routing are sufficient, so the extra joint planner is not worth its maintenance, routing failures or latency.
 
-## Ablations (use the same tasks)
+## Data and independence
 
-1. Host rules only, no classifier.
-2. Classifier tier only, no per-turn context selection.
-3. Classifier path + tier, but naive full permitted context.
-4. Classifier path + tier + bounded context selector.
-5. Same as (4) but with all irrelevant prior-turn text added to bounded summary, to quantify routing instability.
-6. No host verified direct-answer bypass vs bypass (cost of decision call when no model is needed).
+- Recruit at least one **independent author/labeler** for new sessions. Aim for >=100 genuinely held-out, diverse **public or newly invented synthetic** turns, with multi-turn state, tool argument requirements, ambiguous references, partial context, actions, negation, and difficult near-neighbors. Record provenance, allowed tools, outcome evidence and review process. Do not edit the frozen v0.5 world/fixtures to improve old scores.
+- Split tuning and evaluation **before** comparing policies; commit dataset and labeling protocol/hashes. Use case-family and session-level aggregation, not just a single micro-average. Report all negative cases and disagreements.
+- Treat v0.5 as **development/exploratory evidence**; use new unseen tasks for headline claims. If a reviewer cannot label an outcome independently, report it as non-verifiable rather than assigning a convenient route label.
+- Do not import employer/customer chat or logs into this public project. Real enterprise validation would require a separate, authorized and private data/model route.
 
-## Failure-cost model, selected before thresholds
+## Comparators — accurate status
 
-- Data exposure and unauthorized side effects: **zero permitted**; any verified violation is stop and review, never balanced against cost savings.
-- False exclusion of a required tool/context: measure and treat as error, with separate severity for consequential tasks.
-- False positive escalation: extra classifier/model calls, tokens, and latency.
-- Incorrect low-tier routing: wrong final answer or costly retry, not merely model-label disagreement.
-- Context truncation: omission of citations, provenance, contraindications or caveats required for a correct answer.
+| Arm | Purpose | Status as of v0.5 |
+| --- | --- | --- |
+| Assumed capable tool-calling agent | Optimistic synthetic sanity reference; not a measured LLM baseline | **Offline replay completed**, model never called |
+| Message-only simple rules and host preflight | Lower-complexity execution-path baseline | **Offline replay completed** |
+| Joint route + state + route-aware context | Proposed mechanism | **Offline replay completed**, model-tier inference untested |
+| Joint without state / lexical-only context | Ablations on context-state coupling | **Offline replay completed** |
+| Tiny Naive Bayes path policy | Weak out-of-distribution illustration; not Jev | **Offline replay completed** |
+| Oracle | Gold-aware upper bound, *not* a deployable policy | **Offline replay completed** |
+| LiteLLM Auto Router / Jev | Contemporary model-router comparator | **Not run** |
+| vLLM Semantic Router and provider-native tool search | Strong tool/model/context alternatives | **Not run** |
+| Real model + tool-calling with answer checkers | End-to-end generation and recovery comparison | **Not run** |
 
-## Primary and secondary gates
+Include a strong host-only/manual baseline in the next comparison. Never rely solely on the omniscient oracle or naive all-tools reference to claim a win.
 
-The exploratory thresholds of >=20% reduction in frontier-model invocations and <=2 percentage points absolute loss in end-to-end task success are **proposals**, not endorsed operating limits. Compare them against the *best real* model-only/native route, not the always-deep sanity floor. Require no verified authorization/privacy regressions. Statistical uncertainty matters: with n~100, a 2pp difference is generally too small to establish noninferiority confidently; expand n appropriately or report inconclusive.
+## Proposed next experiment and ablations (not yet run)
 
-Report per-task correctness, capability Recall@k, arguments/schema validation, context Recall@budget, answer evidence, abstention/approval behavior, classifier calibration (ECE/Brier on genuinely predicted probabilities), provider-usage tokens, *measured* end-to-end p50/p95 and actual price schedule/costs. Keep infrastructure errors and retries visible. Provider-side token/latency measurement must include the new classifier call.
+1. Freeze independently authored tasks, prompts, policies, tool/schema catalogs, model and provider versions, model parameters and price schedule.
+2. Use identical eligible evidence and tools across arms where supported. Preserve documented differences when native mechanisms cannot be normalized.
+3. Compare host rules alone, existing model routing, native tool search, joint path routing, and joint route + tier + bounded context. Include phase-aware versus lexical context and state versus no-state.
+4. Execute real permitted model handoffs in an **opt-in** environment; record generation quality, retries, timeouts, recovery, permission decisions and downstream outcomes. A "model had evidence" event is **not** a correct final answer.
+5. Run several independent trials for stochastic models (target >=5 where affordable), report session-level uncertainty, and distinguish infrastructure failures from routing or generation failures.
+6. Add **actual** forced-route replay only if it can be done without accessing gold labels at planning time; until then, keep the explorer's alternative-path descriptions explicitly illustrative.
 
-## Interpretations
+## Metrics and gates
 
-- **GO to a bounded, private shadow pilot:** credible incremental wins with no security or quality regression and an operational owner.
-- **HOLD:** limited data, calibration instability, untested native baseline, or confidence intervals too wide.
-- **SHRINK:** value limited to context provenance/pack reproducibility; feed results to future ContextWeaver D2 review only after D1 gate.
-- **STOP:** host rules and native routing match or beat the joint planner after fair evaluation, or maintenance/latency overwhelms gains.
+**Primary:** total measured cost per *correctly resolved task*, including classifier/model calls, tool use, retries, and failed or abandoned attempts.
 
-**Current decision: HOLD.** Eight trivial authored contract fixtures cannot distinguish the proposed planner from the simple host baseline; both match all authored route labels and the planner adds seven fixture classifier calls. This is useful *negative evidence about the test design* — not measured production failure.
+**Correctness:** task-specific answer checkers; tool/capability recall and argument/schema correctness; context Recall@budget; calibration only for genuine model probabilities; silent wrong answers; false holds; **dropped actions**; safe/appropriate refusal and escalation. An action's approval request is a separate outcome from whether any write occurred.
+
+**Operations:** provider-reported tokens, measured p50/p95 end-to-end latency, actual model/router overhead, provider price schedule and error/retry rates. Count attempted, completed and *actually executed* model calls separately.
+
+**Non-negotiable:** any unauthorized execution, confidential-data exposure or serious policy breach is a stop-and-review event, not a tolerable economic trade-off.
+
+Previously discussed goals (>=20% fewer high-cost model calls and <=2 percentage points loss in task success) remain exploratory thresholds, **not** achieved results or pre-approved non-inferiority margins. At ~100 tasks a 2pp non-inferiority claim is generally underpowered; report uncertainty or expand the cohort.
+
+## Decision rules
+
+- **GO to bounded private shadow testing** only if independently reproduced improvements exceed strong contemporary baselines without consequential regressions and an accountable operational owner accepts the extra complexity.
+- **HOLD** if datasets are authored by the implementer, generation is assumed rather than executed, native comparators remain untested, or uncertainty is too wide.
+- **SHRINK** if the only credible value is inspectable context provenance / deterministic execution controls.
+- **STOP** if simpler/native options meet the same outcome quality and the joint layer costs more, or if state-driven silent errors outweigh invocation savings.
+
+**Current decision: HOLD on product and enterprise claims; GO on a transparent public engineering exhibit and independent validation design.** Preserve the v0.5 results as frozen exploratory evidence.

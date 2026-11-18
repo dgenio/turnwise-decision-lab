@@ -1,6 +1,12 @@
 # Relevant comparators — snapshot 2026-11-18
 
-**This is a competitor/context map, not a claimed head-to-head experiment.** As of this release candidate, **none** of these providers or routers has been executed by this repository.
+**This is a competitor/context map, not a claimed head-to-head experiment.** As of v0.5, **none** of these providers or routers has been executed by this repository.
+
+Re-checked against primary documentation on 2026-11-18:
+
+- **LiteLLM auto routing** routes between *models* (tiers, pools). Classification can be heuristic or keyword-based with zero API calls, or use an LLM, the JEV classifier or a custom plugin. The completion always goes to a model. ([docs](https://docs.litellm.ai/docs/proxy/auto_routing))
+- **vLLM Semantic Router vision paper** ([arXiv 2603.21354](https://arxiv.org/abs/2603.21354), Chen et al., 2026). It describes a joint "(model, tool) selection" action space, and lists context options (full history, injected summaries, retrieval-first prefill) as router choices. These are presented as research opportunities, not evaluated results.
+- A literature search found evaluations of model-only, tool-only and harness-level routing, but **no controlled comparison of joint per-turn routing against model-only routing**. Treat this as "not found", not "does not exist".
 
 | Comparator | Supported / documented capability | Fair test required before claiming advantage |
 |---|---|---|

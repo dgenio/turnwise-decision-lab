@@ -82,4 +82,36 @@ class LocalExecutionTests(unittest.TestCase):
     def test_results_are_deterministic(self):
         self.assertEqual(run_demo(),run_demo())
 
+
+
+class PlanContextHandoffTests(unittest.TestCase):
+    """Regression: the harness used to discard the plan's context selection."""
+
+    def setUp(self):
+        self.h = LocalHarness(actions())
+        self.reader = HostIdentity(principal='test-reader', permissions=frozenset({'read'}))
+        self.req = Request(text='Explain the incident', sources=(
+            Source('a', 'incident root cause', 'A' * 50), Source('b', 'unrelated note', 'B' * 40)))
+
+    def test_plan_context_ids_reach_the_receipt(self):
+        out = self.h.run(self.req, Plan(path='llm', model_tier='deep', context_ids=['b']), identity=self.reader)
+        self.assertEqual(out.context_ids, ['b'])
+        self.assertIn('plan_context_selection_used', out.reason_codes)
+
+    def test_forged_or_duplicate_context_ids_are_dropped(self):
+        out = self.h.run(self.req, Plan(path='llm', model_tier='deep', context_ids=['zzz', 'a', 'a']),
+                         identity=self.reader)
+        self.assertEqual(out.context_ids, ['a'])
+
+    def test_plan_context_respects_host_budget(self):
+        req = replace(self.req, context_budget_chars=80)
+        out = self.h.run(req, Plan(path='llm', model_tier='deep', context_ids=['a', 'b']), identity=self.reader)
+        self.assertEqual(out.context_ids, ['a'])
+
+    def test_without_plan_context_falls_back_to_host_selection(self):
+        out = self.h.run(self.req, Plan(path='llm', model_tier='deep'), identity=self.reader)
+        self.assertEqual(out.context_ids, ['a'])
+        self.assertNotIn('plan_context_selection_used', out.reason_codes)
+
+
 if __name__=='__main__':unittest.main()

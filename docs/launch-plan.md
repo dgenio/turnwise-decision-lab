@@ -1,5 +1,7 @@
 # External visibility plan: evidence before promotion
 
+> **Superseded numbers.** The draft below cites v0.4 route-label results. v0.5 replaced them with outcome-scored results ([`reports/arena.md`](../reports/arena.md)); update the draft before sending.
+
 **Publication draft / not sent.** The idea has already been published separately on LinkedIn and Substack; a subsequent post must add a demonstrable result, not paraphrase the original thesis.
 
 First touchpoint: repository README → local interactive execution receipts → independent reproduction of benchmark misses. Lead with **"route the work, not just the model"**, not an invented performance improvement.

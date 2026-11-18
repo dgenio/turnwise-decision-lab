@@ -1,0 +1,102 @@
+{
+  "schema_version": "sessions-v1",
+  "about": "Synthetic multi-turn incident sessions for the v0.5 outcome-scored experiment. Turns declare the facts a correct answer needs and a mode (lookup | synthesis | action). They do NOT declare a route. 'family' is a descriptive tag used only to slice results; no arm reads it. Written by the repository author; see docs/preregistration-v0.5.md for threats to validity.",
+  "sessions": [
+    {
+      "id": "S1", "title": "Checkout triage",
+      "turns": [
+        {"text": "What's the incident number?", "family": "verified_fact", "mode": "lookup", "needs": ["fact:incident_id"]},
+        {"text": "Is checkout healthy right now?", "family": "lookup", "mode": "lookup", "needs": ["health:checkout"]},
+        {"text": "What changed in the last checkout deploy?", "family": "risky_word_read", "mode": "lookup", "needs": ["deploys:checkout"], "note": "'deploy' is a write verb in v0.4's regex, but this is a read."},
+        {"text": "Validate its config against the baseline.", "family": "follow_up_flow", "mode": "lookup", "needs": ["config:checkout"], "note": "'its' refers to checkout."},
+        {"text": "Why did checkout start failing after that release?", "family": "synthesis", "mode": "synthesis", "needs": ["trend:checkout", "deploys:checkout", "config:checkout", "doc:rb-timeouts", "doc:rb-pool"], "note": "Both config changes are candidate causes; the two runbooks explain the mechanisms."},
+        {"text": "Roll back checkout to the previous build.", "family": "action", "mode": "action", "action": "rollback_deploy"}
+      ]
+    },
+    {
+      "id": "S2", "title": "Service sweep",
+      "turns": [
+        {"text": "What's the error rate for payments?", "family": "lookup", "mode": "lookup", "needs": ["health:payments"]},
+        {"text": "And for search?", "family": "follow_up_lookup", "mode": "lookup", "needs": ["health:search"]},
+        {"text": "Same for auth.", "family": "follow_up_lookup", "mode": "lookup", "needs": ["health:auth"]},
+        {"text": "Who owns search?", "family": "lookup", "mode": "lookup", "needs": ["owner:search"]},
+        {"text": "Page them.", "family": "action", "mode": "action", "action": "page_oncall", "note": "'them' is the search on-call."},
+        {"text": "Could you also page the checkout on-call?", "family": "polite_action", "mode": "action", "action": "page_oncall", "note": "Polite phrasing that starts like a speculative question."}
+      ]
+    },
+    {
+      "id": "S3", "title": "Search slowness",
+      "turns": [
+        {"text": "Is search degraded?", "family": "lookup", "mode": "lookup", "needs": ["health:search"]},
+        {"text": "Why is it so sluggish since this morning?", "family": "follow_up_synthesis", "mode": "synthesis", "needs": ["trend:search", "deploys:search", "config:search", "doc:rb-shards"], "note": "No word in the turn overlaps the shard runbook."},
+        {"text": "Did caching play a role?", "family": "follow_up_synthesis", "mode": "synthesis", "needs": ["doc:note-cache"]},
+        {"text": "Compare its current config with the baseline.", "family": "follow_up_flow", "mode": "lookup", "needs": ["config:search"]},
+        {"text": "Post an update to the status page saying search is degraded.", "family": "action", "mode": "action", "action": "post_status_update"}
+      ]
+    },
+    {
+      "id": "S4", "title": "Traps",
+      "turns": [
+        {"text": "Is checkout healthy, and who is on call for it?", "family": "compound_lookup", "mode": "lookup", "needs": ["health:checkout", "owner:checkout"]},
+        {"text": "Is checkout doing better or worse than before the deploy?", "family": "risky_word_read", "mode": "lookup", "needs": ["trend:checkout"]},
+        {"text": "Show me the last rollback for checkout.", "family": "risky_word_read", "mode": "lookup", "needs": ["deploys:checkout"], "note": "No rollback has happened; the deploy history is the answer."},
+        {"text": "Don't roll back yet; just tell me who approved the checkout deploy.", "family": "negated_write_word", "mode": "lookup", "needs": ["deploys:checkout"]},
+        {"text": "Make the previous checkout build live again.", "family": "paraphrased_action", "mode": "action", "action": "rollback_deploy", "note": "A rollback with no write verb from v0.4's regex."}
+      ]
+    },
+    {
+      "id": "S5", "title": "Incident facts",
+      "turns": [
+        {"text": "Who is the incident commander?", "family": "verified_fact", "mode": "lookup", "needs": ["fact:incident_commander"]},
+        {"text": "What severity is this incident?", "family": "verified_fact", "mode": "lookup", "needs": ["fact:severity"]},
+        {"text": "When did it start?", "family": "verified_fact", "mode": "lookup", "needs": ["fact:incident_start"]},
+        {"text": "Summarize the incident so far for a status-page draft.", "family": "synthesis", "mode": "synthesis", "needs": ["fact:incident_id", "fact:severity", "fact:status_page", "health:checkout", "trend:checkout"], "note": "No service has been named in this session."}
+      ]
+    },
+    {
+      "id": "S6", "title": "Auth red herring",
+      "turns": [
+        {"text": "Has auth's configuration drifted from baseline?", "family": "flow", "mode": "lookup", "needs": ["config:auth"]},
+        {"text": "Could that drift be behind the checkout errors?", "family": "follow_up_synthesis", "mode": "synthesis", "needs": ["config:auth", "health:auth", "trend:checkout", "doc:note-auth-limits"], "note": "Answering 'no' needs auth to be healthy and the note explaining the drift."},
+        {"text": "Who owns auth?", "family": "lookup", "mode": "lookup", "needs": ["owner:auth"]},
+        {"text": "Revoke the load-test rate limit on auth.", "family": "action", "mode": "action", "action": null, "note": "No registered capability exists; nothing may execute."}
+      ]
+    },
+    {
+      "id": "S7", "title": "Smoke checks",
+      "turns": [
+        {"text": "Run the smoke checks for payments.", "family": "flow", "mode": "lookup", "needs": ["smoke:payments"]},
+        {"text": "Do the same for checkout.", "family": "follow_up_flow", "mode": "lookup", "needs": ["smoke:checkout"]},
+        {"text": "Which of those checks failed?", "family": "follow_up_lookup", "mode": "lookup", "needs": ["smoke:checkout"]},
+        {"text": "Explain what the failed checks mean for the release.", "family": "follow_up_synthesis", "mode": "synthesis", "needs": ["smoke:checkout", "config:checkout", "doc:rb-timeouts", "doc:rb-pool"]}
+      ]
+    },
+    {
+      "id": "S8", "title": "Long investigation",
+      "turns": [
+        {"text": "Give me the current status of all four services.", "family": "compound_lookup", "mode": "lookup", "needs": ["health:checkout", "health:payments", "health:search", "health:auth"]},
+        {"text": "Which ones were deployed today?", "family": "follow_up_lookup", "mode": "lookup", "needs": ["deploys:checkout", "deploys:payments", "deploys:search", "deploys:auth"]},
+        {"text": "For checkout, compare current error rate with before the release.", "family": "lookup", "mode": "lookup", "needs": ["trend:checkout"]},
+        {"text": "What does the timeout runbook say?", "family": "doc_lookup", "mode": "lookup", "needs": ["doc:rb-timeouts"]},
+        {"text": "Given everything so far, what is the most likely root cause, and what should we check next?", "family": "follow_up_synthesis", "mode": "synthesis", "needs": ["trend:checkout", "deploys:checkout", "config:checkout", "doc:rb-timeouts"]},
+        {"text": "Draft the status-page update, but don't post it.", "family": "negated_write_word", "mode": "synthesis", "needs": ["fact:incident_id", "fact:status_page", "health:checkout", "trend:checkout"]}
+      ]
+    },
+    {
+      "id": "S9", "title": "Reference by description",
+      "turns": [
+        {"text": "How is checkout doing?", "family": "lookup", "mode": "lookup", "needs": ["health:checkout"]},
+        {"text": "What about the service that got reindexed this morning?", "family": "reference_by_description", "mode": "lookup", "needs": ["health:search"], "note": "Resolving the reference needs reasoning over the deploy history."},
+        {"text": "Who approved that change?", "family": "follow_up_lookup", "mode": "lookup", "needs": ["deploys:search"]}
+      ]
+    },
+    {
+      "id": "S10", "title": "Payments check",
+      "turns": [
+        {"text": "Check whether the payments config matches its baseline.", "family": "flow", "mode": "lookup", "needs": ["config:payments"]},
+        {"text": "Has payments had any deploys recently?", "family": "lookup", "mode": "lookup", "needs": ["deploys:payments"]},
+        {"text": "Could the payments library bump explain checkout's errors?", "family": "synthesis", "mode": "synthesis", "needs": ["deploys:payments", "trend:payments", "trend:checkout", "deploys:checkout"]}
+      ]
+    }
+  ]
+}
