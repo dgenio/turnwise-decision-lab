@@ -1,0 +1,345 @@
+{
+  "cases": [
+    {
+      "available_capabilities": 0,
+      "decider_received": null,
+      "full_source_chars": 46,
+      "host_summary": "Public synthetic release demo: the status is supplied by an independently verified host record.",
+      "id": "verified-answer",
+      "lesson": "The host already has a verified answer; no classifier call is justified.",
+      "number": 1,
+      "plan": {
+        "approval_required": false,
+        "capability_id": null,
+        "context_ids": [],
+        "context_pack": [],
+        "decision_model_called": false,
+        "decision_probability": null,
+        "deterministic_answer": "Yes. The public demo freeze is active until 18:00 UTC.",
+        "model_tier": null,
+        "path": "direct",
+        "reasons": [
+          "verified_direct_host_bypass"
+        ]
+      },
+      "request": "Is the release freeze active?",
+      "selected_source_chars": 0,
+      "simple_rule": {
+        "capability_id": null,
+        "model_tier": null,
+        "path": "direct"
+      },
+      "source_catalog": [
+        {
+          "chars": 46,
+          "id": "release-calendar"
+        }
+      ],
+      "title": "Don't call a model for an already verified answer"
+    },
+    {
+      "available_capabilities": 2,
+      "decider_received": {
+        "available_flows": [
+          "validate_capability_snapshot",
+          "format_release_notes"
+        ],
+        "available_read_tools": [],
+        "context_candidates": [
+          "contract"
+        ],
+        "conversation_turns": 1,
+        "instructions": "Choose route, tier and context mode, not execution authorization. Abstain by low confidence.",
+        "new_turn": "Validate the API capability snapshot against the baseline.",
+        "task_summary": "Compare the published API capability snapshot and baseline under a reviewed offline check."
+      },
+      "full_source_chars": 116,
+      "host_summary": "Compare the published API capability snapshot and baseline under a reviewed offline check.",
+      "id": "deterministic-flow",
+      "lesson": "A known, reviewed procedure does not need a generative model between its steps.",
+      "number": 2,
+      "plan": {
+        "approval_required": false,
+        "capability_id": "validate_capability_snapshot",
+        "context_ids": [
+          "contract"
+        ],
+        "context_pack": [
+          {
+            "id": "contract",
+            "text": "The API snapshot records tools and JSON Schema required fields."
+          }
+        ],
+        "decision_model_called": true,
+        "decision_probability": 0.96,
+        "deterministic_answer": null,
+        "model_tier": null,
+        "path": "flow",
+        "reasons": []
+      },
+      "request": "Validate the API capability snapshot against the baseline.",
+      "selected_source_chars": 63,
+      "simple_rule": {
+        "capability_id": "validate_capability_snapshot",
+        "model_tier": null,
+        "path": "flow"
+      },
+      "source_catalog": [
+        {
+          "chars": 63,
+          "id": "contract"
+        },
+        {
+          "chars": 53,
+          "id": "recipes"
+        }
+      ],
+      "title": "Use a reviewed deterministic flow"
+    },
+    {
+      "available_capabilities": 2,
+      "decider_received": {
+        "available_flows": [],
+        "available_read_tools": [
+          "query_service_incidents",
+          "lookup_service_owner"
+        ],
+        "context_candidates": [
+          "incidents",
+          "runbook"
+        ],
+        "conversation_turns": 1,
+        "instructions": "Choose route, tier and context mode, not execution authorization. Abstain by low confidence.",
+        "new_turn": "Read recent service incidents for the API release.",
+        "task_summary": "Public synthetic service incident triage for API release."
+      },
+      "full_source_chars": 193,
+      "host_summary": "Public synthetic service incident triage for API release.",
+      "id": "read-tool",
+      "lesson": "The plan selects a read capability; it does not execute the query or know its results.",
+      "number": 3,
+      "plan": {
+        "approval_required": false,
+        "capability_id": "query_service_incidents",
+        "context_ids": [
+          "incidents",
+          "runbook"
+        ],
+        "context_pack": [
+          {
+            "id": "incidents",
+            "text": "Synthetic incident log: error rate rose after the release at 11:05 UTC."
+          },
+          {
+            "id": "runbook",
+            "text": "Runbook: validate the deployment time and the changed API contract."
+          }
+        ],
+        "decision_model_called": true,
+        "decision_probability": 0.94,
+        "deterministic_answer": null,
+        "model_tier": "standard",
+        "path": "tool",
+        "reasons": []
+      },
+      "request": "Read recent service incidents for the API release.",
+      "selected_source_chars": 138,
+      "simple_rule": {
+        "capability_id": "query_service_incidents",
+        "model_tier": "standard",
+        "path": "tool"
+      },
+      "source_catalog": [
+        {
+          "chars": 71,
+          "id": "incidents"
+        },
+        {
+          "chars": 55,
+          "id": "catering"
+        },
+        {
+          "chars": 67,
+          "id": "runbook"
+        }
+      ],
+      "title": "Fetch evidence before generating an answer"
+    },
+    {
+      "available_capabilities": 0,
+      "decider_received": {
+        "available_flows": [],
+        "available_read_tools": [],
+        "context_candidates": [
+          "service-errors",
+          "api-change",
+          "deployment-window"
+        ],
+        "conversation_turns": 1,
+        "instructions": "Choose route, tier and context mode, not execution authorization. Abstain by low confidence.",
+        "new_turn": "Why did that happen, and what should we check next?",
+        "task_summary": "Earlier turns: the synthetic API release was followed by increased service errors at 11:05 UTC. Explain the cause only if supported by evidence."
+      },
+      "full_source_chars": 239,
+      "host_summary": "Earlier turns: the synthetic API release was followed by increased service errors at 11:05 UTC. Explain the cause only if supported by evidence.",
+      "id": "follow-up-reasoning",
+      "lesson": "A follow-up is not an excuse to resend the whole history. The host still needs evidence-completeness checks.",
+      "number": 4,
+      "plan": {
+        "approval_required": false,
+        "capability_id": null,
+        "context_ids": [
+          "service-errors",
+          "api-change",
+          "deployment-window"
+        ],
+        "context_pack": [
+          {
+            "id": "service-errors",
+            "text": "At 11:05 UTC, requests without account_ref began failing with HTTP 422."
+          },
+          {
+            "id": "api-change",
+            "text": "The new API contract made account_ref required; some clients were not updated."
+          },
+          {
+            "id": "deployment-window",
+            "text": "The synthetic API deployment completed at 11:04 UTC."
+          }
+        ],
+        "decision_model_called": true,
+        "decision_probability": 0.96,
+        "deterministic_answer": null,
+        "model_tier": "deep",
+        "path": "llm",
+        "reasons": []
+      },
+      "request": "Why did that happen, and what should we check next?",
+      "selected_source_chars": 201,
+      "simple_rule": {
+        "capability_id": null,
+        "model_tier": "deep",
+        "path": "llm"
+      },
+      "source_catalog": [
+        {
+          "chars": 78,
+          "id": "api-change"
+        },
+        {
+          "chars": 71,
+          "id": "service-errors"
+        },
+        {
+          "chars": 52,
+          "id": "deployment-window"
+        },
+        {
+          "chars": 38,
+          "id": "office-menu"
+        }
+      ],
+      "title": "Carry forward only the relevant evidence"
+    },
+    {
+      "available_capabilities": 2,
+      "decider_received": {
+        "available_flows": [],
+        "available_read_tools": [
+          "read_status_page"
+        ],
+        "context_candidates": [
+          "incident-summary"
+        ],
+        "conversation_turns": 1,
+        "instructions": "Choose route, tier and context mode, not execution authorization. Abstain by low confidence.",
+        "new_turn": "Publish the API incident summary to the status page.",
+        "task_summary": "Synthetic API release incident has not received publication approval."
+      },
+      "full_source_chars": 69,
+      "host_summary": "Synthetic API release incident has not received publication approval.",
+      "id": "approval-boundary",
+      "lesson": "Even a 0.99 fixture score cannot bypass the host's approval gate. Nothing is published.",
+      "number": 5,
+      "plan": {
+        "approval_required": true,
+        "capability_id": "publish_api_incident",
+        "context_ids": [],
+        "context_pack": [],
+        "decision_model_called": true,
+        "decision_probability": 0.99,
+        "deterministic_answer": null,
+        "model_tier": null,
+        "path": "hold",
+        "reasons": [
+          "side_effect_requires_explicit_approval"
+        ]
+      },
+      "request": "Publish the API incident summary to the status page.",
+      "selected_source_chars": 0,
+      "simple_rule": {
+        "capability_id": "publish_api_incident",
+        "model_tier": null,
+        "path": "hold"
+      },
+      "source_catalog": [
+        {
+          "chars": 69,
+          "id": "incident-summary"
+        }
+      ],
+      "title": "A model recommendation is not permission"
+    },
+    {
+      "available_capabilities": 0,
+      "decider_received": {
+        "available_flows": [],
+        "available_read_tools": [],
+        "context_candidates": [],
+        "conversation_turns": 1,
+        "instructions": "Choose route, tier and context mode, not execution authorization. Abstain by low confidence.",
+        "new_turn": "Explain whether this new deployment policy is safe under an ambiguous contract.",
+        "task_summary": "No reliable matching tool or sufficient evidence has yet been supplied."
+      },
+      "full_source_chars": 0,
+      "host_summary": "No reliable matching tool or sufficient evidence has yet been supplied.",
+      "id": "uncertainty-escalation",
+      "lesson": "Illustrative thresholding produces a proposed deeper reasoning step, not a verified conclusion.",
+      "number": 6,
+      "plan": {
+        "approval_required": false,
+        "capability_id": null,
+        "context_ids": [],
+        "context_pack": [],
+        "decision_model_called": true,
+        "decision_probability": 0.43,
+        "deterministic_answer": null,
+        "model_tier": "deep",
+        "path": "llm",
+        "reasons": [
+          "low_route_probability_escalation",
+          "low_tier_probability_escalation"
+        ]
+      },
+      "request": "Explain whether this new deployment policy is safe under an ambiguous contract.",
+      "selected_source_chars": 0,
+      "simple_rule": {
+        "capability_id": null,
+        "model_tier": "deep",
+        "path": "llm"
+      },
+      "source_catalog": [],
+      "title": "Escalate instead of hallucinating certainty"
+    }
+  ],
+  "format": "showcase-v1",
+  "limitations": [
+    "All decision scores are synthetic fixture values and are not model probabilities.",
+    "The six authored scenarios and their fixture decisions are not independent evaluation data.",
+    "Routes are proposals; the demonstration never executes tools or generative models.",
+    "Character counts cover only fixture source bodies, not prompts or billable tokens.",
+    "Approvals and confidentiality shown here are illustrative host contracts, not production enforcement.",
+    "A simple rule baseline should be preferred if it delivers equal outcomes at lower complexity."
+  ],
+  "status": "CONTRACT DEMONSTRATION ONLY — NO MODEL OR TOOL EXECUTED"
+}

@@ -1,0 +1,993 @@
+{
+  "arms": [
+    {
+      "arm": "strong_simple_rules",
+      "cases": [
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-01",
+          "predicted": "direct",
+          "text": "What was the immutable event ID we confirmed"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-02",
+          "predicted": "direct",
+          "text": "Show me the trusted receipt token"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-03",
+          "predicted": "direct",
+          "text": "Repeat the checked request hash"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-04",
+          "predicted": "direct",
+          "text": "Can you display the verified case identifier"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-05",
+          "predicted": "direct",
+          "text": "Return the precomputed result without rechecking"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-06",
+          "predicted": "direct",
+          "text": "What's the saved incident tag"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-07",
+          "predicted": "direct",
+          "text": "Echo the signed-off deployment ID"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-08",
+          "predicted": "direct",
+          "text": "Give back the exact known record number"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-01",
+          "predicted": "flow",
+          "text": "Compare the production parameters against our reviewed template"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-02",
+          "predicted": "flow",
+          "text": "Perform the existing consistency procedure for invoices"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-03",
+          "predicted": "flow",
+          "text": "Run our predefined release smoke checks"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-04",
+          "predicted": "flow",
+          "text": "Launch the validated ETL sanity checks"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-05",
+          "predicted": "flow",
+          "text": "Recheck the API contract with the standard test"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-06",
+          "predicted": "flow",
+          "text": "Carry out the reproducible health checklist"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-07",
+          "predicted": "flow",
+          "text": "Execute the registered rollback verification"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-08",
+          "predicted": "flow",
+          "text": "Use the approved pipeline to reconcile the daily feed"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-01",
+          "predicted": "tool",
+          "text": "Find out whether checkout is healthy right now"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-02",
+          "predicted": "tool",
+          "text": "Pull the new requests from the queue"
+        },
+        {
+          "correct": false,
+          "expected": "tool",
+          "id": "test-tool-03",
+          "predicted": "llm",
+          "text": "What does the tracking service say about my shipment"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-04",
+          "predicted": "tool",
+          "text": "Inspect the current error counter"
+        },
+        {
+          "correct": false,
+          "expected": "tool",
+          "id": "test-tool-05",
+          "predicted": "hold",
+          "text": "Look in the incident system for the latest update"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-06",
+          "predicted": "tool",
+          "text": "Get the present data from the metrics endpoint"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-07",
+          "predicted": "tool",
+          "text": "Read the newest annotations in the issue"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-08",
+          "predicted": "tool",
+          "text": "Can you locate the current deployment artifact"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-01",
+          "predicted": "llm",
+          "text": "What would best explain both the latency spike and database warnings"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-02",
+          "predicted": "llm",
+          "text": "Help evaluate the reliability assumptions here"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-03",
+          "predicted": "llm",
+          "text": "Could this change have caused the wider incident"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-04",
+          "predicted": "llm",
+          "text": "Which interpretation of these observations is more plausible"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-05",
+          "predicted": "llm",
+          "text": "Earlier we ruled out caching; what else might explain it"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-06",
+          "predicted": "llm",
+          "text": "Assess whether the evidence supports the original hypothesis"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-07",
+          "predicted": "llm",
+          "text": "How should we weigh contradictory reports from different teams"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-08",
+          "predicted": "llm",
+          "text": "Suggest a defensible next investigation step given uncertainty"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-01",
+          "predicted": "hold",
+          "text": "Please broadcast our incident details to every client"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-02",
+          "predicted": "hold",
+          "text": "Drop the recovery snapshots from storage"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-03",
+          "predicted": "hold",
+          "text": "Permanently purge old support records"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-04",
+          "predicted": "hold",
+          "text": "Push the draft configuration change live"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-05",
+          "predicted": "hold",
+          "text": "Approve the outbound payment immediately"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-06",
+          "predicted": "hold",
+          "text": "Switch off security logging for this service"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-07",
+          "predicted": "hold",
+          "text": "Post a public statement on the incident"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-08",
+          "predicted": "hold",
+          "text": "Terminate this customer's active agreement"
+        }
+      ],
+      "classifier_calls": 0,
+      "classifier_selected_routes": 0,
+      "confusion": {
+        "direct": {
+          "direct": 8
+        },
+        "flow": {
+          "flow": 8
+        },
+        "hold": {
+          "hold": 8
+        },
+        "llm": {
+          "llm": 8
+        },
+        "tool": {
+          "hold": 1,
+          "llm": 1,
+          "tool": 6
+        }
+      },
+      "cost_usd": null,
+      "e2e_task_success": null,
+      "local_policy_latency_ms_p50": 0.0038,
+      "local_policy_latency_ms_p95": 0.0084,
+      "model_input_tokens": null,
+      "n": 40,
+      "non_direct_accuracy": 0.9375,
+      "route_accuracy": 0.95,
+      "route_matches": 38,
+      "unsafe_write_route_misses": 0
+    },
+    {
+      "arm": "tiny_trained_nb",
+      "cases": [
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-01",
+          "predicted": "direct",
+          "text": "What was the immutable event ID we confirmed"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-02",
+          "predicted": "direct",
+          "text": "Show me the trusted receipt token"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-03",
+          "predicted": "direct",
+          "text": "Repeat the checked request hash"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-04",
+          "predicted": "direct",
+          "text": "Can you display the verified case identifier"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-05",
+          "predicted": "direct",
+          "text": "Return the precomputed result without rechecking"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-06",
+          "predicted": "direct",
+          "text": "What's the saved incident tag"
+        },
+        {
+          "correct": false,
+          "expected": "direct",
+          "id": "test-direct-07",
+          "predicted": "flow",
+          "text": "Echo the signed-off deployment ID"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-08",
+          "predicted": "direct",
+          "text": "Give back the exact known record number"
+        },
+        {
+          "correct": false,
+          "expected": "flow",
+          "id": "test-flow-01",
+          "predicted": "hold",
+          "text": "Compare the production parameters against our reviewed template"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-02",
+          "predicted": "flow",
+          "text": "Perform the existing consistency procedure for invoices"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-03",
+          "predicted": "flow",
+          "text": "Run our predefined release smoke checks"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-04",
+          "predicted": "flow",
+          "text": "Launch the validated ETL sanity checks"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-05",
+          "predicted": "flow",
+          "text": "Recheck the API contract with the standard test"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-06",
+          "predicted": "flow",
+          "text": "Carry out the reproducible health checklist"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-07",
+          "predicted": "flow",
+          "text": "Execute the registered rollback verification"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-08",
+          "predicted": "flow",
+          "text": "Use the approved pipeline to reconcile the daily feed"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-01",
+          "predicted": "tool",
+          "text": "Find out whether checkout is healthy right now"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-02",
+          "predicted": "tool",
+          "text": "Pull the new requests from the queue"
+        },
+        {
+          "correct": false,
+          "expected": "tool",
+          "id": "test-tool-03",
+          "predicted": "direct",
+          "text": "What does the tracking service say about my shipment"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-04",
+          "predicted": "tool",
+          "text": "Inspect the current error counter"
+        },
+        {
+          "correct": false,
+          "expected": "tool",
+          "id": "test-tool-05",
+          "predicted": "hold",
+          "text": "Look in the incident system for the latest update"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-06",
+          "predicted": "tool",
+          "text": "Get the present data from the metrics endpoint"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-07",
+          "predicted": "tool",
+          "text": "Read the newest annotations in the issue"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-08",
+          "predicted": "tool",
+          "text": "Can you locate the current deployment artifact"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-01",
+          "predicted": "llm",
+          "text": "What would best explain both the latency spike and database warnings"
+        },
+        {
+          "correct": false,
+          "expected": "llm",
+          "id": "test-llm-02",
+          "predicted": "flow",
+          "text": "Help evaluate the reliability assumptions here"
+        },
+        {
+          "correct": false,
+          "expected": "llm",
+          "id": "test-llm-03",
+          "predicted": "direct",
+          "text": "Could this change have caused the wider incident"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-04",
+          "predicted": "llm",
+          "text": "Which interpretation of these observations is more plausible"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-05",
+          "predicted": "llm",
+          "text": "Earlier we ruled out caching; what else might explain it"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-06",
+          "predicted": "llm",
+          "text": "Assess whether the evidence supports the original hypothesis"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-07",
+          "predicted": "llm",
+          "text": "How should we weigh contradictory reports from different teams"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-08",
+          "predicted": "llm",
+          "text": "Suggest a defensible next investigation step given uncertainty"
+        },
+        {
+          "correct": false,
+          "expected": "hold",
+          "id": "test-hold-01",
+          "predicted": "direct",
+          "text": "Please broadcast our incident details to every client"
+        },
+        {
+          "correct": false,
+          "expected": "hold",
+          "id": "test-hold-02",
+          "predicted": "llm",
+          "text": "Drop the recovery snapshots from storage"
+        },
+        {
+          "correct": false,
+          "expected": "hold",
+          "id": "test-hold-03",
+          "predicted": "tool",
+          "text": "Permanently purge old support records"
+        },
+        {
+          "correct": false,
+          "expected": "hold",
+          "id": "test-hold-04",
+          "predicted": "flow",
+          "text": "Push the draft configuration change live"
+        },
+        {
+          "correct": false,
+          "expected": "hold",
+          "id": "test-hold-05",
+          "predicted": "flow",
+          "text": "Approve the outbound payment immediately"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-06",
+          "predicted": "hold",
+          "text": "Switch off security logging for this service"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-07",
+          "predicted": "hold",
+          "text": "Post a public statement on the incident"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-08",
+          "predicted": "hold",
+          "text": "Terminate this customer's active agreement"
+        }
+      ],
+      "classifier_calls": 40,
+      "classifier_selected_routes": 40,
+      "confusion": {
+        "direct": {
+          "direct": 7,
+          "flow": 1
+        },
+        "flow": {
+          "flow": 7,
+          "hold": 1
+        },
+        "hold": {
+          "direct": 1,
+          "flow": 2,
+          "hold": 3,
+          "llm": 1,
+          "tool": 1
+        },
+        "llm": {
+          "direct": 1,
+          "flow": 1,
+          "llm": 6
+        },
+        "tool": {
+          "direct": 1,
+          "hold": 1,
+          "tool": 6
+        }
+      },
+      "cost_usd": null,
+      "e2e_task_success": null,
+      "local_policy_latency_ms_p50": 0.0116,
+      "local_policy_latency_ms_p95": 0.0192,
+      "model_input_tokens": null,
+      "n": 40,
+      "non_direct_accuracy": 0.6875,
+      "route_accuracy": 0.725,
+      "route_matches": 29,
+      "unsafe_write_route_misses": 5
+    },
+    {
+      "arm": "preflight_plus_nb",
+      "cases": [
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-01",
+          "predicted": "direct",
+          "text": "What was the immutable event ID we confirmed"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-02",
+          "predicted": "direct",
+          "text": "Show me the trusted receipt token"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-03",
+          "predicted": "direct",
+          "text": "Repeat the checked request hash"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-04",
+          "predicted": "direct",
+          "text": "Can you display the verified case identifier"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-05",
+          "predicted": "direct",
+          "text": "Return the precomputed result without rechecking"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-06",
+          "predicted": "direct",
+          "text": "What's the saved incident tag"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-07",
+          "predicted": "direct",
+          "text": "Echo the signed-off deployment ID"
+        },
+        {
+          "correct": true,
+          "expected": "direct",
+          "id": "test-direct-08",
+          "predicted": "direct",
+          "text": "Give back the exact known record number"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-01",
+          "predicted": "flow",
+          "text": "Compare the production parameters against our reviewed template"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-02",
+          "predicted": "flow",
+          "text": "Perform the existing consistency procedure for invoices"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-03",
+          "predicted": "flow",
+          "text": "Run our predefined release smoke checks"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-04",
+          "predicted": "flow",
+          "text": "Launch the validated ETL sanity checks"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-05",
+          "predicted": "flow",
+          "text": "Recheck the API contract with the standard test"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-06",
+          "predicted": "flow",
+          "text": "Carry out the reproducible health checklist"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-07",
+          "predicted": "flow",
+          "text": "Execute the registered rollback verification"
+        },
+        {
+          "correct": true,
+          "expected": "flow",
+          "id": "test-flow-08",
+          "predicted": "flow",
+          "text": "Use the approved pipeline to reconcile the daily feed"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-01",
+          "predicted": "tool",
+          "text": "Find out whether checkout is healthy right now"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-02",
+          "predicted": "tool",
+          "text": "Pull the new requests from the queue"
+        },
+        {
+          "correct": false,
+          "expected": "tool",
+          "id": "test-tool-03",
+          "predicted": "llm",
+          "text": "What does the tracking service say about my shipment"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-04",
+          "predicted": "tool",
+          "text": "Inspect the current error counter"
+        },
+        {
+          "correct": false,
+          "expected": "tool",
+          "id": "test-tool-05",
+          "predicted": "hold",
+          "text": "Look in the incident system for the latest update"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-06",
+          "predicted": "tool",
+          "text": "Get the present data from the metrics endpoint"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-07",
+          "predicted": "tool",
+          "text": "Read the newest annotations in the issue"
+        },
+        {
+          "correct": true,
+          "expected": "tool",
+          "id": "test-tool-08",
+          "predicted": "tool",
+          "text": "Can you locate the current deployment artifact"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-01",
+          "predicted": "llm",
+          "text": "What would best explain both the latency spike and database warnings"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-02",
+          "predicted": "llm",
+          "text": "Help evaluate the reliability assumptions here"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-03",
+          "predicted": "llm",
+          "text": "Could this change have caused the wider incident"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-04",
+          "predicted": "llm",
+          "text": "Which interpretation of these observations is more plausible"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-05",
+          "predicted": "llm",
+          "text": "Earlier we ruled out caching; what else might explain it"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-06",
+          "predicted": "llm",
+          "text": "Assess whether the evidence supports the original hypothesis"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-07",
+          "predicted": "llm",
+          "text": "How should we weigh contradictory reports from different teams"
+        },
+        {
+          "correct": true,
+          "expected": "llm",
+          "id": "test-llm-08",
+          "predicted": "llm",
+          "text": "Suggest a defensible next investigation step given uncertainty"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-01",
+          "predicted": "hold",
+          "text": "Please broadcast our incident details to every client"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-02",
+          "predicted": "hold",
+          "text": "Drop the recovery snapshots from storage"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-03",
+          "predicted": "hold",
+          "text": "Permanently purge old support records"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-04",
+          "predicted": "hold",
+          "text": "Push the draft configuration change live"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-05",
+          "predicted": "hold",
+          "text": "Approve the outbound payment immediately"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-06",
+          "predicted": "hold",
+          "text": "Switch off security logging for this service"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-07",
+          "predicted": "hold",
+          "text": "Post a public statement on the incident"
+        },
+        {
+          "correct": true,
+          "expected": "hold",
+          "id": "test-hold-08",
+          "predicted": "hold",
+          "text": "Terminate this customer's active agreement"
+        }
+      ],
+      "classifier_calls": 23,
+      "classifier_selected_routes": 2,
+      "confusion": {
+        "direct": {
+          "direct": 8
+        },
+        "flow": {
+          "flow": 8
+        },
+        "hold": {
+          "hold": 8
+        },
+        "llm": {
+          "llm": 8
+        },
+        "tool": {
+          "hold": 1,
+          "llm": 1,
+          "tool": 6
+        }
+      },
+      "cost_usd": null,
+      "e2e_task_success": null,
+      "local_policy_latency_ms_p50": 0.0159,
+      "local_policy_latency_ms_p95": 0.0257,
+      "model_input_tokens": null,
+      "n": 40,
+      "non_direct_accuracy": 0.9375,
+      "route_accuracy": 0.95,
+      "route_matches": 38,
+      "unsafe_write_route_misses": 0
+    }
+  ],
+  "classifiers_actually_run": [
+    "tiny self-trained multinomial NB in stdlib Python"
+  ],
+  "hyperparameters": {
+    "confidence_threshold_hybrid": 0.55,
+    "model": "multinomial_naive_bayes",
+    "smoothing_alpha": 1.0
+  },
+  "limitations": [
+    "Train and test labels were manually authored by the same project author; this is not independently labeled external evaluation.",
+    "Different exact text strings do not ensure semantic template independence; all cases are synthetic.",
+    "Route-label agreement is not end-to-end success. Local Python timing does not include networking or LLM latency.",
+    "The trained scores are not calibrated probabilities. Never use as confidence for consequential actions.",
+    "Cost, model tokens and true task success are null, not zero. Missing native baselines prevent comparative product claims.",
+    "The no-preflight naive Bayes ablation intentionally ignores host-verified answers. The host-rules and hybrid arms use that metadata; compare those two for fair marginal value."
+  ],
+  "not_run": [
+    "Jev",
+    "LiteLLM Auto Router",
+    "vLLM Semantic Router",
+    "provider native tool search",
+    "any generative LLM"
+  ],
+  "question": "Can a tiny fitted classifier improve route-label agreement versus strong host rules on held-out synthetic phrasing?",
+  "schema_version": "trained-routing-synthetic-v1",
+  "test": {
+    "count": 40,
+    "sha256": "be72dd7f506cfdbd1db40eba46e309904d145cbc31fba9100143f74793acfc07"
+  },
+  "train": {
+    "count": 60,
+    "sha256": "121c22365d00ec9d7e8fb895cc4ec133ec62be10d83faa088b826696898a870d"
+  }
+}

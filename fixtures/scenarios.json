@@ -1,0 +1,132 @@
+[
+  {
+    "id": "no_tool_answer",
+    "text": "Say hello",
+    "expected_label": "direct",
+    "mock_judgment": {
+      "route": "direct",
+      "route_probability": 0.96,
+      "tier": "small",
+      "tier_probability": 0.94,
+      "context_mode": "none"
+    },
+    "direct_answer": "Hello."
+  },
+  {
+    "id": "deterministic_flow",
+    "text": "Validate a release capability snapshot",
+    "flows": [
+      {
+        "id": "validate_release_snapshot",
+        "description": "Validate a release capability snapshot using a deterministic schema checker"
+      }
+    ],
+    "expected_label": "flow",
+    "mock_judgment": {
+      "route": "flow",
+      "route_probability": 0.94,
+      "tier": "small",
+      "tier_probability": 0.87,
+      "context_mode": "none"
+    }
+  },
+  {
+    "id": "tool_query",
+    "text": "Check the incident log for yesterday",
+    "tools": [
+      {
+        "id": "read_incident_log",
+        "description": "Read incident log entries and timestamps"
+      }
+    ],
+    "sources": [
+      {
+        "id": "incident_runbook",
+        "summary": "incident log runbook",
+        "body": "Incident log is read only and timestamps are UTC."
+      }
+    ],
+    "expected_label": "tool",
+    "mock_judgment": {
+      "route": "tool",
+      "route_probability": 0.92,
+      "tier": "standard",
+      "tier_probability": 0.83,
+      "context_mode": "related"
+    }
+  },
+  {
+    "id": "complex",
+    "text": "Compare the failure modes of context routing and tool selection",
+    "expected_label": "llm_deep",
+    "mock_judgment": {
+      "route": "llm",
+      "route_probability": 0.95,
+      "tier": "deep",
+      "tier_probability": 0.96,
+      "context_mode": "none"
+    }
+  },
+  {
+    "id": "write_gate",
+    "text": "Create a customer incident ticket",
+    "tools": [
+      {
+        "id": "create_customer_incident_ticket",
+        "description": "Create a customer incident ticket",
+        "side_effect": true
+      }
+    ],
+    "expected_label": "hold",
+    "mock_judgment": {
+      "route": "tool",
+      "route_probability": 0.94,
+      "tier": "small",
+      "tier_probability": 0.88,
+      "context_mode": "none"
+    }
+  },
+  {
+    "id": "uncertain",
+    "text": "Do something about that earlier issue",
+    "expected_label": "llm_deep",
+    "mock_judgment": {
+      "route": "flow",
+      "route_probability": 0.52,
+      "tier": "small",
+      "tier_probability": 0.9,
+      "context_mode": "related"
+    }
+  },
+  {
+    "id": "missing_tool",
+    "text": "Read the weather observations",
+    "expected_label": "llm_deep",
+    "mock_judgment": {
+      "route": "tool",
+      "route_probability": 0.93,
+      "tier": "standard",
+      "tier_probability": 0.92,
+      "context_mode": "related"
+    }
+  },
+  {
+    "id": "low_tier",
+    "text": "Explain the impact of yesterday's cache incident",
+    "sources": [
+      {
+        "id": "cache_incident",
+        "summary": "yesterday cache incident",
+        "body": "The cache incident impacted read latency."
+      }
+    ],
+    "expected_label": "llm_deep",
+    "mock_judgment": {
+      "route": "llm",
+      "route_probability": 0.95,
+      "tier": "small",
+      "tier_probability": 0.4,
+      "context_mode": "related"
+    }
+  }
+]

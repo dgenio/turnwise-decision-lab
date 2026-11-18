@@ -1,0 +1,85 @@
+[
+  {
+    "id": "verified-answer",
+    "title": "Don't call a model for an already verified answer",
+    "text": "Is the release freeze active?",
+    "task_summary": "Public synthetic release demo: the status is supplied by an independently verified host record.",
+    "direct_answer": "Yes. The public demo freeze is active until 18:00 UTC.",
+    "sources": [
+      {"id": "release-calendar", "summary": "Release freeze calendar status", "body": "Demo release calendar: freeze until 18:00 UTC."}
+    ],
+    "mock_judgment": {"route": "direct", "route_probability": 0.99, "tier": "small", "tier_probability": 0.99, "context_mode": "none"},
+    "lesson": "The host already has a verified answer; no classifier call is justified."
+  },
+  {
+    "id": "deterministic-flow",
+    "title": "Use a reviewed deterministic flow",
+    "text": "Validate the API capability snapshot against the baseline.",
+    "task_summary": "Compare the published API capability snapshot and baseline under a reviewed offline check.",
+    "flows": [
+      {"id": "validate_capability_snapshot", "description": "Validate API capability snapshot and compare baseline"},
+      {"id": "format_release_notes", "description": "Format human-readable release notes"}
+    ],
+    "sources": [
+      {"id": "contract", "summary": "API capability snapshot requiredness and schema", "body": "The API snapshot records tools and JSON Schema required fields."},
+      {"id": "recipes", "summary": "Local example recipe", "body": "A fictional recipe unrelated to release verification."}
+    ],
+    "mock_judgment": {"route": "flow", "route_probability": 0.96, "tier": "small", "tier_probability": 0.95, "context_mode": "related"},
+    "lesson": "A known, reviewed procedure does not need a generative model between its steps."
+  },
+  {
+    "id": "read-tool",
+    "title": "Fetch evidence before generating an answer",
+    "text": "Read recent service incidents for the API release.",
+    "task_summary": "Public synthetic service incident triage for API release.",
+    "tools": [
+      {"id": "query_service_incidents", "description": "Read recent API release service incidents"},
+      {"id": "lookup_service_owner", "description": "Read on-call ownership"}
+    ],
+    "sources": [
+      {"id": "incidents", "summary": "Recent API release service incidents", "body": "Synthetic incident log: error rate rose after the release at 11:05 UTC."},
+      {"id": "catering", "summary": "Office catering menu", "body": "Synthetic office catering menu, unrelated to incidents."},
+      {"id": "runbook", "summary": "Service incident diagnostic runbook", "body": "Runbook: validate the deployment time and the changed API contract."}
+    ],
+    "mock_judgment": {"route": "tool", "route_probability": 0.94, "tier": "standard", "tier_probability": 0.91, "context_mode": "related"},
+    "lesson": "The plan selects a read capability; it does not execute the query or know its results."
+  },
+  {
+    "id": "follow-up-reasoning",
+    "title": "Carry forward only the relevant evidence",
+    "text": "Why did that happen, and what should we check next?",
+    "task_summary": "Earlier turns: the synthetic API release was followed by increased service errors at 11:05 UTC. Explain the cause only if supported by evidence.",
+    "sources": [
+      {"id": "api-change", "summary": "API release required field change", "body": "The new API contract made account_ref required; some clients were not updated."},
+      {"id": "service-errors", "summary": "Service errors after API release", "body": "At 11:05 UTC, requests without account_ref began failing with HTTP 422."},
+      {"id": "deployment-window", "summary": "API release deployment time", "body": "The synthetic API deployment completed at 11:04 UTC."},
+      {"id": "office-menu", "summary": "Lunch menu choices", "body": "Today: vegetarian soup and sandwiches."}
+    ],
+    "context_budget_chars": 320,
+    "mock_judgment": {"route": "llm", "route_probability": 0.96, "tier": "deep", "tier_probability": 0.86, "context_mode": "extended"},
+    "lesson": "A follow-up is not an excuse to resend the whole history. The host still needs evidence-completeness checks."
+  },
+  {
+    "id": "approval-boundary",
+    "title": "A model recommendation is not permission",
+    "text": "Publish the API incident summary to the status page.",
+    "task_summary": "Synthetic API release incident has not received publication approval.",
+    "tools": [
+      {"id": "publish_api_incident", "description": "Publish API incident summary to the public status page", "side_effect": true},
+      {"id": "read_status_page", "description": "Read public incident status"}
+    ],
+    "sources": [
+      {"id": "incident-summary", "summary": "API incident summary for publication", "body": "Synthetic incident summary; publication needs an authorized approver."}
+    ],
+    "mock_judgment": {"route": "tool", "route_probability": 0.99, "tier": "standard", "tier_probability": 0.97, "context_mode": "related"},
+    "lesson": "Even a 0.99 fixture score cannot bypass the host's approval gate. Nothing is published."
+  },
+  {
+    "id": "uncertainty-escalation",
+    "title": "Escalate instead of hallucinating certainty",
+    "text": "Explain whether this new deployment policy is safe under an ambiguous contract.",
+    "task_summary": "No reliable matching tool or sufficient evidence has yet been supplied.",
+    "mock_judgment": {"route": "llm", "route_probability": 0.43, "tier": "small", "tier_probability": 0.32, "context_mode": "none"},
+    "lesson": "Illustrative thresholding produces a proposed deeper reasoning step, not a verified conclusion."
+  }
+]
