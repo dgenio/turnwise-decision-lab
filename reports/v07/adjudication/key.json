@@ -1,0 +1,402 @@
+{
+ "K001": {
+  "arm": "dm_dynamic",
+  "scenario": "L20"
+ },
+ "K002": {
+  "arm": "heavy_agent",
+  "scenario": "L11"
+ },
+ "K003": {
+  "arm": "heavy_agent",
+  "scenario": "L18"
+ },
+ "K004": {
+  "arm": "dm_dynamic",
+  "scenario": "L14"
+ },
+ "K005": {
+  "arm": "contract_narrated",
+  "scenario": "L04"
+ },
+ "K006": {
+  "arm": "contract_narrated",
+  "scenario": "L13"
+ },
+ "K007": {
+  "arm": "contract_narrated",
+  "scenario": "L16"
+ },
+ "K008": {
+  "arm": "dm_dynamic",
+  "scenario": "L11"
+ },
+ "K009": {
+  "arm": "heavy_agent",
+  "scenario": "L10"
+ },
+ "K010": {
+  "arm": "heavy_agent",
+  "scenario": "L14"
+ },
+ "K011": {
+  "arm": "heavy_agent",
+  "scenario": "L05"
+ },
+ "K012": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L03"
+ },
+ "K013": {
+  "arm": "heavy_agent",
+  "scenario": "L03"
+ },
+ "K014": {
+  "arm": "dm_dynamic",
+  "scenario": "L01"
+ },
+ "K015": {
+  "arm": "contract_narrated",
+  "scenario": "L09"
+ },
+ "K016": {
+  "arm": "contract",
+  "scenario": "L13"
+ },
+ "K017": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L12"
+ },
+ "K018": {
+  "arm": "dm_dynamic",
+  "scenario": "L07"
+ },
+ "K019": {
+  "arm": "dm_dynamic",
+  "scenario": "L02"
+ },
+ "K020": {
+  "arm": "dm_dynamic",
+  "scenario": "L16"
+ },
+ "K021": {
+  "arm": "heavy_agent",
+  "scenario": "L01"
+ },
+ "K022": {
+  "arm": "contract",
+  "scenario": "L20"
+ },
+ "K023": {
+  "arm": "contract_narrated",
+  "scenario": "L07"
+ },
+ "K024": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L13"
+ },
+ "K025": {
+  "arm": "heavy_agent",
+  "scenario": "L15"
+ },
+ "K026": {
+  "arm": "heavy_agent",
+  "scenario": "L06"
+ },
+ "K027": {
+  "arm": "heavy_agent",
+  "scenario": "L13"
+ },
+ "K028": {
+  "arm": "contract",
+  "scenario": "L15"
+ },
+ "K029": {
+  "arm": "contract",
+  "scenario": "L01"
+ },
+ "K030": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L20"
+ },
+ "K031": {
+  "arm": "heavy_agent",
+  "scenario": "L09"
+ },
+ "K032": {
+  "arm": "contract_narrated",
+  "scenario": "L18"
+ },
+ "K033": {
+  "arm": "heavy_agent",
+  "scenario": "L12"
+ },
+ "K034": {
+  "arm": "dm_dynamic",
+  "scenario": "L04"
+ },
+ "K035": {
+  "arm": "contract_narrated",
+  "scenario": "L06"
+ },
+ "K036": {
+  "arm": "dm_dynamic",
+  "scenario": "L10"
+ },
+ "K037": {
+  "arm": "contract",
+  "scenario": "L05"
+ },
+ "K038": {
+  "arm": "dm_dynamic",
+  "scenario": "L09"
+ },
+ "K039": {
+  "arm": "contract",
+  "scenario": "L10"
+ },
+ "K040": {
+  "arm": "dm_dynamic",
+  "scenario": "L06"
+ },
+ "K041": {
+  "arm": "dm_dynamic",
+  "scenario": "L17"
+ },
+ "K042": {
+  "arm": "heavy_agent",
+  "scenario": "L17"
+ },
+ "K043": {
+  "arm": "dm_dynamic",
+  "scenario": "L18"
+ },
+ "K044": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L17"
+ },
+ "K045": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L08"
+ },
+ "K046": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L07"
+ },
+ "K047": {
+  "arm": "dm_dynamic",
+  "scenario": "L08"
+ },
+ "K048": {
+  "arm": "contract_narrated",
+  "scenario": "L15"
+ },
+ "K049": {
+  "arm": "heavy_agent",
+  "scenario": "L08"
+ },
+ "K050": {
+  "arm": "dm_dynamic",
+  "scenario": "L15"
+ },
+ "K051": {
+  "arm": "contract_narrated",
+  "scenario": "L19"
+ },
+ "K052": {
+  "arm": "contract_narrated",
+  "scenario": "L01"
+ },
+ "K053": {
+  "arm": "contract_narrated",
+  "scenario": "L20"
+ },
+ "K054": {
+  "arm": "heavy_agent",
+  "scenario": "L16"
+ },
+ "K055": {
+  "arm": "heavy_agent",
+  "scenario": "L07"
+ },
+ "K056": {
+  "arm": "contract",
+  "scenario": "L02"
+ },
+ "K057": {
+  "arm": "contract_narrated",
+  "scenario": "L17"
+ },
+ "K058": {
+  "arm": "contract_narrated",
+  "scenario": "L03"
+ },
+ "K059": {
+  "arm": "contract_narrated",
+  "scenario": "L02"
+ },
+ "K060": {
+  "arm": "contract",
+  "scenario": "L12"
+ },
+ "K061": {
+  "arm": "heavy_agent",
+  "scenario": "L02"
+ },
+ "K062": {
+  "arm": "dm_dynamic",
+  "scenario": "L05"
+ },
+ "K063": {
+  "arm": "contract",
+  "scenario": "L07"
+ },
+ "K064": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L16"
+ },
+ "K065": {
+  "arm": "contract",
+  "scenario": "L19"
+ },
+ "K066": {
+  "arm": "contract",
+  "scenario": "L09"
+ },
+ "K067": {
+  "arm": "heavy_agent",
+  "scenario": "L19"
+ },
+ "K068": {
+  "arm": "contract",
+  "scenario": "L04"
+ },
+ "K069": {
+  "arm": "dm_dynamic",
+  "scenario": "L03"
+ },
+ "K070": {
+  "arm": "contract",
+  "scenario": "L06"
+ },
+ "K071": {
+  "arm": "contract_narrated",
+  "scenario": "L11"
+ },
+ "K072": {
+  "arm": "contract_narrated",
+  "scenario": "L08"
+ },
+ "K073": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L11"
+ },
+ "K074": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L09"
+ },
+ "K075": {
+  "arm": "dm_dynamic",
+  "scenario": "L12"
+ },
+ "K076": {
+  "arm": "contract_narrated",
+  "scenario": "L10"
+ },
+ "K077": {
+  "arm": "dm_dynamic",
+  "scenario": "L13"
+ },
+ "K078": {
+  "arm": "contract",
+  "scenario": "L08"
+ },
+ "K079": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L01"
+ },
+ "K080": {
+  "arm": "contract",
+  "scenario": "L11"
+ },
+ "K081": {
+  "arm": "contract_narrated",
+  "scenario": "L05"
+ },
+ "K082": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L18"
+ },
+ "K083": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L10"
+ },
+ "K084": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L02"
+ },
+ "K085": {
+  "arm": "contract",
+  "scenario": "L17"
+ },
+ "K086": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L05"
+ },
+ "K087": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L19"
+ },
+ "K088": {
+  "arm": "contract_narrated",
+  "scenario": "L12"
+ },
+ "K089": {
+  "arm": "dm_dynamic",
+  "scenario": "L19"
+ },
+ "K090": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L14"
+ },
+ "K091": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L06"
+ },
+ "K092": {
+  "arm": "contract",
+  "scenario": "L18"
+ },
+ "K093": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L15"
+ },
+ "K094": {
+  "arm": "contract",
+  "scenario": "L14"
+ },
+ "K095": {
+  "arm": "heavy_agent_gated",
+  "scenario": "L04"
+ },
+ "K096": {
+  "arm": "contract",
+  "scenario": "L16"
+ },
+ "K097": {
+  "arm": "heavy_agent",
+  "scenario": "L20"
+ },
+ "K098": {
+  "arm": "heavy_agent",
+  "scenario": "L04"
+ },
+ "K099": {
+  "arm": "contract_narrated",
+  "scenario": "L14"
+ },
+ "K100": {
+  "arm": "contract",
+  "scenario": "L03"
+ }
+}

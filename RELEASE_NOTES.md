@@ -1,3 +1,39 @@
+# Turnwise Decision Lab: v0.7 (2026-11-18)
+
+**Gate the exit, not every step.** A host-side exit gate with typed evidence contracts, measured around three controllers on a locked task set.
+
+Stacked on v0.6 (PR #6), which it does not change: v0.6's traces, labels, scores and pre-registration are untouched and still reproduce.
+
+## Adds
+
+- `turnwise_lab/v07/`: evidence contracts and host-derived facts (`evidence.py`), the exit gate (`gate.py`: sufficiency, action latch, veto, grounding), gate wrappers for the three v0.6 controllers and a contract planner (`controllers.py`), a paired benchmark with a full cost ledger (`bench.py`), blinded two-grader adjudication tooling, a freeze manifest, and an opt-in hosted-agent adapter (`hosted.py`) that has only ever talked to a local fake server.
+- Five new world variants (a deploy that lands after the error rise, two deploys, a second failing service, drift without a deploy, a flaky deploy log).
+- Two independently authored task sets: 28 development tasks and 60 locked tasks the implementer did not read before the freeze.
+- The **Decision Microscope** (`demo/microscope.html`): every task under every controller, step by step, replayed from recorded traces.
+- `tests/test_v07_diagnosis.py`: five v0.6 defects reproduced against the frozen v0.6 code.
+
+## Results (locked set, n = 60, real local inference; see `reports/v07/summary.md`)
+
+**Scale: the "heavy" model is Qwen3.5-0.8B. Nothing here is evidence about a capable agent.**
+
+| Controller | Without gate | With gate | Paired difference (95% CI) |
+|---|---:|---:|---:|
+| Heavy-only agent | 27 | 31 | +6.7 pp (−1.0 to +14.1) |
+| v0.6 rules | 23 | 38 | +25.0 pp (+13.7 to +35.0) |
+| v0.6 learned head | 25 | 35 | +16.7 pp (+6.1 to +26.4) |
+
+- **Contract planner:** 44/60 at 2.8 s and 82 model tokens per task, against the agent's 27/60 at 12.3 s and 396. The outcome check is lexical and favours host-written replies; the blinded adjudication in the report is the fairer reading.
+- **A learned per-step head adds nothing behind the gate:** gated rules 38 against gated head 35, at 49 against 835 tokens per task.
+- **Eight of twelve pre-registered predictions supported, four falsified.** Falsified: the action latch (it halved dropped actions but did not remove them, and once raised an approval for the wrong target), "the controller matters less behind the gate" (the spread grew), the lexicon's typing accuracy (80%, under the 85% threshold), and "the planner has the fewest serious failures" (7 against gated rules' 5).
+- **Safety:** no write executed in any arm.
+- **Not run:** any capable heavy model, any hosted decision service, any human grader.
+
+## Verdict for the mechanism
+
+**SHRINK.** Keep the exit-side sufficiency check and host-derived findings. Stop investing in the trained per-step decision head. Do not synthesise write intents from a lexicon; let a model's typed tool call be the only source of a write and keep the host's veto. Hold every claim about capable agents until the Level C pilot (`docs/v07-level-c-protocol.md`), which needs owner approval.
+
+---
+
 # Turnwise Decision Lab: v0.6 (2026-11-18)
 
 **Decision-driven agent control, measured against a heavy-only LLM agent with real local inference.**

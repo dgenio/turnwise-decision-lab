@@ -212,7 +212,7 @@ function renderSummary() { const set = D.sets[S.set], box = $('summary'); box.re
     el('th', {class: 'num', text: 'Serious failures'}), el('th', {class: 'num', text: 'Compute per task'}), el('th', {class: 'num', text: 'Model tokens computed per task'}),
     el('th', {class: 'num', text: 'Tool calls per task'}))), tb));
   const p = set.provenance;
-  $('prov').textContent = 'Recorded ' + p.recorded + ' on ' + p.cpu + ', code ' + p.commit + ', heavy model ' + p.heavy + '. Replayed here from the recorded traces; nothing runs in your browser.'; }
+  $('prov').textContent = 'Recorded ' + p.recorded + ' on ' + p.cpu + ', repository HEAD ' + p.commit + ' (frozen files unchanged since the freeze), heavy model ' + p.heavy + '. Replayed here from the recorded traces; nothing runs in your browser.'; }
 
 function visibleTasks() { const set = D.sets[S.set], f = FILTERS.find(x => x[0] === S.filter)[2];
   return set.tasks.filter(t => (S.cat === 'all' || t.cat === S.cat) && f(t)); }
@@ -249,7 +249,8 @@ function stepNodes(s) { const out = [];
   if (s.g) { out.push(el('div', {class: 'step'}, el('div', {class: 'who', text: (s.g.tier === 'heavy' ? 'Heavy' : 'Light') + ' model · generation'}),
       el('div', {class: 'small muted', text: s.g.pt + ' new prompt tokens' + (s.g.cached ? ' + ' + s.g.cached + ' cache-reused' : '') + ', ' + s.g.ct + ' generated, ' + secs(s.g.ms)}),
       s.ctx ? el('div', {class: 'small muted', text: 'prompt blocks: ' + s.ctx.map(b => b[0] + ' (' + b[1] + ')').join(', ')}) : null,
-      el('div', {class: 'reply' + (s.g.withheld ? ' withheld' : ''), text: s.g.text || '(empty)'}),
+      (s.calls && s.calls.length && !(s.gate && s.gate.action !== 'allow')) ? el('div', {class: 'small', text: 'The model wrote ' + s.calls.length + ' tool call' + (s.calls.length > 1 ? 's' : '') + ' (shown below).'})
+        : el('div', {class: 'reply' + (s.g.withheld || (s.gate && s.gate.action !== 'allow') ? ' withheld' : ''), text: s.g.text || '(empty)'}),
       s.g.withheld ? el('div', {class: 'small', text: 'Withheld by the exit gate: ' + s.g.viol.join('; ')}) : null)); }
   if (s.d && !(s.g && s.d.op === 'answer') && !(s.g && s.d.op === 'call_model' && !s.d.gate)) { const [who, isGate] = actor(s.d.by);
     const what = s.d.op === 'call_model' ? 'call the ' + s.d.tier + ' model' : (s.d.t ? s.d.t + '(' + fmtArgs(s.d.a) + ')' : s.d.op);
@@ -289,13 +290,13 @@ function armPanel(t, a, onChange) { const set = D.sets[S.set], c = t.cells[a], s
 function renderDetail() { const box = $('detail'); box.replaceChildren(); const set = D.sets[S.set];
   const t = set.tasks.find(x => x.id === S.task); if (!t) { box.append(el('p', {class: 'muted', text: 'Select a cell above to open a turn.'})); return; }
   if (!t.cells[S.arm]) S.arm = set.arms[0]; if (!t.cells[S.other]) S.other = set.arms[1] || set.arms[0];
-  box.append(el('h2', {text: t.id + ' · ' + t.cat.replace('_', ' ')}),
+  box.append(...[el('h2', {text: t.id + ' · ' + t.cat.replace('_', ' ')}),
     t.convo.length ? el('div', {class: 'convo'}, t.convo.map(m => el('div', {}, el('strong', {text: m.role + ': '}), m.content))) : null,
     el('p', {class: 'msg'}, el('strong', {text: 'User: '}), t.msg),
     el('details', {}, el('summary', {text: 'Gold label (used only by the scorer; no controller, gate or model ever sees it)'}),
       el('dl', {class: 'kv'}, el('dt', {text: 'Expected outcome'}), el('dd', {text: t.gold.outcome + (t.gold.approval ? ': ' + t.gold.approval : '')}), el('dt', {text: 'Required evidence'}), el('dd', {text: t.gold.facts.join(', ') || 'none'}),
         el('dt', {text: 'Reference answer'}), el('dd', {text: t.gold.ref}), el('dt', {text: 'World variant'}), el('dd', {text: t.world}), el('dt', {text: 'Author note'}), el('dd', {text: t.gold.note}))),
-    el('div', {class: 'cols'}, armPanel(t, S.arm, v => { S.arm = v; draw(); }), armPanel(t, S.other, v => { S.other = v; draw(); }))); }
+    el('div', {class: 'cols'}, armPanel(t, S.arm, v => { S.arm = v; draw(); }), armPanel(t, S.other, v => { S.other = v; draw(); }))].filter(Boolean)); }
 
 function draw() { renderControls(); renderSummary(); renderMatrix(); renderDetail(); writeHash(); }
 readHash(); draw(); addEventListener('hashchange', () => { readHash(); draw(); });

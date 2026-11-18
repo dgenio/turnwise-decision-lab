@@ -1,4 +1,10 @@
-# Release status: v0.6 (2026-11-18)
+# Release status: v0.7 (2026-11-18)
+
+v0.7 adds the exit gate, evidence contracts, the contract planner and a pre-registered locked-set study on the pinned local models. Results: `reports/v07/summary.md`. Mechanism: `docs/v07-exit-gate.md`. Reasoning: `docs/v07-research-assessment.md`. What review found: `docs/v07-self-review.md`. **Status: Level B evidence only (0.8B local models). Verdict for the mechanism: SHRINK.** Not done: a capable heavy model, hosted decision services, a human grader, a second domain. Next gate: `docs/v07-level-c-protocol.md` (needs owner decisions on model, budget, margin and graders).
+
+v0.7 is stacked on v0.6 and changes nothing v0.6 froze.
+
+## v0.6 status (unchanged)
 
 v0.6 adds the decision-driven agent loop, real local inference and the heavy-only agent comparison. Its status is in `reports/v06/summary.md`. Not done for v0.6: hosted decision services (no credentials, no approved spend), a heavy model larger than 0.8B, and held-out tasks from a human author. **Status: exploratory and inconclusive; HOLD on any scientific claim** (owner review of PR #6, issue #5). Post-hoc audit: `reports/v06/audit.md`. Next gate: `docs/v07-gate-proposal.md`. Under the quality-constrained efficiency protocol (PR #4), the v0.6 result is inconclusive: no non-inferiority margin has been agreed, and n = 30 cannot resolve any margin narrower than about 16 pp.
 

@@ -1,18 +1,131 @@
 # Turnwise: route the work, not just the model
 
-Model routers choose *which* model answers a turn. That may be one decision too late. Turnwise tests a different control architecture for agents. A **lightweight decision model chooses the next operation, again and again within one user request**: a tool, an existing workflow, a light or heavy generation model, finishing with verified data, or a clarifying question. An independent host validates every proposal before it runs, and every result can trigger a new decision. The project then measures whether that architecture can compete with a conventional agent whose whole loop is a capable LLM.
+A conventional agent hands the whole control loop to a capable language model. Turnwise is a small lab that asks, step by step, what actually needs one: a verified fact, a deterministic tool, a workflow, a light model, a capable model, or a hold for human approval. It runs real experiments on a synthetic incident-response world, pre-registers them, and keeps the parts where it was wrong.
 
-It is an experiment with real, recorded inference and its failures kept, not a framework or a product.
+It is not a framework or a product. Every number below comes from small local models; **nothing here is evidence about a capable agent yet.**
 
-**[See one request handled by both architectures, step by step →](https://dgenio.github.io/turnwise-decision-lab/)** · [v0.6 report](reports/v06/summary.md) · [Pre-registration](docs/preregistration-v0.6.md) · [Architecture](docs/v06-architecture.md) · [Models](docs/v06-models.md)
+**[Open the Decision Microscope →](https://dgenio.github.io/turnwise-decision-lab/microscope.html)** · [v0.7 report](reports/v07/summary.md) · [pre-registration](docs/preregistration-v0.7.md) · [what review found](docs/v07-self-review.md) · [how the gate works](docs/v07-exit-gate.md)
 
-### The next hypothesis: near-baseline quality, much lower cost
+[![The Decision Microscope: one request under two controllers. On the left the agent answers a question about search with evidence about checkout only. On the right the same reply is struck through: the exit gate did not send it, named the missing evidence and ran those calls itself.](docs/img/v07-microscope-detail.jpg)](https://dgenio.github.io/turnwise-decision-lab/microscope.html#locked/L03/heavy_agent/heavy_agent_gated)
 
-The target is **not** higher accuracy than a conventional heavy-LLM tool-calling agent. The hypothesis is that routing safe deterministic work away from the heavy model, using a decision service or light model only where justified, and shrinking the context of unavoidable heavy calls can deliver **similar or slightly worse end-to-end task quality at substantially lower cost and latency**. When unsure, prefer a heavy fallback; do not silently guess.
+## The finding (v0.7): gate the exit, not every step
 
-This is a **quality-constrained efficiency** experiment: first establish an acceptable, independently checked loss margin against an **actually executed heavy-only agent**; only then evaluate total cost, p50/p95 latency, heavy invocations and heavy-context tokens. No such non-inferiority or economic gain has been demonstrated yet. The existing v0.5 results expose risks rather than validating this thesis. v0.6 (below) is a first local, small-model test against this framing, and on that reading it is **inconclusive** (point 9). See the [candidate v0.6 protocol](docs/quality-constrained-efficiency-v06.md) and [independent-evidence issue #3](https://github.com/dgenio/turnwise-decision-lab/issues/3).
+v0.6 put a trained decision model in charge of every step and compared it with an LLM agent. Its failures were not about *choosing the next step*. They were about *ending the turn*: finishing, or writing an answer, before the evidence could support it, and dropping an action when unsure ([diagnosis](docs/v07-research-assessment.md), with five of the defects [reproduced as tests](tests/test_v07_diagnosis.py)).
 
-## Result (v0.6, held-out): exploratory and inconclusive
+So v0.7 moves the check. Any controller drives the turn. Before the turn may end, the host checks the reply's kind against an **evidence contract**. A reply that attributes a cause needs a receipt for the symptom *and* a receipt for a candidate change, for the same service. If one is missing, the host names the call, runs it without asking a model, and hands the turn back.
+
+The study runs three v0.6 controllers unchanged, each with and without that gate, plus a planner that lets the contract choose the calls. 60 locked tasks, written by an independent LLM author and not read by the implementer before the code was frozen. Real local inference, every token counted.
+
+| Controller | Passed, no gate | Passed, with gate | Paired difference (95% CI) | Compute per task (gated) | Model tokens computed per task (gated) |
+|---|---:|---:|---:|---:|---:|
+| LLM agent (Qwen3.5-0.8B, native tool calling) | 27/60 | 31/60 | +6.7 pp (−1.0 to +14.1) | 13.8 s | 460 |
+| v0.6 hand-written rules | 23/60 | 38/60 | +25.0 pp (+13.7 to +35.0) | 1.9 s | 49 |
+| v0.6 trained decision head | 25/60 | 35/60 | +16.7 pp (+6.1 to +26.4) | 7.2 s | 835 |
+| **Contract planner** (no model chooses a step; untyped requests go to the gated agent) | | **44/60** | +28.3 pp against the ungated agent (+13.0 to +41.7) | 2.8 s | 82 |
+
+"Passed" is a frozen lexical outcome check. It is lenient on generated text and easy for host-written text. <!--ADJ-->
+
+What the locked run says, with the pre-registered predictions it settled:
+
+1. **Checking the exit helped every controller, and broke almost nothing.** Pooled, the gate fixed 31 tasks and broke 2. Replies sent while required evidence was missing fell from 44 to 15. The gain is clear for the two cheap controllers and **not distinguishable from zero for the agent**. *(G1, G2 supported.)*
+2. **A trained per-step decision head is not needed.** Behind the gate, plain rules passed 38 tasks and the trained head 35, at 49 against 835 model tokens per task. Whatever the head learned, the gate replaces it for 6% of the tokens. *(G5 supported.)*
+3. **When the contract determines the next call, nobody has to choose it.** The planner asked no model for 49 of 60 requests and passed 41 of them. It delegated 11 to the agent and passed 3. Overall: more tasks than the agent at under a quarter of its compute. *(C1, C2 supported.)*
+4. **The controller still matters.** The gate did not flatten the three controllers; it reordered them. The spread grew from 4 tasks to 7. *(G4 falsified.)*
+5. **The action latch is the part that failed.** A lexicon that turns "the user asked for a side effect" into an approval request halved the dropped actions, did not remove them, and once raised an approval for **the wrong service** (`L56`). A lexicon is the wrong instrument for action intent. *(G3 and S1 falsified.)*
+6. **The lexicon is confidently wrong one time in five.** It typed 49 requests and got 39 right. *(C3 falsified.)*
+7. **Letting the 0.8B model phrase the host's findings made things worse** (39 against 44). The grounding check catches invented values. It does not catch "the rise at 11:05 came three minutes *before* the deploy at 11:02". *(C4 supported.)*
+
+No write was executed in any arm. No hosted model was called and nothing was spent.
+
+### Verdict: SHRINK
+
+| | Decision | Why |
+|---|---|---|
+| Exit-side sufficiency check and host-derived findings | **Keep** | The only part that helped every controller on tasks it had never seen, at no model cost. |
+| Trained per-step decision head (v0.6's centrepiece) | **Stop** | Matched by rules behind the gate at a fraction of the compute; commodity decision APIs exist if one is ever needed. |
+| Synthesising write intents from a lexicon (the action latch) | **Stop in this form** | It dropped actions and raised a wrong one. Keep the host's *veto*; let a model's typed tool call be the only source of a write. |
+| Lexicon claim typing | **Shrink** | Useful as a fast path, wrong 20% of the time. A single constrained model pass is the next thing to try. |
+| Any claim about capable agents, cost or latency in production | **Hold** | Needs the Level C pilot below. |
+
+## What is real, and what is not
+
+| Real (recorded, replayable) | Not run, or not established |
+|---|---|
+| 480 locked turns and 224 development turns of local CPU inference on pinned models; every decision, tool call, prompt and generation recorded | A capable heavy model in any arm. "Heavy" is Qwen3.5-0.8B |
+| Every tool and workflow call, through the host and `LocalHarness`, on a synthetic world | Hosted decision services, provider prices, hosted latency. `provider_cost_usd` is null |
+| A freeze manifest of 31 file hashes committed before the locked run; CI checks it | A human task author or a human grader. Authors and graders are LLM agents |
+| CI replays every recorded turn through the real host, gate and planner and requires identical observations, replies and scores | CI does **not** re-run model inference |
+| Tool latency of microseconds | Real tool latency. The report has a sensitivity table up to 2 s per call |
+| One world, four services, seven read tools | Generality of the lexicon and the tool roles. Only the two-sided rule is world-independent |
+
+## Reproduce
+
+```bash
+python -m unittest discover -s tests            # 220 tests, no models, no network
+python -m turnwise_lab.v07.bench --report       # rebuild reports/v07/summary.{json,md} from recorded traces
+python -m turnwise_lab.v07.microscope           # rebuild demo/microscope.html
+python -m turnwise_lab.v07.freeze --check       # the frozen files still match the manifest
+```
+
+Re-running real inference (CPU, about 3 GB of pinned weights kept outside the repository):
+
+```bash
+pip install ".[local]"
+python -m scripts.fetch_models                  # pinned revisions, sha256-verified
+python -m turnwise_lab.v07.bench --set dev --arms all
+```
+
+Decoding is greedy, so outputs reproduce on the same software stack; latency varies. The locked set has been run and read: it is development data from now on.
+
+## Where this is weak
+
+- **Scale.** A 0.8B model over-calls tools, loops and sometimes answers with no evidence. A capable agent may already satisfy the contract unprompted, in which case the gate would rarely fire. This study cannot tell.
+- **The primary outcome is lexical** and favours host-written replies. The adjudication is the fairer reading, and it is LLM-graded.
+- **The lexicon.** It was hardened by an adversarial review before the freeze and still mistyped 10 of 49 requests on the locked set. A wrong type is a confident wrong reply.
+- **One synthetic world, LLM authors, LLM graders, one run per arm, one CPU.**
+- **Shared authorship.** The gate, the planner and the scorer's safety audits were written by the same implementer.
+
+Everything that review found, before and after the freeze, is in [`docs/v07-self-review.md`](docs/v07-self-review.md).
+
+## The experiment that matters next
+
+Does a **capable** agent try to end a turn with the contract unmet often enough for an exit check to be worth having? [`docs/v07-level-c-protocol.md`](docs/v07-level-c-protocol.md) is a design ready to freeze, and the code path exists ([`v07/hosted.py`](turnwise_lab/v07/hosted.py), tested against a fake server only). The smallest valid step is a 40-task pilot with two arms, the agent with and without the gate, on new tasks.
+
+It needs decisions only the owner can make: the model, a spending cap, the non-inferiority margin, the safety ceilings, and who writes and grades the tasks. Nothing hosted has been called.
+
+## How this relates to existing work
+
+Checking before answering is not new. Agent frameworks can host such a check (LangChain v1 `after_model` middleware, an OpenAI Agents SDK tripwire with a re-run, a LlamaIndex workflow step) and none ships one. The closest work found is Read-Gate, a single runtime invariant ([arXiv:2608.02011](https://arxiv.org/abs/2608.02011)), and SafeActBench's evidence ledger, which evaluates trajectories ([arXiv:2610.07753](https://arxiv.org/abs/2610.07753)). Model routers (LiteLLM, vLLM Semantic Router, RouteLLM, FrugalGPT) choose a model, not an exit. Decision models are now a commodity API (OpenAI Decisions, TypeSafe System One).
+
+What this repository adds is narrower: a typed, two-sided evidence contract enforced by host code that calls no model, measured as a factorial across three controllers with every controller token counted. Sources and limits of that search: [`docs/v07-research-assessment.md`](docs/v07-research-assessment.md#5-prior-art-checked-2026-11-18).
+
+## Useful contributions
+
+1. **Run the Level C pilot** with a capable model, your own key and a spending cap.
+2. **Write tasks or grade replies as a human.** The [authoring spec](docs/v07-task-authoring-spec.md) is the only document an author reads; the [rubric](docs/v06-adjudication-rubric.md) and [packet](reports/v07/adjudication/packet.md) are ready for a human grader.
+3. **Add a second domain** with its own tool roles, written by someone else. If the two-sided rule and the gate work there without code changes, that is evidence of generality; if not, that is the finding.
+4. **Replace the lexicon** with one constrained model pass that types the request, and measure it on new tasks.
+5. **Try the gate in a framework you maintain.** [`docs/v07-exit-gate.md`](docs/v07-exit-gate.md) maps it to the hooks that exist. These are notes, not shipped adapters.
+
+## Repository map
+
+| Path | What it is |
+|---|---|
+| `turnwise_lab/v07/` | v0.7: evidence contracts, exit gate, contract planner, benchmark, adjudication, freeze, Decision Microscope, opt-in hosted-agent adapter |
+| `fixtures/v07_*.json` | Development set (28) and locked set (60), independently authored |
+| `reports/v07/` | Recorded traces, report, blinded adjudication packet, key and grades |
+| `docs/v07-*.md`, `docs/preregistration-v0.7.md` | Assessment, mechanism, pre-registration, freeze manifest, self-review, Level C protocol |
+| `turnwise_lab/agent/` | v0.6: loop, host, context blocks, controllers, heavy-only agent, hosted decision adapters, benchmark, audit |
+| `turnwise_lab/local_models.py`, `models/` | Local ONNX runners; pinned model manifest and the v0.6 decision head (weights are never committed) |
+| `reports/v06/`, `fixtures/v06_*` | v0.6 recorded traces, audit, adjudication and task sets (frozen) |
+| `turnwise_lab/arena.py`, `world.py`, `explorer.py` | v0.5 outcome-scored routing experiment (historical) |
+| `turnwise_lab/core.py`, `runtime.py`, `benchmark.py` | v0.4 planner contract, `LocalHarness`, route-label benchmark |
+
+---
+
+## v0.6 (historical): a learned decision model chooses every step. Exploratory and inconclusive
+
+**[v0.6 trace viewer →](https://dgenio.github.io/turnwise-decision-lab/)** · [v0.6 report](reports/v06/summary.md) · [audit](reports/v06/audit.md) · [pre-registration](docs/preregistration-v0.6.md) · [architecture](docs/v06-architecture.md) · [models](docs/v06-models.md)
 
 30 tasks were written by an independent agent that never saw the routers. Seven architectures ran on the same synthetic incident world, with the same tools, harness, permissions and heavy model, using real local inference (CPU). Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, the answer content, and no forbidden or executed write. No provider was billed, so dollar cost is null; cost is local compute time per attempted and per resolved task, plus heavy-model tokens. This is a bounded synthetic test with a 0.8B "heavy" model. A [post-hoc audit](reports/v06/audit.md), added after the owner review, re-reads the same traces. It covers full token accounting, why the escalation gate failed, a failure taxonomy and a blinded adjudication of the investigation answers.
 
@@ -84,7 +197,7 @@ The [next-gate proposal](docs/v07-gate-proposal.md) lists what would settle the 
 All 9 pre-registered predictions, every failure and all component ablations are in [the report](reports/v06/summary.md).
 
 
-## How one user turn runs
+### How one v0.6 turn runs
 
 ```text
 user message ─► compact state (request + every observation so far)
@@ -109,7 +222,7 @@ user message ─► compact state (request + every observation so far)
 
 Every step is recorded: `user_turn_id`, `step_index`, `decision_call_id`, the decision model and version, every option it scored and **what kind of score** it is, the argument mechanism, the host's validation, the tool result, the blocks included and excluded, the exact assembled prompt, the generation, tokens, latency, and why the loop continued or stopped.
 
-## What is real, and what is not
+### What was real in v0.6, and what was not
 
 | Real (observed and recorded) | Not run, or not real |
 |---|---|
@@ -120,7 +233,7 @@ Every step is recorded: `user_turn_id`, `step_index`, `decision_call_id`, the de
 
 The public page **replays** recorded traces and says when and where they were recorded. CI re-executes the host side of every recorded trace: it feeds back the recorded decisions and generations, and checks that every tool observation, outcome and score reproduces exactly.
 
-## Reproduce
+### Reproduce v0.6
 
 ```bash
 python -m unittest discover -s tests                 # no models, no network
@@ -139,41 +252,13 @@ python -m turnwise_lab.agent.bench --set heldout --arms all
 
 Decoding is greedy, so outputs reproduce on the same software stack and only latency varies. Other CPUs or onnxruntime versions may flip close decisions.
 
-## Where this is weak
+### Where v0.6 is weak
 
 - **Scale.** The heavy model is 0.8B parameters and every conclusion holds at this scale only. A frontier heavy model would very likely raise the heavy-only agent's success; whether the gap closes, widens or reverses is unknown.
 - **Authorship.** The 30 held-out tasks were written by an independent LLM agent that never saw the routers. The development set, the world, the tools and the procedures that labelled turnwise-dm's training data were all written by the project author.
 - **Lexical outcome checks.** They catch missing evidence, wrong outcome types and wrong content, but accept some poor answers.
 - **n = 30.** Differences of three tasks or fewer are treated as inconclusive.
 - **Untested components.** Tool-schema savings are not isolated as a separate arm, and hosted decision services were not run.
-
-## How this relates to existing work
-
-- [LiteLLM auto routing](https://docs.litellm.ai/docs/proxy/auto_routing) routes **between models**; the completion always goes to a model.
-- [vLLM Semantic Router](https://github.com/vllm-project/semantic-router) does signal-driven model selection. Its [vision paper](https://arxiv.org/abs/2603.21354) frames joint (model, tool) selection as a research opportunity.
-- [OpenAI Decisions](https://developers.openai.com/api/docs/guides/decisions) and TypeSafe Jev are hosted decision services this loop is designed to use. Adapters are in `turnwise_lab/agent/remote.py`.
-- Provider tool search reduces the cost of tool schemas, a component not isolated here.
-
-This repository adds a reproducible, outcome-scored comparison of *decision-driven control* against *LLM-driven control* with the model held fixed, with every step inspectable.
-
-## Useful contributions
-
-1. **Run the hosted arms.** With your own key and a spending cap, run OpenAI Decisions or Jev as the controller (`agent/remote.py`) on the frozen held-out set.
-2. **Swap in a stronger heavy model.** Run both architectures with it: the most important open question.
-3. **Write more held-out tasks**, in the schema of `fixtures/v06_heldout.json`, without reading the router code.
-4. **Fix a failure mechanism** from the report, then evaluate the fix on *new* tasks.
-
-## Repository map
-
-| Path | What it is |
-|---|---|
-| `turnwise_lab/agent/` | v0.6: loop, host, context blocks, providers, heavy-only agent, hosted adapters, benchmark, trace viewer |
-| `turnwise_lab/local_models.py` | Local ONNX runners (s1 classifier; Qwen constrained scoring and generation with KV/state cache) |
-| `models/` | Pinned model manifest and the trained turnwise-dm head (weights are never committed) |
-| `fixtures/v06_*.json` | Development set, independent held-out set, decision training data |
-| `reports/v06/` | Recorded traces, summary, latency repeats |
-| `turnwise_lab/arena.py`, `world.py`, `explorer.py` | v0.5 outcome-scored routing experiment (historical) |
-| `turnwise_lab/core.py`, `runtime.py`, `benchmark.py` | v0.4 planner contract, `LocalHarness`, route-label benchmark |
 
 ## v0.5 (historical): outcome-scored routing without a model
 

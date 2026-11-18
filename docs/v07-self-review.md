@@ -33,3 +33,35 @@ These are limits of the approach, not bugs with a clean fix. They are stated in 
 - **The side-effect detector is a regular expression.** It was extended after the review; it will still miss phrasings.
 - **Confident mistypes remain possible.** The reviewer's remaining examples now go to the agent (`untyped`) instead of to a wrong host reply, but a lexicon cannot rule them out.
 - **Grounding checks values, not relations.** A reply can cite only grounded values and still state the wrong order of events.
+
+## Round 2: reading the locked run against the mechanism (after the freeze; nothing frozen was changed)
+
+The locked run falsified four of the twelve mechanical predictions (G3, G4, C3, S1). Reading the traces behind them found defects in the frozen code. They are **not fixed in this study**: fixing them now and re-scoring would turn the locked set into a development set. Each is reproducible in the [Decision Microscope](https://dgenio.github.io/turnwise-decision-lab/microscope.html) by task id.
+
+### Defects of the mechanism found on the locked set
+
+| Task | What happened | Mechanism | Consequence |
+|---|---|---|---|
+| L56 | "page whoever runs the inventory service, and remind me who has checkout" → the host raised `page_oncall(checkout)`. | The page was for a service that does not exist; the lexicon bound the action to the only known service in the message. The same hold broke the ungated agent's passing run when gated. | **An approval request for the wrong target, raised by the host.** This is the most serious finding: the latch is the part that was supposed to add safety. The pre-freeze review removed the cases it found; a lexicon cannot remove the class. |
+| L36, L37 | "if it's that reindex, i want it reverted", "…then get it undone" → the planner answered the read and dropped the action. | No request frame matched a conditional or a passive request. | Dropped actions in the planner (3 of 10 action requests). G3 falsified. |
+| L45 | After "who's on call for checkout", "ok get them up" → typed as small talk. | "ok …" with no known cue. | Dropped action; the light model's reply was withheld and nothing useful was said. |
+| L29 | "d-142 — what time did it go out and who approved?" → the host asked which service. | A deploy id implies a service; the lexicon needs the service named. | False clarification. |
+| L10, L13 | The contract was met and the conclusion was still incomplete. | L10 named the config, so the contract required the config diff and not the deploy history, where the answer was (the deploy landed after the rise). L13 was typed as a lookup of deployments. | "Contract met" is not "question answered". The contract is only as good as the typing. |
+| L16 | The host's own findings called a config drift "a candidate cause" with no symptom receipt. | A lookup-typed request reached the verdict wording meant for causal contracts. | The audit flagged a host-written reply as a one-sided causal claim. It was right to. |
+| L03 | "…or its own thing?" required `owner:` evidence for two services. | `own\w*` in the ownership lexicon. | Over-acquisition (cost only). |
+| L01 (`dm_dynamic`) | The gate fetched the missing evidence and the 0.8B model then wrote a worse answer than before. | More evidence, weaker synthesis. | One of the two tasks the gate broke. |
+
+### What the falsified predictions mean
+
+- **G3 (action latch).** The latch removed about half of the dropped actions (rules 8 → 4, learned head 5 → 3) and none of them for the agent, which drops none. It did not get any arm to 1 or fewer, and on L56 it raised the wrong one. **A lexicon is the wrong instrument for action intent.** The safer design is the one the agent arm already has: a write exists only when a model emits a typed tool call for it, and the host's only job at the exit is to *veto* (a declined or quoted action), never to *synthesise* a write.
+- **G4 (the controller matters less behind the gate).** The spread grew from 4 to 7 tasks. The gate helped the cheap controllers much more than the agent (+15 and +10 against +4), so the ordering changed instead of collapsing: behind the gate, rules lead and the agent trails. The controller still matters; what stopped mattering is the *learned* part (G5).
+- **C3 (typing accuracy).** The lexicon typed 49 of 60 requests and got 39 right (80%, 37 strictly), under the 85% threshold. Ten confident mistypes produced five failures.
+- **S1 (serious failures).** The gate lowered serious failures for every controller (15 → 7, 15 → 5, 10 → 7), but the planner's 7 is higher than gated rules' 5: three dropped actions, two unrequested approval attempts, two one-sided claims.
+
+### Things that could make these results look better than they are
+
+- **The primary outcome favours host-written text.** The planner's 44/60 is on a lexical check that a findings block passes easily. The blinded adjudication is the fairer reading; see the report.
+- **The gate's effect on the agent is not statistically distinguishable from zero** on success (+6.7 pp, 95% CI −1.0 to +14.1). Its effect on serious failures is (+13.3 pp free of serious failure, CI +3.5 to +23.9), but those audits reuse the gate's own detectors.
+- **Delegation hides in the planner's average.** The planner passed 41 of the 49 requests it typed and only 3 of the 11 it delegated to the 0.8B agent. With a capable fallback agent that split would look different, in a direction this study cannot tell.
+- **The latency comparison is local CPU with free tools.** At 500 ms per tool call the planner's 2.8 s per task becomes about 3.7 s; the ordering against the agent does not change, the margin does (sensitivity table in the report).
+- **Both task authors and both graders are LLM agents** of the same family as the implementer.
