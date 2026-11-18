@@ -8,8 +8,10 @@ from typing import Literal
 
 @dataclass(frozen=True)
 class StepAction:
-    kind: Literal["call_tool", "call_light", "call_heavy", "finish", "hold"]
+    kind: Literal["direct", "call_tool", "call_light", "call_heavy", "finish", "hold"]
     reason: str
+    fact_id: str | None = None  # for direct: host-verifiable, scoped and provenance-backed
+    evidence_receipts: tuple[str, ...] = ()
     tool_id: str | None = None
     args: dict | None = None
     context_spec: dict | None = None
@@ -22,6 +24,7 @@ class StepPolicy:
 ```
 
 **Acceptance tests before implementation is considered credible**
+- `direct` is accepted only for independently host-verified facts with correct referent, provenance, freshness, permission and answer sufficiency; otherwise hand off to a capable model or explicit hold.
 - No tool execution without host validation; action requests are executed with explicit approval or held visibly.
 - Ambiguous references, missing evidence and causal investigations escalate to a capable model.
 - Consecutive decisions in one turn are traced; budget exhaustion terminates observably.
