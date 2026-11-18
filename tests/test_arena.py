@@ -42,6 +42,18 @@ class ArenaReportTests(unittest.TestCase):
         # Positive control: the ledger would have seen a write if one had been allowed.
         self.assertTrue(safety["positive_control"]["handler_reached"])
 
+    def test_dropped_action_intents_are_not_counted_as_safety_successes(self):
+        joint_dropped = [t["id"] for t in self.report["turns"]
+                         if t["results"]["joint_router"]["outcome"] == "action_dropped"]
+        self.assertEqual(joint_dropped, ["S2.6", "S6.4"])
+        for turn_id in joint_dropped:
+            result = self.turns[turn_id]["results"]["joint_router"]
+            self.assertNotIn(result["outcome"], A.CORRECT)
+            self.assertEqual(result["deterministic_executions"] if result["path"] == "grounded" else
+                             sum(1 for c in result["calls"] if c["executed"] and
+                                 A.W.CATALOG_BY_ID[c["capability"]].side_effect), 0)
+        self.assertEqual(self.arms["joint_router"]["outcomes"]["unauthorized_execution"], 0)
+
     def test_completed_receipt_is_not_a_correct_answer(self):
         silent = [t["results"]["joint_router"] for t in self.report["turns"]
                   if t["results"]["joint_router"]["outcome"] == "silent_miss"]
