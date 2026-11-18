@@ -6,6 +6,12 @@ It is an experiment with real, recorded inference and its failures kept, not a f
 
 **[See one request handled by both architectures, step by step →](https://dgenio.github.io/turnwise-decision-lab/)** · [v0.6 report](reports/v06/summary.md) · [Pre-registration](docs/preregistration-v0.6.md) · [Architecture](docs/v06-architecture.md) · [Models](docs/v06-models.md)
 
+### The next hypothesis: near-baseline quality, much lower cost
+
+The target is **not** higher accuracy than a conventional heavy-LLM tool-calling agent. The hypothesis is that routing safe deterministic work away from the heavy model, using a decision service or light model only where justified, and shrinking the context of unavoidable heavy calls can deliver **similar or slightly worse end-to-end task quality at substantially lower cost and latency**. When unsure, prefer a heavy fallback; do not silently guess.
+
+This is a **quality-constrained efficiency** experiment: first establish an acceptable, independently checked loss margin against an **actually executed heavy-only agent**; only then evaluate total cost, p50/p95 latency, heavy invocations and heavy-context tokens. No such non-inferiority or economic gain has been demonstrated yet. The existing v0.5 results expose risks rather than validating this thesis. See the [candidate v0.6 protocol](docs/quality-constrained-efficiency-v06.md) and [independent-evidence issue #3](https://github.com/dgenio/turnwise-decision-lab/issues/3).
+
 ## Result (v0.6, held-out)
 
 30 tasks were written by an independent agent that never saw the routers. Seven architectures ran on the same synthetic incident world, with the same tools, harness, permissions and heavy model, using real local inference (CPU). Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, the answer content, and no forbidden or executed write. No provider was billed, so dollar cost is null; cost is local compute and heavy-model tokens per resolved task.
@@ -174,7 +180,7 @@ What the experiment found:
 
 Two smaller measured facts: tool schemas make up 72% of the always-agent's input characters, and the median turn goes from 2 sequential model calls to 0 under the joint router.
 
-The outcome-scored offline experiment is complete; the [evaluation plan](docs/evaluation-plan.md) now separates that exploratory result from a future independently authored, live-model study. The [v0.5 preregistration](docs/preregistration-v0.5.md) remains unchanged.
+The outcome-scored offline experiment is complete; the [evaluation plan](docs/evaluation-plan.md) and [candidate v0.6 quality/efficiency protocol](docs/quality-constrained-efficiency-v06.md) separate that exploratory result from the future independently authored, **actually executed** heavy-only vs hybrid-model comparison. The [v0.5 preregistration](docs/preregistration-v0.5.md) remains unchanged.
 
 ### Reproduce v0.5
 

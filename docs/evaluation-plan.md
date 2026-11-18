@@ -19,9 +19,13 @@ This is **useful engineering evidence of mechanisms and failure modes**, not com
 
 ## Research question for a NEW, independently evaluated experiment
 
-Does a bounded per-turn planner that jointly selects **no generation / deterministic flow / read tool / reasoning tier** and **which eligible context is provided** materially improve **cost per correctly resolved task**, without consequential quality or safety regression, relative to the strongest simpler policy or native router?
+**Primary thesis (quality-constrained efficiency):** How much of an agent's reasoning cost can be eliminated while preserving **near-baseline end-to-end task success** relative to a **real, executed heavy-only tool-calling agent**?
 
-**Null hypothesis:** host rules + standard workflow code + provider-native tool selection / model routing are sufficient, so the extra joint planner is not worth its maintenance, routing failures or latency.
+The proposal does **not** predict higher accuracy. Equal or slightly worse accuracy may be worthwhile only if any loss falls within a **pre-registered, adequately powered non-inferiority margin**, there are no unacceptable critical failures, and measured cost and latency improve materially. The gains may come from (a) avoiding unnecessary heavy calls with deterministic actions / decision services / validated light-model argument extraction and (b) sending fewer context and tool-schema tokens to the heavy model when it is necessary. A heavy fallback should be preferred under uncertainty.
+
+**Null hypothesis:** the heavy-only agent with modern provider-native tool search/context handling, or simple host rules plus heavy fallback, gives the best acceptable quality/efficiency trade-off; the extra joint planner is not worth maintenance, routing failures or latency.
+
+The concrete [candidate v0.6 protocol](quality-constrained-efficiency-v06.md) is **not a pre-registration**. Quality margin, risk constraints and economic thresholds remain open decisions.
 
 ## Data and independence
 
@@ -34,7 +38,11 @@ Does a bounded per-turn planner that jointly selects **no generation / determini
 
 | Arm | Purpose | Status as of v0.5 |
 | --- | --- | --- |
-| Assumed capable tool-calling agent | Optimistic synthetic sanity reference; not a measured LLM baseline | **Offline replay completed**, model never called |
+| Assumed capable tool-calling agent | Optimistic synthetic sanity reference; **not** the heavy-only benchmark | **Offline replay completed**, model never called |
+| **Real heavy-only tool-calling agent** | **Primary quality baseline:** same task/tool permissions, strong heavy model handles reasoning/tool selection/arguments/synthesis | **Not run** |
+| Heavy-only + native tool search / bounded context | Controls for provider-native context and schema optimization without a custom planner | **Not run** |
+| Simple host policy + heavy fallback | Strong, low-complexity execution baseline | **Not run with model** |
+| Decision-service routing / light arguments + heavy fallback | Tests distinct efficiency levers before combining them | **Not run** |
 | Message-only simple rules and host preflight | Lower-complexity execution-path baseline | **Offline replay completed** |
 | Joint route + state + route-aware context | Proposed mechanism | **Offline replay completed**, model-tier inference untested |
 | Joint without state / lexical-only context | Ablations on context-state coupling | **Offline replay completed** |
@@ -50,14 +58,18 @@ Include a strong host-only/manual baseline in the next comparison. Never rely so
 
 1. Freeze independently authored tasks, prompts, policies, tool/schema catalogs, model and provider versions, model parameters and price schedule.
 2. Use identical eligible evidence and tools across arms where supported. Preserve documented differences when native mechanisms cannot be normalized.
-3. Compare host rules alone, existing model routing, native tool search, joint path routing, and joint route + tier + bounded context. Include phase-aware versus lexical context and state versus no-state.
+3. Execute the **same real heavy-only reference** first, alongside a heavy-only native-context/tool-search arm and a **simple host-rules + heavy fallback** arm. Then compare decision-model routing, validated light argument extraction, conservative heavy fallback and joint bounded context. Include context-only and no-state ablations to isolate contributions; where supported compare contemporary native routing.
 4. Execute real permitted model handoffs in an **opt-in** environment; record generation quality, retries, timeouts, recovery, permission decisions and downstream outcomes. A "model had evidence" event is **not** a correct final answer.
 5. Run several independent trials for stochastic models (target >=5 where affordable), report session-level uncertainty, and distinguish infrastructure failures from routing or generation failures.
 6. Add **actual** forced-route replay only if it can be done without accessing gold labels at planning time; until then, keep the explorer's alternative-path descriptions explicitly illustrative.
 
 ## Metrics and gates
 
-**Primary:** total measured cost per *correctly resolved task*, including classifier/model calls, tool use, retries, and failed or abandoned attempts.
+**Primary gate:** end-to-end **task success is non-inferior** to a measured heavy-only agent within a *pre-specified, justified margin*; report paired uncertainty, power and family/risk stratification. Absent enough evidence to establish the margin, the verdict is **inconclusive**, not PASS. No margin is approved yet.
+
+**Primary efficiency measures (only meaningful after the quality/safety gate):** measured **total cost per attempted task** and end-to-end latency p50/p95. Report cost per successfully resolved task as a supporting metric, not as a way to hide a fall in success rate. Include classifier/decision-service/light/heavy model calls, tools, final heavy synthesis, retries, failures and abandoned attempts.
+
+**Mechanistic measures:** actual heavy call counts and provider-reported **input tokens sent to heavy models per heavy invocation** (distinguish evidence/history, tool schemas, output tokens), plus total tokens and full price provenance. The v0.5 character counts and assumed model calls are not measured tokens or prices.
 
 **Correctness:** task-specific answer checkers; tool/capability recall and argument/schema correctness; context Recall@budget; calibration only for genuine model probabilities; silent wrong answers; false holds; **dropped actions**; safe/appropriate refusal and escalation. An action's approval request is a separate outcome from whether any write occurred.
 
@@ -65,11 +77,11 @@ Include a strong host-only/manual baseline in the next comparison. Never rely so
 
 **Non-negotiable:** any unauthorized execution, confidential-data exposure or serious policy breach is a stop-and-review event, not a tolerable economic trade-off.
 
-Previously discussed goals (>=20% fewer high-cost model calls and <=2 percentage points loss in task success) remain exploratory thresholds, **not** achieved results or pre-approved non-inferiority margins. At ~100 tasks a 2pp non-inferiority claim is generally underpowered; report uncertainty or expand the cohort.
+Previously discussed exploratory goals (>=20% fewer high-cost model calls and <=2 percentage points loss in task success) are **neither achieved results nor accepted gates**. They are not sufficient evidence of economically material savings or statistically defensible non-inferiority. At ~100 tasks a 2pp non-inferiority claim is generally underpowered: select a justified margin and power the held-out sample **before** the run, or keep the result inconclusive. Do not optimize escalation thresholds on the locked test set.
 
 ## Decision rules
 
-- **GO to bounded private shadow testing** only if independently reproduced improvements exceed strong contemporary baselines without consequential regressions and an accountable operational owner accepts the extra complexity.
+- **GO to bounded private shadow testing** only if a real heavy-only quality baseline has been measured, the pre-registered non-inferiority and safety gates pass with adequate power, and measured cost/latency improvements beat strong simpler/native comparators by a material amount; an accountable operational owner must accept the extra complexity.
 - **HOLD** if datasets are authored by the implementer, generation is assumed rather than executed, native comparators remain untested, or uncertainty is too wide.
 - **SHRINK** if the only credible value is inspectable context provenance / deterministic execution controls.
 - **STOP** if simpler/native options meet the same outcome quality and the joint layer costs more, or if state-driven silent errors outweigh invocation savings.
