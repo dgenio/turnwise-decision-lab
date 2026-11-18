@@ -305,6 +305,26 @@ class UnsupportedActionClaimTests(unittest.TestCase):
         self.assertEqual({c["capability"] for c in tr.final["unsupported_action_claims"]}, {"rollback_deployment", "page_oncall"})
 
 
+class DuplicateHoldTests(unittest.TestCase):
+    def test_baseline_cannot_raise_the_same_approval_twice(self):
+        """The heavy-only loop continues after a hold (recorded v0.6 H19 held page_oncall twice)."""
+        class Warm(Heavy):
+            def extend(self, text, state=None, past_len=0):
+                return None, None, past_len + 50
+
+            def generate_continue(self, text, state, past, max_new_tokens=220):
+                return self.generate(text), None, past + 15
+        page = native("page_oncall", service="search")
+        lm = Warm([page, page, "Requested."])
+        lm.version = "scripted-warm-duplicate"
+        host = Host(IncidentWorld())
+        tr = run_heavy_agent("Page the search on-call.", host=host, lm=lm, turn_id="D")
+        self.assertEqual([o["status"] for o in tr.observations], ["approval_required", "rejected"])
+        self.assertTrue(tr.observations[1]["reason"].startswith("duplicate_hold"))
+        self.assertEqual([a["status"] for a in tr.final["action_status"]], ["held_for_approval"])
+        self.assertEqual(host.world.write_ledger, [])
+
+
 # ------------------------------------------------- PR #33's H18/H19 regressions on the in-loop handoff
 class RecordedH18H19Tests(unittest.TestCase):
     """Frozen v0.6 traces are development regressions only; nothing recorded is modified."""
