@@ -23,11 +23,16 @@ jobs:
           python -m turnwise_lab.agent.bench --report
           python -m turnwise_lab.agent.audit
           python -m turnwise_lab.agent.demo
+          python -m turnwise_lab.v07.bench --report
+          python -m turnwise_lab.v07.adjudication --packet --merge
+          python -m turnwise_lab.v07.microscope
           python -m turnwise_lab.live_demo --output reports/live-local-run.json
           python -m turnwise_lab.benchmark --output /tmp/trained.json --markdown reports/trained-routing-synthetic.md
           python -m turnwise_lab.showcase --json-out demo/showcase.json --html-out demo/planning-contract.html
           python -m scripts.render_local_demo
           python -m turnwise_lab.evaluate --output reports/synthetic-contract-replay.json
+      - name: Nothing frozen for the v0.7 locked run has changed
+        run: python -m turnwise_lab.v07.freeze --check
       - name: No model weights, caches or secrets are committed
         run: |
           ! git ls-files | grep -E '\.(onnx|onnx_data|safetensors|gguf|bin)$'
