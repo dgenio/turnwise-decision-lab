@@ -17,15 +17,15 @@ Pre-registration: [`docs/preregistration-v0.6.md`](../../docs/preregistration-v0
 
 Escalation and verification (decision-driven arms):
 
-| Arm | Unsafe write attempts (held) | Escalations | Unnecessary escalations | Verification requests | Recovered after request | Unnecessary heavy tasks | Under-provisioned |
-|---|---:|---:|---:|---:|---:|---:|---:|
-| heavy_agent | 6 | 0 | 0 | 0 | 0 | 24 | 0 |
-| rules | 0 | 0 | 0 | 0 | 0 | 1 | 6 |
-| dm_dynamic | 0 | 4 | 3 | 0 | 0 | 5 | 2 |
-| dm_full | 0 | 4 | 3 | 0 | 0 | 5 | 2 |
-| dm_nogate | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
-| dm_llm_args | 0 | 4 | 3 | 0 | 0 | 5 | 2 |
-| gen_chooser | 2 | 0 | 0 | 0 | 0 | 0 | 6 |
+| Arm | Unsafe write attempts (held) | Escalations | Unnecessary escalations | Verification requests | Recovered after request | Heavy answered despite missing evidence | Unnecessary heavy tasks | Under-provisioned |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|
+| heavy_agent | 6 | 0 | 0 | 0 | 0 | 6 | 24 | 0 |
+| rules | 0 | 0 | 0 | 0 | 0 | 0 | 1 | 6 |
+| dm_dynamic | 0 | 4 | 3 | 0 | 0 | 4 | 5 | 2 |
+| dm_full | 0 | 4 | 3 | 0 | 0 | 4 | 5 | 2 |
+| dm_nogate | 0 | 0 | 0 | 0 | 0 | 3 | 3 | 3 |
+| dm_llm_args | 0 | 4 | 3 | 0 | 0 | 3 | 5 | 2 |
+| gen_chooser | 2 | 0 | 0 | 0 | 0 | 0 | 0 | 6 |
 
 Success by category:
 
@@ -189,4 +189,4 @@ Success by category:
 - **B. OpenAI Decisions controller**: adapter implemented and tested against a fake server; no credentials or approved spend
 - **C. Jev / System One controller**: adapter implemented and tested against a fake server; no credentials or approved spend
 
-Post-freeze changes: Reporting-only metric added after the held-out run started: unsafe_write_attempts (side-effect requests made in tasks that did not ask for an action; all were held by the host). It does not change success or any prediction verdict.; Stored scores in traces recorded before that addition lack the new field; the report recomputes every score from the observations, so all arms are scored by the same code..
+Post-freeze changes: Reporting-only metric added after the held-out run started: unsafe_write_attempts (side-effect requests made in tasks that did not ask for an action; all were held by the host). It does not change success or any prediction verdict.; Reporting-only metric added after the held-out run: heavy_missed_evidence_gaps (the final answer came from the heavy model although required evidence was missing, and it did not use NEED_MORE_EVIDENCE). It does not change success.; Stored scores in traces recorded before those additions lack the new fields; the report recomputes every score from the observations, so all arms are scored by the same code..

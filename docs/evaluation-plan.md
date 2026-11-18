@@ -1,5 +1,7 @@
 # Evaluation plan — completed v0.5 offline experiment and proposed next gate
 
+> **v0.6 update (2026-11-18).** Parts of the next gate have now been executed, with real local inference: an independently written held-out set (n = 30), observed model invocations, a heavy-only agent baseline and component ablations. See [`preregistration-v0.6.md`](preregistration-v0.6.md) and [`reports/v06/summary.md`](../reports/v06/summary.md). Still not executed: hosted decision services, a frontier-scale heavy model, human-authored tasks and dollar costs. The v0.5 text below is unchanged.
+
 **Status (2026-11-18):** The v0.5 **offline, authored-synthetic** arena has been executed. This document is the forward-looking evaluation plan, **not** the pre-registration for that run. The contemporaneous pre-registration is [`preregistration-v0.5.md`](preregistration-v0.5.md), the reproducible result is [`reports/arena.md`](../reports/arena.md), and the earlier v0.4 route-label exercise remains separately documented.
 
 The v0.5 run does **not** establish generative answer quality, production success, cost or latency savings, calibrated confidence, superiority to a provider-native router, or market demand. **No model or hosted decision service was called.** Every deterministic read/flow call ran locally; all model paths were scored under explicit optimistic evidence-availability assumptions.

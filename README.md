@@ -6,7 +6,48 @@ It is an experiment with real, recorded inference and its failures kept, not a f
 
 **[See one request handled by both architectures, step by step →](https://dgenio.github.io/turnwise-decision-lab/)** · [v0.6 report](reports/v06/summary.md) · [Pre-registration](docs/preregistration-v0.6.md) · [Architecture](docs/v06-architecture.md) · [Models](docs/v06-models.md)
 
-<!-- V06-RESULTS -->
+## Result (v0.6, held-out)
+
+30 tasks were written by an independent agent that never saw the routers. Seven architectures ran on the same synthetic incident world, with the same tools, harness, permissions and heavy model, using real local inference (CPU). Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, the answer content, and no forbidden or executed write. No provider was billed, so dollar cost is null; cost is local compute and heavy-model tokens per resolved task.
+
+| Architecture | Success | Silent failures | Heavy-model calls | Heavy-model tokens | p50 / p95 latency | Local compute per resolved task |
+|---|---:|---:|---:|---:|---:|---:|
+| **A. Heavy-only agent**: Qwen3.5-0.8B runs the loop with native tool calling (primary baseline) | 13/30 | 12 | 125 | 174,422 | 14.2 s / 25.2 s | 30.61 s |
+| Deterministic host policy (rules) | 14/30 | 13 | 1 | 615 | 0.4 ms / 12.3 s | 5.14 s |
+| **D. Decision-driven**: turnwise-dm + argument cascade + escalation gate + dynamic prompt blocks | 16/30 | 11 | 9 | 6,105 | 1.6 s / 22.4 s | 13.15 s |
+| E. D with full permitted context (ablation) | 16/30 | 11 | 9 | 6,687 | 1.5 s / 17.5 s | 11.04 s |
+| D without the escalation gate (ablation) | 17/30 | 9 | 6 | 4,957 | 1.3 s / 21.5 s | 10.9 s |
+| D with LLM-only argument construction (ablation) | 13/30 | 11 | 7 | 4,489 | 1.5 s / 20.9 s | 13.17 s |
+| Small LLM as the controller, no trained head | 6/30 | 21 | 0 | 0 | 8.9 s / 19.8 s | 49.69 s |
+
+What the experiment found:
+
+1. **Success: comparable, not better.** Decision-driven control resolved 16/30 tasks, the heavy-only agent 13/30 and simple rules 14/30. Gaps of three tasks or fewer are inconclusive by the pre-registered rule.
+2. **Much cheaper for the same success.** With the *same* 0.8B model in both architectures, the decision-driven loop used **96.5% fewer heavy-model tokens** (6,105 vs 174,422). Its median turn took 1.6 s instead of 14.2 s, and it needed 2.3× less local compute per resolved task. The deterministic host policy was cheaper still (5.14 s per resolved task).
+3. **The two architectures fail differently, by task family.**
+   - **The heavy-only agent** won investigations. It also over-called (16 calls about services the task was not about), requested 6 side effects nobody asked for (all held by the host), and never clarified an ambiguous request.
+   - **The decision-driven loop** made **0** wrong-argument calls and **0** unrequested writes, and won lookups, ambiguity and adverse cases. But it **stopped gathering evidence too early on every investigation**: it finished with raw data, or escalated before fetching the deployment history.
+
+| Task family | Heavy-only agent | Rules | Decision-driven (D) |
+|---|---:|---:|---:|
+| investigation | 4/7 | 3/7 | 0/7 |
+| lookup | 1/6 | 3/6 | 4/6 |
+| ambiguous | 0/4 | 2/4 | 3/4 |
+| adverse | 1/2 | 1/2 | 2/2 |
+| action request | 3/5 | 3/5 | 3/5 |
+| multi turn | 1/3 | 1/3 | 2/3 |
+| smalltalk general | 3/3 | 1/3 | 2/3 |
+
+4. **"Escalate when uncertain" did not make the system safer (pre-registered P6 falsified).** Without the escalation gate the loop did *better* (17/30, 9 silent failures vs 11). The heavy model it escalated to answered with the evidence it had and never asked for more: the `NEED_MORE_EVIDENCE` protocol fired **0 times in every arm**. The heavy model answered despite missing evidence 4 times in D and 6 times in the heavy-only agent. Escalation is only conservative if the target can notice what is missing; at this scale it could not.
+5. **Deterministic arguments matter.** Constructing arguments only with LLMs cost 3 tasks, added 3 wrong-argument calls, and doubled false clarifications (6 vs 3).
+6. **Dynamic prompt-block selection did not pay here.** Success was identical with full permitted context. Dynamic selection saved only 11% of prompt tokens and cost more decision time (13.15 vs 11.04 s per resolved task).
+7. **A small LLM is not a controller on its own** (6/30, 21 silent failures). What made the same model usable was a tiny trained head over its scores plus typed observation features from the host.
+8. **Safety held everywhere:** 0 writes executed in any arm.
+
+**Bottom line, at this scale.** Compared with letting the LLM run the loop, decision-driven control is far cheaper and better behaved, with comparable success. But it is **not more reliable**, it **loses on multi-step investigations**, and **a deterministic host policy matched it** at a fraction of the cost. These data do not establish that a *learned* decision layer beats good rules, or that the conservative policy as built helps. A stronger heavy model and hosted decision services are the obvious next tests.
+
+All 9 pre-registered predictions, every failure and all component ablations are in [the report](reports/v06/summary.md).
+
 
 ## How one user turn runs
 
@@ -135,7 +176,7 @@ Two smaller measured facts: tool schemas make up 72% of the always-agent's input
 
 The outcome-scored offline experiment is complete; the [evaluation plan](docs/evaluation-plan.md) now separates that exploratory result from a future independently authored, live-model study. The [v0.5 preregistration](docs/preregistration-v0.5.md) remains unchanged.
 
-## Reproduce (Python 3.10+, no dependencies, no network, no keys)
+### Reproduce v0.5
 
 ```bash
 python -m unittest discover -s tests
@@ -145,7 +186,7 @@ python -m turnwise_lab.explorer         # rebuilds demo/index.html from the repo
 
 CI regenerates every committed report and page and fails if anything differs by a single byte. `python -m turnwise_lab.arena --timing` also prints local routing overhead: tens of microseconds, which is meaningless next to any model call and therefore not committed.
 
-## How the experiment works
+### How the experiment works
 
 ```text
 turn + session state ──► router ──► direct (verified host fact)
@@ -166,7 +207,7 @@ outcome check: did what came back contain every needed fact?  →  resolved / re
   - A test proves no router can read `needs`, `family`, `mode` or `action`.
   - Another test pins the hypothesis verdicts, so a code change cannot silently flip a finding.
 
-## Where this is weak
+### Where this is weak
 
 - **The alternative-path descriptions in the explorer are illustrative, not measured counterfactuals.** They are derived from gold-required facts and simplifying assumptions. Selecting another strategy cell shows an actual offline replay; the forced-path captions do not. No model generation is executed.
 
@@ -176,44 +217,7 @@ outcome check: did what came back contain every needed fact?  →  resolved / re
 - **46 turns** are enough to show mechanisms, not to put confidence intervals on rates.
 - **Model-tier routing is not evaluated.** It composes with everything here: execution routing changes *how many* calls a model router has to price.
 
-## How this relates to existing work
-
-Not a novelty claim. Checked against current documentation on 2026-11-18:
-
-- [LiteLLM auto routing](https://docs.litellm.ai/docs/proxy/auto_routing) routes **between models**.
-  - Its classifier can be heuristic, keyword, LLM, JEV or a custom plugin, and several of those make no API calls.
-  - The completion itself always goes to a model. Turnwise asks whether that call was needed.
-- [vLLM Semantic Router](https://github.com/vllm-project/semantic-router) does signal-driven model selection with plugins. Its [vision paper](https://arxiv.org/abs/2603.21354):
-  - frames (model, tool) selection as a joint action space;
-  - lists context options (full history, summaries, retrieval-first) as router choices;
-  - presents both as research opportunities.
-- [Anthropic tool search](https://platform.claude.com/docs/en/agents-and-tools/tool-use/tool-search-tool) and [OpenAI tool search](https://developers.openai.com/api/docs/guides/tools-tool-search) defer tool schemas. They address the schema share measured here (72%) and are the right comparator for that slice. They are not run here.
-- **Decision models** such as Jev (exposed through LiteLLM's JEV classifier) are candidate routers to plug in, not competitors to this harness.
-- **Orchestration frameworks** such as LangGraph let developers write deterministic routes but do not evaluate them.
-
-A literature search found model-only routing evaluations (RouteLLM, FrugalGPT, AutoMix) and tool-only or harness-level ones. **It did not find a controlled comparison of joint per-turn routing (no-model path + context + authorization) against model-only routing.** If you know of one, please open an issue. What Turnwise adds is a reproducible testbed where those levers are scored together on outcomes, with every failure visible, plus the specific findings above.
-
-## Useful contributions
-
-1. **Write held-out sessions.** This is the most valuable contribution: sessions the routers have never seen, ideally by someone other than the author. The format is one JSON turn per line of conversation, with `needs` and `mode`.
-2. **Bring a router.** A router is a function `(turn, state) -> Decision`, added as an arm in `build_arms()`. An LLM-based or Jev router must be opt-in, use public synthetic data only, and fit the existing scorer unchanged.
-3. **Run the handoffs against a real model (opt-in).** This tests the assumption that a call with complete evidence answers correctly. It also tests whether grounded single-shot calls can use a smaller model than agentic ones, which is the untested model-tier half of the thesis.
-4. **Fix the two failure mechanisms**: the evidence-query noise and the greedy follow-up heuristic. Evaluate each fix on *new* sessions, never on these.
-
-## Repository map
-
-| Path | What it is |
-|---|---|
-| `turnwise_lab/arena.py` | v0.5 experiment: routers, context policies, outcome scoring, oracle, red team, verdicts |
-| `turnwise_lab/world.py` | Synthetic world: real handlers, capability catalogue, documents |
-| `turnwise_lab/explorer.py` | Generates `demo/index.html` from `reports/arena.json` |
-| `turnwise_lab/runtime.py` | `LocalHarness`: the execution boundary every design shares |
-| `turnwise_lab/core.py`, `deciders.py` | v0.4 planner contract and the optional Jev adapter (never run against a live provider) |
-| `turnwise_lab/benchmark.py`, `learning.py` | v0.4 route-label benchmark and stdlib Naive Bayes |
-| `turnwise_lab/provider.py` | Opt-in OpenAI-compatible generation adapter (only tested against a local fake server) |
-| `docs/` | Pre-registration, threat model, comparators, evaluation plan |
-
-## Earlier versions (kept, still reproducible)
+### Earlier versions (kept, still reproducible)
 
 - **v0.4 route-label benchmark** ([report](reports/trained-routing-synthetic.md)). Simple rules matched 38/40 authored labels and the tiny Naive Bayes matched 29/40. In hindsight it had three weaknesses: `direct` was defined by a field the rules read; route labels and rules shared an author; and label agreement is not an outcome. v0.5 replaces it as the primary evidence.
 - **v0.4 execution receipts** ([page](https://dgenio.github.io/turnwise-decision-lab/local-run.html)) and the **planning-contract exhibit** with fixture decisions ([page](https://dgenio.github.io/turnwise-decision-lab/planning-contract.html)).

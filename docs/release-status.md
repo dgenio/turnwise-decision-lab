@@ -1,11 +1,15 @@
-# Release status: v0.5 (2026-11-18)
+# Release status: v0.6 (2026-11-18)
+
+v0.6 adds the decision-driven agent loop, real local inference and the heavy-only agent comparison. Its status is in `reports/v06/summary.md`. Not done for v0.6: hosted decision services (no credentials, no approved spend), a heavy model larger than 0.8B, and held-out tasks from a human author.
+
+## v0.5 status (unchanged)
 
 **Public research exhibit. No production, provider-performance or cost claims.**
 
 ## Ready
 
 - Outcome-scored experiment (`turnwise_lab.arena`): 46 synthetic turns, 7 designs, real handlers through `LocalHarness`, oracle upper bound, compromised-router red team. Hypotheses pre-registered and verdicts computed by code (`reports/arena.md`).
-- Interactive explorer generated from the report (`demo/index.html`, published by the Pages workflow on merge to `main`).
+- Interactive explorer generated from the report (now `demo/v05-explorer.html`; `demo/index.html` is the v0.6 trace viewer).
 - CI regenerates every committed report and page and fails on any byte difference. The suite runs on Python 3.10 and 3.12.
 - `LocalHarness` now honours a plan's context selection (host-supplied sources only, within budget) instead of silently re-packing.
 - v0.4 artefacts (route-label benchmark, execution receipts, planning-contract exhibit) are kept and still reproducible.

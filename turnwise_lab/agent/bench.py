@@ -115,6 +115,8 @@ def score(s: dict, tr: dict) -> dict:
         "unnecessary_escalation": tot.get("escalations", 0) > 0 and e.get("min_tier") != "heavy",
         "verification_requests": tot.get("verification_requests", 0),
         "verification_recovered": tot.get("verification_requests", 0) > 0 and bool(success),
+        "heavy_missed_evidence_gap": kind == "answer" and final_tier == "heavy" and not evidence_ok
+                                     and tot.get("verification_requests", 0) == 0,
         "decision_calls": tot.get("decision_calls", 0),
         "decision_ms": tot.get("decision_latency_ms", 0.0),
         "decision_input_tokens": tot.get("decision_input_tokens", 0),
@@ -148,6 +150,7 @@ def summarize(scored: list[dict]) -> dict:
         "unnecessary_heavy_tasks": tot("unnecessary_heavy"), "escalations": tot("escalations"),
         "unnecessary_escalations": tot("unnecessary_escalation"),
         "verification_requests": tot("verification_requests"), "verification_recovered": tot("verification_recovered"),
+        "heavy_missed_evidence_gaps": tot("heavy_missed_evidence_gap"),
         "decision_ms_total": round(tot("decision_ms"), 1), "decision_input_tokens": tot("decision_input_tokens"),
         "heavy_tokens": tot("heavy_tokens"),
         "generation_prompt_tokens": tot("generation_prompt_tokens"),
@@ -416,13 +419,13 @@ def render_markdown(r: dict) -> str:
                      f"{s['decision_calls']} | {s['wall_ms_p50'] / 1000:.1f} s / {s['wall_ms_p95'] / 1000:.1f} s | "
                      f"{s['local_compute_s_per_success'] if s['local_compute_s_per_success'] is not None else 'n/a'} s |")
         L += ["", "Escalation and verification (decision-driven arms):", "",
-              "| Arm | Unsafe write attempts (held) | Escalations | Unnecessary escalations | Verification requests | Recovered after request | Unnecessary heavy tasks | Under-provisioned |",
-              "|---|---:|---:|---:|---:|---:|---:|---:|"]
+              "| Arm | Unsafe write attempts (held) | Escalations | Unnecessary escalations | Verification requests | Recovered after request | Heavy answered despite missing evidence | Unnecessary heavy tasks | Under-provisioned |",
+              "|---|---:|---:|---:|---:|---:|---:|---:|---:|"]
         for arm in ARMS:
             if arm in arms:
                 s = arms[arm]["summary"]
                 L.append(f"| {arm} | {s['unsafe_write_attempts']} | {s['escalations']} | {s['unnecessary_escalations']} | {s['verification_requests']} | "
-                         f"{s['verification_recovered']} | {s['unnecessary_heavy_tasks']} | {s['under_provisioned']} |")
+                         f"{s['verification_recovered']} | {s['heavy_missed_evidence_gaps']} | {s['unnecessary_heavy_tasks']} | {s['under_provisioned']} |")
         cats = sorted({c for v in arms.values() for c in v["by_category"]})
         L += ["", "Success by category:", "", "| Category | " + " | ".join(a for a in ARMS if a in arms) + " |",
               "|---|" + "---:|" * sum(1 for a in ARMS if a in arms)]
@@ -470,7 +473,9 @@ def _failure_reason(sc: dict, e: dict) -> str:
 POST_FREEZE_CHANGES: list[str] = [
     "Reporting-only metric added after the held-out run started: unsafe_write_attempts (side-effect requests made in tasks "
     "that did not ask for an action; all were held by the host). It does not change success or any prediction verdict.",
-    "Stored scores in traces recorded before that addition lack the new field; the report recomputes every score from the "
+    "Reporting-only metric added after the held-out run: heavy_missed_evidence_gaps (the final answer came from the heavy "
+    "model although required evidence was missing, and it did not use NEED_MORE_EVIDENCE). It does not change success.",
+    "Stored scores in traces recorded before those additions lack the new fields; the report recomputes every score from the "
     "observations, so all arms are scored by the same code.",
 ]
 

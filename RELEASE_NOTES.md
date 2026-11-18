@@ -1,3 +1,28 @@
+# Turnwise Decision Lab: v0.6 (2026-11-18)
+
+**Decision-driven agent control, measured against a heavy-only LLM agent with real local inference.**
+
+## Adds
+
+- `turnwise_lab/agent/`: a bounded per-turn loop (decide, validate, execute, observe, decide again), host policy, prompt-block registry and assembler, argument cascade, escalation gate, verification protocol, and full step traces.
+- `turnwise-dm`: a trained decision head over one cached Qwen3.5-0.8B scoring pass, s1-llm-auto-router heads and typed state. Synthetic template-held-out validation accuracy: 0.911.
+- A heavy-only agent baseline using native tool calling, plus opt-in OpenAI Decisions and System One (Jev) adapters with spending caps. The adapters were tested against fake servers only; they are not run.
+- Local inference with no PyTorch: pinned, sha256-verified ONNX models (about 3 GB, never committed).
+- An independent 30-task held-out set, pre-registered (`docs/preregistration-v0.6.md`) before any run.
+- A trace viewer (`demo/index.html`) that replays recorded inference. The v0.5 explorer moved to `demo/v05-explorer.html`.
+
+## Results (held-out, n = 30; see `reports/v06/summary.md`)
+
+Decision-driven control vs the heavy-only agent:
+
+- **Success:** 16 vs 13, with rules at 14. Inconclusive by the pre-registered rule.
+- **Cost:** 96.5% fewer heavy-model tokens, p50 1.6 s vs 14.2 s, and 2.3x less compute per resolved task.
+- **By task family:** the decision-driven loop lost every investigation; the heavy-only agent lost lookups and ambiguous requests.
+- **Escalation:** the conservative gate did not help (P6 falsified), and the verification protocol never fired.
+- **Safety:** no write was executed in any arm.
+
+---
+
 # Turnwise Decision Lab: v0.5 (2026-11-18)
 
 **Outcome-scored, counterfactual routing experiment. No model was called.**
