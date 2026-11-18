@@ -51,7 +51,7 @@ class ShowcaseTests(unittest.TestCase):
         self.assertNotIn("fetch(", html)
         self.assertNotIn("https://", html)
         self.assertEqual(page(self.data), html)
-        self.assertEqual((ROOT / "demo" / "index.html").read_text(encoding="utf-8"), html)
+        self.assertEqual((ROOT / "demo" / "planning-contract.html").read_text(encoding="utf-8"), html)
 
     def test_json_evidence_generated_with_matching_content(self):
         expected = json.dumps(self.data, ensure_ascii=False, sort_keys=True, indent=2) + "\n"

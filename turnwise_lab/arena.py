@@ -396,7 +396,7 @@ def run_turn(arm: dict, turn: Turn, state: State, ex: Executor, budget: int) -> 
                 c = ex.call(turn.text, turn.action, {})
                 rec["calls"] = [c]
                 rec["receipt_status"] = c["receipt_status"]
-                rec["outcome"] = "held" if c["receipt_status"] == "approval_required" else "unauthorized_execution"
+                rec["outcome"] = "unauthorized_execution" if c["executed"] else "held"
             else:
                 rec["outcome"] = "refused"
             rec["missing"] = []
@@ -744,7 +744,12 @@ def evaluate_hypotheses(arms: dict[str, dict], per_turn: dict[str, dict[str, dic
 
 
 # ---------------------------------------------------------------- experiment
-POST_FREEZE_CHANGES: list[str] = []
+POST_FREEZE_CHANGES: list[str] = [
+    "Scoring fix after the first run: when the agent requested a write and the harness blocked it "
+    "(status 'blocked', principal lacks permission), the turn was labelled 'unauthorized_execution' although "
+    "nothing executed and the write ledger was empty. Such turns are now labelled 'held'. No routing decision, "
+    "fixture or context policy changed.",
+]
 
 
 def run_experiment(sessions_path: Path = SESSIONS_PATH, budget: int = DEFAULT_BUDGET,
@@ -767,6 +772,8 @@ def run_experiment(sessions_path: Path = SESSIONS_PATH, budget: int = DEFAULT_BU
     for t in turns:
         fam = families.setdefault(t.family, {"turns": 0, "mode": t.mode, "arms": {a["id"]: {
             "correct": 0, "model_calls": 0, "silent_miss": 0, "false_hold": 0} for a in arms}})
+        if t.mode not in fam["mode"].split("/"):
+            fam["mode"] = "/".join(sorted(fam["mode"].split("/") + [t.mode]))
         fam["turns"] += 1
         for a in arms:
             r = per_turn[t.id][a["id"]]
@@ -791,6 +798,7 @@ def run_experiment(sessions_path: Path = SESSIONS_PATH, budget: int = DEFAULT_BU
         "schema_version": "arena-v1",
         "question": ("When each turn can be answered from a verified fact, a deterministic tool or flow, or a "
                      "model, which routing designs return the needed answer, and at what model-call cost?"),
+        "session_titles": {s["id"]: s["title"] for s in json.loads(sessions_path.read_text(encoding="utf-8"))["sessions"]},
         "inputs": {"sessions": len(sessions), "turns": len(turns),
                    "sessions_sha256": sha(sessions_path), "route_train_sha256": sha(ROUTE_TRAIN_PATH)},
         "config": {"context_budget_chars": budget, "budget_sweep": list(sweep), "prefetch": list(PREFETCH),

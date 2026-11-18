@@ -16,13 +16,14 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Unit and integration tests (no external inference)
         run: python -m unittest discover -s tests -v
-      - name: Functional local execution receipts
-        run: python -m turnwise_lab.live_demo --output /tmp/live-local.json
-      - name: Synthetic trained routing benchmark
-        run: python -m turnwise_lab.benchmark --output /tmp/trained.json --markdown /tmp/trained.md
-      - name: Validate planning-only exhibit and static functional exhibit
+      - name: Regenerate every committed report and page
         run: |
-          python -m turnwise_lab.showcase --json-out /tmp/showcase.json --html-out /tmp/showcase.html
+          python -m turnwise_lab.arena
+          python -m turnwise_lab.explorer
+          python -m turnwise_lab.live_demo --output reports/live-local-run.json
+          python -m turnwise_lab.benchmark --output /tmp/trained.json --markdown reports/trained-routing-synthetic.md
+          python -m turnwise_lab.showcase --json-out demo/showcase.json --html-out demo/planning-contract.html
           python -m scripts.render_local_demo
-      - name: Original contract smoke replay
-        run: python -m turnwise_lab.evaluate --output /tmp/replay.json
+          python -m turnwise_lab.evaluate --output reports/synthetic-contract-replay.json
+      - name: Committed evidence must be byte-identical to a fresh run (v0.4 benchmark JSON excluded; it records wall-clock timings)
+        run: git diff --exit-code -- reports demo

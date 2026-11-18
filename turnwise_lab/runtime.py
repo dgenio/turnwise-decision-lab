@@ -57,6 +57,18 @@ def _hash_receipt(r: Receipt, principal: str) -> str:
     return hashlib.sha256(material.encode("utf-8")).hexdigest()
 
 
+def _host_sources_within_budget(request: Request, ids: list[str]) -> list[str]:
+    by_id = {s.id: s for s in request.sources}
+    kept: list[str] = []
+    remaining = max(0, min(request.context_budget_chars, 3000))
+    for source_id in dict.fromkeys(ids):
+        source = by_id.get(source_id)
+        if source is not None and len(source.body) <= remaining:
+            kept.append(source_id)
+            remaining -= len(source.body)
+    return kept
+
+
 class LocalHarness:
     """Executes only independently approved registered local actions.
 
@@ -109,8 +121,14 @@ class LocalHarness:
                     receipt.reason_codes.append("registered_action_executed")
             elif plan.path == "llm":
                 # Do not pretend a model produced an answer. Return a strict handoff.
-                packed = pack_sources(request, "related", external=False)
-                receipt.context_ids = [p["id"] for p in packed]
+                if plan.context_ids:
+                    # Honour the plan's context selection, but treat it as untrusted:
+                    # keep only IDs of sources the host itself supplied, within budget.
+                    receipt.context_ids = _host_sources_within_budget(request, plan.context_ids)
+                    receipt.reason_codes.append("plan_context_selection_used")
+                else:
+                    packed = pack_sources(request, "related", external=False)
+                    receipt.context_ids = [p["id"] for p in packed]
                 receipt.status = "generation_required"
                 receipt.reason_codes.append("no_generation_backend_configured")
             else:
