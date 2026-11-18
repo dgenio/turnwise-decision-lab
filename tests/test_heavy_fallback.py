@@ -252,6 +252,13 @@ class HeavyHandoffTests(unittest.TestCase):
 
     def test_cumulative_generation_allowance_includes_pre_handoff_light_call(self):
         class EarlierGenerator:
+            # Token counters as a real backend declares them (a hard prompt-budget guard needs a measured prompt).
+            def counter(self, tier):
+                return lambda text: max(1, len(text) // 8)
+
+            def prompt_counter(self, tier):
+                return lambda messages: 16 + sum(len(str(m.get("content", ""))) // 8 for m in messages)
+
             def generate(self, *args):
                 return {"status": "ok", "tier": "light", "text": "intermediate", "prompt_tokens": 10, "completion_tokens": 5}
         before = [Decision("call_model", model_tier="light", requires_continuation=True)]

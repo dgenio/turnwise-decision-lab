@@ -57,10 +57,20 @@ class Heavy:
 
 
 class TextGen:
-    """A text-only generator for the controller's call_model path."""
+    """A text-only generator for the controller's call_model path.
+
+    It declares token counters like a real backend, so a hard prompt-budget guard (PR #31) can measure the
+    prompt instead of refusing an unknown count before inference.
+    """
 
     def __init__(self, text):
         self.text = text
+
+    def counter(self, tier):
+        return lambda text: max(1, len(text) // 8)
+
+    def prompt_counter(self, tier):
+        return lambda messages: 16 + sum(len(str(m.get("content", ""))) // 8 for m in messages)
 
     def generate(self, prompt, tier, max_new_tokens):
         return {"status": "ok", "tier": tier, "model": "scripted-text", "text": self.text, "prompt_tokens": 7,
