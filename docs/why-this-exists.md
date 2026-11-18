@@ -1,8 +1,10 @@
-# Why One Turn, Four Paths exists
+# Why Turnwise Decision Lab exists
 
-**Observed architectural pressure:** agents are often given a large tool catalog and too much prior context, then asked to reason about every small step. Model routers address part of the problem, but that doesn't automatically settle *whether to call a model*, *which previously reviewed operation to execute*, *which evidence is necessary* and *which approvals must remain outside a model's control*.
+**Observed architectural pressure:** many ReAct/native-tool-calling agents ask a generative LLM to decide the next operation repeatedly, even when some steps need only a host-verified fact, a registered read tool or an existing deterministic workflow. An entry-point model router changes *which model is called*; it does not necessarily change **who decides each successive operation**.
 
-This repository is a **small falsifiable engineering exhibit**, not a new agent framework. Its initial goal is to make five decisions inspectable:
+Turnwise's central research question is whether a cheap **typed, per-step execution policy**, reinvoked after every observation, can preserve the complete task outcome while avoiding unnecessary generative control calls. A strong LLM remains available as a **tool-capable fallback**, and the host independently enforces authorization, evidence sufficiency, approval and execution. We do **not** claim to have invented conditional graphs, decision models, tool search or agent loops.
+
+See the explicit [per-step hypothesis, illustrative trace, comparators and falsifiers](per-step-execution-hypothesis.md). The repository is a **small falsifiable engineering exhibit**, not a new agent framework. Its initial goal is to make five decisions inspectable:
 
 1. Is a verified host answer already available? Skip classifier and LLM.
 2. Is an approved deterministic flow already sufficient? Propose it; don't implement a new workflow engine.
