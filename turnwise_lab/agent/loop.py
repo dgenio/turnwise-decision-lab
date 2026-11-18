@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from copy import deepcopy
 from typing import Any, Protocol
 import json
 import time
@@ -19,6 +20,7 @@ class TurnState:
     observations: list[Observation] = field(default_factory=list)
     current_tier: str | None = None
     verification: bool = False
+    pending_actions: list[dict] = field(default_factory=list)
 
     @property
     def latest_observation(self) -> Observation | None:
@@ -71,23 +73,46 @@ def _obs_json(o: Observation) -> dict:
 
 def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, context: ContextSelector,
                       generator: Generator, turn_id: str, arm: str = "", conversation: list[dict] | None = None,
-                      count_tokens=None, verification: bool = False, max_verification_requests: int = 1) -> TurnTrace:
+                      count_tokens=None, verification: bool = False, max_verification_requests: int = 1,
+                      heavy_fallback=None) -> TurnTrace:
     state = TurnState(turn_id, message, list(conversation or []), verification=verification)
     verification_requests = 0
     trace = TurnTrace(turn_id, message, arm, host.world.variant)
     rejections = 0
+    handoff_active = False
+    handoff_record = None
     t_turn = time.perf_counter()
 
     def finish(kind: str, text: str, by: str, step: dict | None, reason: str):
         if step is not None:
             step["terminate_reason"] = reason
         trace.final = {"kind": kind, "text": text, "by": by, "reason": reason}
+        if handoff_record is not None:
+            trace.final["action_intents"] = deepcopy(state.pending_actions)
+            pending = [a for a in state.pending_actions if a["status"] == "pending"]
+            if pending:
+                trace.final["text"] += " Pending user actions: " + ", ".join(
+                    f"{a['target']}({json.dumps(a['arguments'], sort_keys=True)})" for a in pending) + "."
 
     for step_index in range(host.limits.max_steps):
-        call_id = f"{turn_id}/d{step_index + 1}"
+        call_id = f"{turn_id}/{'h' if handoff_active else 'd'}{step_index + 1}"
         snapshot = state.compact_snapshot()
+        native_generation = None
         try:
-            decision = decider.decide(state, host)
+            if handoff_active:
+                earlier = [s["generation"] for s in trace.steps if s.get("generation")
+                           and s["generation"].get("status") != "not_run"]
+                if any(type(g.get(k)) is not int or g[k] < 0 for g in earlier
+                       for k in ("prompt_tokens", "completion_tokens")):
+                    finish("abstain", host.abstain_message("unknown earlier generation usage"), "host", None,
+                           "unknown_generation_usage")
+                    break
+                decision, native_generation = heavy_fallback.propose(
+                    state, host,
+                    input_remaining=heavy_fallback.limits.max_input_tokens - sum(g["prompt_tokens"] for g in earlier),
+                    output_remaining=heavy_fallback.limits.max_output_tokens - sum(g["completion_tokens"] for g in earlier))
+            else:
+                decision = decider.decide(state, host)
         except Exception as exc:  # provider failure: never guess an action
             trace.steps.append({"step_index": step_index, "decision_call_id": call_id, "snapshot": snapshot,
                                 "decision": None, "validation": {"status": "rejected", "reason": f"decision provider error: {type(exc).__name__}"}})
@@ -95,10 +120,19 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
             break
         v = host.validate(decision, state.observations,
                           user_message=state.user_message, conversation=state.conversation)
+        if handoff_active and decision.operation in ("call_tool", "call_workflow"):
+            from .fallback import action_problem
+            from .host import Validation
+            problem = action_problem(decision, state.pending_actions)
+            if problem:
+                v = Validation(False, decision, "rejected", problem)
         step = {"step_index": step_index, "decision_call_id": call_id, "snapshot": snapshot,
                 "decision": decision.as_json(), "validation": {"status": v.status, "reason": v.reason}}
         if v.evidence is not None:
             step["validation"]["evidence"] = v.evidence
+        if handoff_active:
+            step["decision_source"] = "native_heavy_fallback"
+            step["generation"] = native_generation
         trace.steps.append(step)
 
         if not v.ok:
@@ -114,12 +148,51 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
             continue
 
         op = decision.operation
+        if op == "handoff_heavy":
+            from .fallback import pending_actions
+            if handoff_active or heavy_fallback is None:
+                finish("abstain", host.abstain_message("tool-capable heavy backend not configured"), "host", step,
+                       "handoff_unavailable")
+                break
+            state.pending_actions = pending_actions(message, state.conversation)
+            earlier_gens = [s["generation"] for s in trace.steps if s.get("generation")]
+            remaining_tokens = {}
+            for key, allowance in (("prompt_tokens", heavy_fallback.limits.max_input_tokens),
+                                   ("completion_tokens", heavy_fallback.limits.max_output_tokens)):
+                remaining_tokens[key] = (max(0, allowance - sum(g[key] for g in earlier_gens))
+                                         if all(type(g.get(key)) is int and g[key] >= 0 for g in earlier_gens) else None)
+            handoff_record = {
+                "schema": "local-heavy-handoff-v1", "reason": decision.rationale,
+                "original_user_request": message, "principal": host.identity.principal,
+                "permissions": sorted(host.identity.permissions), "permitted_blocks": sorted(host.permitted_blocks),
+                "prior_observation_ids": [o.call_id for o in state.observations],
+                "action_intents": deepcopy(state.pending_actions),
+                "remaining_steps": host.limits.max_steps - step_index - 1,
+                "max_generation_input_tokens": heavy_fallback.limits.max_input_tokens,
+                "max_generation_output_tokens": heavy_fallback.limits.max_output_tokens,
+                "remaining_generation_input_tokens": remaining_tokens["prompt_tokens"],
+                "remaining_generation_output_tokens": remaining_tokens["completion_tokens"],
+                "remaining_rejections": max(0, host.limits.max_rejections - rejections),
+                "tool_capable": True, "writes_executable": False, "provider_cost_usd": None,
+            }
+            step["handoff"] = handoff_record
+            if any(a["arguments"] is None for a in state.pending_actions):
+                finish("clarify", host.clarify_message(), "host", step, "action arguments unresolved by host")
+                break
+            handoff_active = True
+            state.current_tier = "heavy"
+            step["continue_reason"] = "same host and state; native heavy proposes the next operation within the remaining limits"
+            continue
         if op in ("call_tool", "call_workflow"):
             if v.status == "approval_required":
                 obs = Observation(step_index, call_id, op, decision.target, dict(decision.arguments), "approval_required",
                                   reason=v.reason)
                 state.observations.append(obs)
                 step["observation"] = _obs_json(obs)
+                if handoff_active:
+                    for intent in state.pending_actions:
+                        if intent["target"] == obs.target and intent["arguments"] == obs.arguments:
+                            intent["status"] = "approval_required"
                 finish("approval_required", host.approval_message(obs), "host", step, "side effect needs human approval")
                 break
             obs = host.execute(decision, step_index=step_index, call_id=call_id, user_text=message)
@@ -160,7 +233,10 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
             break
 
         if op == "finish":
-            finish("verified", host.render_verified(state.observations, evidence=v.evidence), "host (deterministic)", step,
+            rendered = host.render_verified(state.observations, evidence=v.evidence)
+            if handoff_active:
+                rendered = rendered.replace("Verified data (no model used)", "Verified data (host-rendered after heavy handoff)")
+            finish("verified", rendered, "host (deterministic)", step,
                    "decision: verified tool output answers the request")
             break
         if op == "clarify":
@@ -172,7 +248,7 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
         finish("step_limit", host.abstain_message(f"step limit of {host.limits.max_steps} reached"), "host", None, "step_limit")
 
     trace.observations = [_obs_json(o) for o in state.observations]
-    decisions = [s for s in trace.steps if s.get("decision")]
+    decisions = [s for s in trace.steps if s.get("decision") and s.get("decision_source") != "native_heavy_fallback"]
     ctx_q = [q for s in trace.steps if s.get("context") for q in s["context"]["decision"]["questions"]]
     gens = [s["generation"] for s in trace.steps if s.get("generation")]
     trace.totals = {
@@ -194,4 +270,23 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
         "wall_ms": round((time.perf_counter() - t_turn) * 1000, 1),
         "writes_executed": len(host.world.write_ledger),
     }
+    if handoff_record is not None:
+        native = [s["generation"] for s in trace.steps if s.get("decision_source") == "native_heavy_fallback"
+                  and s.get("generation")]
+        trace.totals["handoff"] = {
+            "schema": handoff_record["schema"],
+            "model_attempts": sum(g["status"] in ("ok", "error", "attempted") for g in native),
+            "model_errors": sum(g["status"] == "error" for g in native),
+            "usage_complete": all(type(g.get(k)) is int for g in native if g["status"] != "not_run"
+                                  for k in ("prompt_tokens", "completion_tokens")),
+            "provider_cost_usd": None,
+        }
+        if not trace.totals["handoff"]["usage_complete"]:
+            # A failed local call may have performed unmetered work. An unknown
+            # aggregate is not a measured zero, and the turn cannot continue.
+            if any(g.get("prompt_tokens") is None for g in native if g["status"] != "not_run"):
+                trace.totals["generation_prompt_tokens"] = None
+            if any(g.get("completion_tokens") is None for g in native if g["status"] != "not_run"):
+                trace.totals["generation_completion_tokens"] = None
+            trace.totals["generation_latency_ms"] = None
     return trace

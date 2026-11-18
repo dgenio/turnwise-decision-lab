@@ -4,7 +4,7 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
-OPERATIONS = ("call_tool", "call_workflow", "call_model", "finish", "clarify", "abstain")
+OPERATIONS = ("call_tool", "call_workflow", "call_model", "handoff_heavy", "finish", "clarify", "abstain")
 TIERS = ("light", "heavy")
 
 # What a provider's number means. Never present one kind as another.

@@ -115,6 +115,10 @@ class Host:
             if d.model_tier not in TIERS:
                 return Validation(False, d, "rejected", f"model tier {d.model_tier!r} is not one of {list(TIERS)}")
             return Validation(True, d, "accepted", f"{d.model_tier} generation permitted")
+        if d.operation == "handoff_heavy":
+            if d.target is not None or d.arguments or d.model_tier != "heavy":
+                return Validation(False, d, "rejected", "heavy handoff takes no target or arguments and requires heavy tier")
+            return Validation(True, d, "accepted", "tool-capable heavy handoff proposed; host limits still apply")
         if d.operation == "finish":
             review = assess_evidence(
                 user_message, executed, conversation=conversation,

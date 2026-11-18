@@ -346,13 +346,15 @@ class LearnedDecider:
     """Mechanism 1: turnwise-dm, a trained head over (chooser scores, s1 heads, typed state)."""
     name = "turnwise-dm"
 
-    def __init__(self, head: dict, chooser: GenerativeChooser, s1, args_builder: ArgumentBuilder, *, gate: float | None = None):
+    def __init__(self, head: dict, chooser: GenerativeChooser, s1, args_builder: ArgumentBuilder, *, gate: float | None = None,
+                 tool_capable_fallback: bool = False):
         import numpy as np
         self.np = np
         self.head, self.chooser, self.s1, self.args = head, chooser, s1, args_builder
         self.mu, self.sd = np.asarray(head["mean"]), np.asarray(head["std"])
         self.W, self.b, self.T = np.asarray(head["W"]), np.asarray(head["b"]), head["temperature"]
         self.gate = head.get("gate", 0.5) if gate is None else gate
+        self.tool_capable_fallback = tool_capable_fallback
         self.model = f"{head['name']}-{head['version']} (head) + {chooser.version} + {s1.version}"
 
     def features(self, state):
@@ -380,11 +382,14 @@ class LearnedDecider:
                      parts["chooser_tokens"] + parts["s1_tokens"],
                      note=f"chooser {parts['chooser_ms']} ms + s1 {parts['s1_ms']} ms; masked {sorted(set(OPS) - set(allowed))}")
         qs = [q]
-        if top < self.gate and op != "heavy_model":
+        if top < self.gate and (op != "heavy_model" or self.tool_capable_fallback):
             qs.append(Question("escalation", ["keep", "escalate"], "escalate", None, SCORE_RULE, 0.0, None,
                                note=f"top probability {top:.2f} < gate {self.gate}: conservative escalation to the strong model"))
-            return Decision("call_model", model_tier="heavy", provider=self.name, model=self.model, questions=qs,
-                            rationale=f"uncertain ({op} at {top:.2f}); escalate to the strong model with verification")
+            return Decision("handoff_heavy" if self.tool_capable_fallback else "call_model", model_tier="heavy",
+                            provider=self.name, model=self.model, questions=qs,
+                            rationale=f"uncertain ({op} at {top:.2f}); " +
+                            ("hand off to the tool-capable strong agent" if self.tool_capable_fallback
+                             else "escalate to the strong model with verification"))
         return _finalize_op(op, state, self.name, self.model, qs, self.args)
 
 
