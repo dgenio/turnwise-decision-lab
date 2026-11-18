@@ -79,6 +79,9 @@ def run_hosted_agent(message: str, *, host: Host, chat: HostedChat, turn_id: str
         d = Decision(op, name, dict(args) if isinstance(args, dict) else {}, provider=provider, model=chat.model if provider == "hosted-agent" else "host rule",
                      questions=[Question("tool_call", [], name, None, kind)])
         v = host.validate(d, observations)
+        vetoed = gate.veto(message, conversation, name) if gate is not None and provider == "hosted-agent" else None
+        if vetoed:
+            v = type(v)(False, d, "rejected", vetoed)
         if not v.ok:
             obs, content = Observation(step["step_index"], call_id, op, name, d.arguments, "rejected", reason=v.reason), json.dumps({"error": v.reason})
         elif v.status == "approval_required":
@@ -146,6 +149,13 @@ def run_hosted_agent(message: str, *, host: Host, chat: HostedChat, turn_id: str
                                     interventions=interventions - 1)
                     if v.action != "acquire":
                         break
+                if step_index >= host.limits.max_steps - 1:  # no step left for the model to answer again
+                    trace.final = {"kind": "verified", "by": "host (exit gate: step limit after acquisition)", "withheld_text": text,
+                                   "reason": "required evidence was gathered at the last step; the generated reply was not sent",
+                                   "text": gate.findings(message, conversation, observations,
+                                                         "[The generated reply was not sent: it lacked required evidence, and the step limit left no room to write a new one.]")}
+                    step["terminate_reason"] = trace.final["reason"]
+                    break
                 messages += [{"role": "assistant", "content": text},
                              {"role": "user", "content": "The host required more evidence before this reply could be sent:\n" + "\n".join(parts)
                                                          + f"\nUsing all the evidence, answer the original request: {message}"}]

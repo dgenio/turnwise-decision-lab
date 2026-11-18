@@ -125,6 +125,9 @@ def run_heavy_agent(message: str, *, host: Host, lm, turn_id: str, conversation:
         d = Decision(op, name, dict(args) if isinstance(args, dict) else {}, provider=provider, model=lm.version if provider == "heavy-agent" else "host rule",
                      questions=[Question("tool_call", [], name, None, kind)])
         v = host.validate(d, observations)
+        vetoed = gate.veto(message, conversation or [], name) if gate is not None and provider == "heavy-agent" else None
+        if vetoed:
+            v = type(v)(False, d, "rejected", vetoed)
         if not v.ok:
             obs = Observation(step_index, call_id, op, name, d.arguments, "rejected", reason=v.reason)
             content = json.dumps({"error": v.reason})
@@ -155,6 +158,7 @@ def run_heavy_agent(message: str, *, host: Host, lm, turn_id: str, conversation:
                 g = gate.ground(text, message=message, conversation=conversation or [], observations=observations, host_facts=host.host_facts())
                 event["grounding"] = {k: g[k] for k in g if k != "replacement"}
                 if "replacement" in g:
+                    interventions += 1
                     trace.final["withheld_text"] = trace.final["text"]
                     trace.final.update(text=g["replacement"], by="host (exit gate: generated reply withheld)", kind="verified")
             return None
@@ -170,6 +174,12 @@ def run_heavy_agent(message: str, *, host: Host, lm, turn_id: str, conversation:
                                 interventions=interventions - 1)
                 if v.action != "acquire":
                     break
+            if step_index >= host.limits.max_steps - 1:  # no step left for the model to answer again: the host reports what it has
+                trace.final = {"kind": "verified", "by": "host (exit gate: step limit after acquisition)", "withheld_text": text,
+                               "reason": "required evidence was gathered at the last step; the generated reply was not sent",
+                               "text": gate.findings(message, conversation or [], observations,
+                                                     "[The generated reply was not sent: it lacked required evidence, and the step limit left no room to write a new one.]")}
+                return None
             step["continue_reason"] = "exit gate: the reply was not sent; the host ran the evidence the contract requires and returned it"
             pending = ("<|im_end|>\n<|im_start|>user\n" + "\n".join(responses) +
                        "\nMore evidence was required before answering. Using all the evidence above, answer the original request: "

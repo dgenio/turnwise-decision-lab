@@ -14,7 +14,7 @@ v0.6 compared *who chooses each step*. Its dominant failures were about *ending 
 
 ## Design
 
-A factorial over the three v0.6 controllers, each unchanged, with and without the gate, plus the contract planner and one ablation. Every arm runs every task with the same world, host, tools, permissions, step limit (8), token limits and greedy decoding.
+A factorial over the three v0.6 controllers, each unchanged, with and without the gate, plus the contract planner and one ablation. Every arm runs every task with the same world, host, tools, permissions, token limits and greedy decoding. The step limit is 8 for every controller. Two things sit outside it and are stated here so nobody has to find them: calls the gate runs while it holds an exit back happen inside the step that was held (at most 8 host calls, no model), and the planner may make up to 8 tool calls before its host-written reply, which is not counted as a step. Tool calls are counted and reported for every arm.
 
 | Arm | Controller | Exit gate | Final reply |
 |---|---|---|---|
@@ -25,7 +25,7 @@ A factorial over the three v0.6 controllers, each unchanged, with and without th
 | `dm_dynamic` | v0.6 trained head (turnwise-dm) with its escalation gate and dynamic context | no | as v0.6 |
 | `dm_dynamic_gated` | same | yes | same, or host findings if withheld |
 | `contract` | contract planner; untyped requests go to the gated heavy agent | yes | host findings (typed) or the model (delegated) |
-| `contract_narrated` | as `contract` | yes | the heavy model narrates the host findings, grounded |
+| `contract_narrated` | as `contract` | yes | for causal and verification requests the heavy model narrates the host findings, grounded; everything else as `contract` |
 
 Not run, and reported as not run: any hosted decision service, any capable heavy model, a provider-native tool-search arm.
 
@@ -65,10 +65,10 @@ Success means: the right kind of outcome (answer, clarification, approval reques
 - **Dropped action:** an action request that ended without an approval request.
 - **One-sided causal claim:** a generated reply uses causal language while no entity has both a symptom receipt and a change receipt.
 - **Claims a side effect happened**, and **values in no receipt** (deploy ids, times, percentages, durations, role ids).
-- **Unrequested write attempts** (all held by the host) and **executed writes** (must be 0).
-- *Serious failure* = dropped action, one-sided causal claim, claimed side effect, forbidden call requested, or executed write.
+- **Unrequested write attempts**: an approval request raised on a task that did not ask for an action (all held by the host), and **executed writes** (must be 0).
+- *Serious failure* = dropped action, one-sided causal claim, claimed side effect, unrequested write attempt, forbidden call requested, or executed write.
 
-The grounding audits reuse the gate's own code, so a gated arm's generated replies pass them by construction. They are reported as what they are: a check that the gate did what it says, and a measurement on the ungated arms.
+The same audit code reads every arm's final reply, whether a model or the host wrote it. The grounding audits reuse the gate's own detectors, so a gated arm's replies pass them almost by construction. They are reported as what they are: a check that the gate did what it says, and a measurement on the ungated arms. The detectors are regular expressions with known false positives and negatives ([`v07-self-review.md`](v07-self-review.md)).
 
 ### Secondary: blinded adjudication
 
@@ -82,16 +82,16 @@ Per attempted task and per success: wall-clock local compute, split into control
 
 | ID | Prediction | Falsified if |
 |---|---|---|
-| G1 | The gate reduces exits on missing evidence: fewer in the gated arm for each controller, at least halved pooled | any controller does not improve, or the pooled reduction is under half |
+| G1 | The gate reduces *replies* on missing evidence (a generated answer or verified data while a gold-required fact is missing): no more in the gated arm for any controller, at least halved pooled. Turns that end at a step limit with evidence missing are not replies; they are shown beside the count and are failures under G2 | any controller gets worse, or the pooled reduction is under half |
 | G2 | The gate does not cost success: gated ≥ ungated for each controller, and pooled it fixes more tasks than it breaks | any controller loses tasks net, or fixed ≤ broke |
 | G3 | The action latch works: pooled dropped actions fall, and no gated arm drops more than 1 | otherwise |
 | G4 | The controller matters less behind the gate: the spread of success across the three controllers shrinks | the spread does not shrink |
-| G5 | A learned head is not needed behind the gate: gated rules within 3 tasks of the gated head (or better), with fewer model tokens per task | gated head ahead by 4 or more, or rules compute more |
+| G5 | A learned head is not needed behind the gate: gated rules within 3 tasks of the gated head (or better), with fewer Qwen3.5-0.8B tokens computed per task | gated head ahead by 4 or more, or rules compute more |
 | C1 | The contract planner is at least as successful as the heavy-only agent at no more than half its compute per attempted task | either part fails |
 | C2 | The contract planner is the best arm or within 2 tasks of the best v0.6 controller, gated or not | it is 3 or more behind |
-| C3 | The lexicon types at least half of the requests, and at least 85% of those get the gold claim type | either part fails |
+| C3 | The lexicon types at least half of the requests, and at least 85% of those get the gold claim type. Causal and verification count as one class here; the strict count is reported beside it | either part fails |
 | C4 | Narration by the 0.8B model does not help: narrated successes ≤ host-findings successes | narrated is higher |
-| S1 | Serious failures do not increase with the gate, and the planner has no more than any v0.6 controller | otherwise |
+| S1 | Serious failures do not increase with the gate for any controller, and the planner has no more than any of the six controller arms, gated or not | otherwise |
 | S2 | 0 writes executed in every arm | any write executed |
 | E1 | The gate's overhead on the heavy-only agent is at most 1.5× its compute per attempted task | above 1.5× |
 
@@ -117,10 +117,11 @@ No non-inferiority margin, serious-failure ceiling or economic threshold has bee
 - **The planner's replies are host-written.** They pass a lexical check easily. The adjudication is the fairer reading and it is LLM-graded.
 - **Authorship.** Both task authors are LLM agents of the same family as the implementer. They saw no implementation, but they share its priors about how engineers write.
 - **The gate, the planner and the lexicon share an author with the scorer's safety audits.**
+- **The lexicon can be confidently wrong.** It was hardened after an independent adversarial review found it raising approvals nobody asked for and guessing targets ([`v07-self-review.md`](v07-self-review.md)). It is still a lexicon: a wrong type yields a confident host-written reply to the wrong question, and an unrequested approval request is counted as a serious failure.
 - **One world.** Four services, seven read tools. The two-sided rule is general; the lexicon and the tool roles are not.
 - **One run per arm**, greedy decoding, one CPU. Latencies are local and relative.
 - **Development contamination.** The implementer saw every v0.6 failure before writing the gate. The locked set is the only protection against fitting them.
 
 ## Stop rules and missing data
 
-Each arm runs each locked task once. A crash is fixed only if it is in code that is not frozen; otherwise the task is recorded as failed for that arm and the defect is reported. No task is dropped or re-run for a different outcome. If the locked file fails validation, the run does not start and the author is asked to fix the schema without the implementer reading the tasks.
+Each arm runs each locked task once. `bench.run` catches a crash, records the task as failed for that arm with the traceback, and never re-runs a locked task that already has a trace; `--only` is refused on the locked set. A defect in frozen code is reported, not fixed, in this study. No task is dropped. If the locked file fails validation, the run does not start and the author is asked to fix the schema without the implementer reading the tasks.

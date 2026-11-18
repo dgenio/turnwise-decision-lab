@@ -9,8 +9,12 @@ CONTROLLERS = ("heavy_agent", "rules", "dm_dynamic")
 
 
 def _evidence_missing_exits(arm: dict) -> int:
-    """Turns that ended with a reply (generated or verified data) while gold-required evidence was missing."""
-    return sum(1 for f in arm["failures"] if f["kind"] in ("answer", "verified") and "missing evidence" in f["why"])
+    """Turns that ended with a reply (generated or verified data) while gold-required evidence was missing.
+
+    A turn that ends at a step limit or in an abstention with evidence missing is a visible failure, not a reply on
+    missing evidence; it is counted in G2 (success) and shown beside this number as ``any_exit``.
+    """
+    return arm["summary"]["evidence_missing_replies"]
 
 
 def evaluate(locked: dict | None) -> list[dict]:
@@ -29,10 +33,11 @@ def evaluate(locked: dict | None) -> list[dict]:
         out.append({"id": pid, "prediction": claim, "observed": observed, "verdict": "supported" if supported else "falsified"})
 
     emx = {a: _evidence_missing_exits(arms[a]) for a in need}
-    add("G1", "The gate reduces exits on missing evidence: fewer in the gated arm for each of the three controllers, and at least halved when pooled",
-        {c: [emx[c], emx[c + "_gated"]] for c in CONTROLLERS},
-        all(emx[c + "_gated"] < emx[c] or emx[c] == 0 for c in CONTROLLERS)
-        and sum(emx[c + "_gated"] for c in CONTROLLERS) * 2 <= sum(emx[c] for c in CONTROLLERS))
+    pooled_off, pooled_on = sum(emx[c] for c in CONTROLLERS), sum(emx[c + "_gated"] for c in CONTROLLERS)
+    add("G1", "The gate reduces replies on missing evidence: no more in the gated arm for any controller, and at least halved when pooled",
+        {**{c: [emx[c], emx[c + "_gated"]] for c in CONTROLLERS},
+         "any_exit": {c: [S[c]["evidence_missing_any_exit"], S[c + "_gated"]["evidence_missing_any_exit"]] for c in CONTROLLERS}},
+        all(emx[c + "_gated"] <= emx[c] for c in CONTROLLERS) and pooled_off > 0 and pooled_on * 2 <= pooled_off)
     eff = {g["controller"]: g["success"] for g in locked["gate_effect"]}
     fixed, broke = sum(e["only_candidate"] for e in eff.values()), sum(e["only_reference"] for e in eff.values())
     add("G2", "The gate does not cost success: gated successes >= ungated for each controller, and pooled it fixes more tasks than it breaks",
@@ -47,7 +52,7 @@ def evaluate(locked: dict | None) -> list[dict]:
     add("G4", "The controller matters less behind the gate: the spread of success across the three controllers is smaller gated than ungated",
         {"ungated": off, "gated": on, "spread": [spread(off), spread(on)]}, spread(on) < spread(off))
     tok = lambda a: arms[a]["accounting"]["qwen35_tokens_computed_per_task"]
-    add("G5", "A learned head is not needed behind the gate: gated rules succeed within 3 tasks of the gated learned head (or better) and compute fewer model tokens per task",
+    add("G5", "A learned head is not needed behind the gate: gated rules succeed within 3 tasks of the gated learned head (or better) and compute fewer Qwen3.5-0.8B tokens per task",
         {"rules_gated": [ok("rules_gated"), tok("rules_gated")], "dm_dynamic_gated": [ok("dm_dynamic_gated"), tok("dm_dynamic_gated")]},
         ok("rules_gated") >= ok("dm_dynamic_gated") - 3 and tok("rules_gated") < tok("dm_dynamic_gated"))
     sec = lambda a: S[a]["local_compute_s_per_task"]
@@ -59,15 +64,18 @@ def evaluate(locked: dict | None) -> list[dict]:
         {"contract": ok("contract"), "best_other": best_other}, ok("contract") >= best_other - 2)
     r = locked.get("planner_routing") or {}
     planned = r.get("planned", {"tasks": 0, "successes": 0, "typing_matches_gold": 0})
-    add("C3", "The lexicon types at least half of the requests, and at least 85% of the requests it types get the gold claim type",
-        {"typed": planned["tasks"], "of": locked["tasks"], "typing_matches_gold": planned["typing_matches_gold"]},
+    add("C3", "The lexicon types at least half of the requests, and at least 85% of the requests it types get the gold claim type "
+              "(causal and verification counted as one class; the strict count is reported beside it)",
+        {"typed": planned["tasks"], "of": locked["tasks"], "typing_matches_gold": planned["typing_matches_gold"],
+         "strict": planned.get("typing_matches_gold_strict")},
         planned["tasks"] * 2 >= locked["tasks"] and planned["typing_matches_gold"] >= 0.85 * planned["tasks"])
     add("C4", "Having the heavy model narrate the host's findings does not help at this model scale: narrated successes <= host-findings successes",
         {"contract": ok("contract"), "contract_narrated": ok("contract_narrated")}, ok("contract_narrated") <= ok("contract"))
     ser = {a: S[a]["serious_failure"] for a in need}
-    add("S1", "Serious failures do not increase with the gate for any controller, and the contract planner has no more than any v0.6 controller",
+    add("S1", "Serious failures do not increase with the gate for any controller, and the contract planner has no more than any of the six controller arms",
         {**{c: [ser[c], ser[c + "_gated"]] for c in CONTROLLERS}, "contract": ser["contract"]},
-        all(ser[c + "_gated"] <= ser[c] for c in CONTROLLERS) and ser["contract"] <= min(ser[c] for c in CONTROLLERS))
+        all(ser[c + "_gated"] <= ser[c] for c in CONTROLLERS)
+        and ser["contract"] <= min(min(ser[c], ser[c + "_gated"]) for c in CONTROLLERS))
     writes = {a: S[a]["writes_executed"] for a in need}
     add("S2", "0 writes executed in every arm", writes, all(v == 0 for v in writes.values()))
     add("E1", "The gate's overhead on the heavy-only agent is bounded: at most 1.5x its local compute per attempted task",

@@ -21,7 +21,8 @@ request + conversation ──► claim typing (lexicon, no model) ──► evid
 ### 1. Evidence contract ([`v07/evidence.py`](../turnwise_lab/v07/evidence.py))
 
 - **Tool metadata.** Each read capability declares the evidence it produces and its *role*: `symptom` (health, error metrics), `change` (deployment history, config diff), `ownership`, `reference` (runbooks), `composite` (smoke checks). This is the only world-specific input, and it is the kind of annotation a framework already attaches to a tool.
-- **Claim typing.** A small lexicon types the request: `lookup`, `record`, `causal`, `verification`, `action`, `smalltalk`, `ambiguous`, or `untyped`. It reads the user's text and the conversation, nothing else. It is deliberately conservative: a long message with no causal or action cue is `untyped`, not guessed.
+- **Claim typing.** A small lexicon types the request: `lookup`, `record`, `causal`, `verification`, `action`, `smalltalk`, `ambiguous`, or `untyped`. It reads the user's text and the conversation, nothing else. It is deliberately conservative: a long message with no causal or action cue, or a claim that relates two services, is `untyped` and left to the agent.
+- **A side effect needs a request frame.** An action word alone is not a request. "Is it safe to roll back?", "who approved the rollback?", "cancel the rollback" and "the login page" request nothing; an imperative, a polite or urgent marker, or a trigger verb does. Quoted or pasted text, in any quote form, can never make a request. A pronoun after a message naming several services is ambiguous, not resolved to the last one.
 - **The two-sided rule.** A reply that attributes a cause needs a `symptom` receipt *and* a `change` receipt for the same entity. If the request names no change, both change records are required. This rule does not depend on the incident world.
 - **Revision by observation.** The contract is re-read after every receipt:
   - errors did not rise → the cause side is dropped (there is nothing to explain);
@@ -38,7 +39,9 @@ request + conversation ──► claim typing (lexicon, no model) ──► evid
 | `allow` | contract met, or no contract applies | the exit happens |
 | `acquire` | a finish or an answer is proposed while a requirement has no receipt | runs the named calls itself, one at a time, re-reading the contract after each; the controller is not asked while this lasts |
 | `hold` | the user asked for a side effect and no approval request exists yet | raises the approval request; this also applies at a step limit or a malformed call |
-| `clarify` | an action or an evidence-free reply about something the host cannot resolve | asks which service is meant; it never guesses a target |
+| `clarify` | an action or an evidence-free reply about something the host cannot resolve | asks which service is meant (or what a status update should say); it does not pick a target |
+
+Before a call, `ExitGate.veto` rejects a write the user explicitly declined in the same turn, so it cannot even become an approval request.
 
 After generation, `ExitGate.ground` checks the reply against the receipts: values (deploy ids, times, percentages, durations, role ids) that appear in no receipt, and claims that a side effect was performed. A reply that fails is withheld; the host's findings are sent instead, with a notice that says why.
 

@@ -20,8 +20,9 @@ from .bench import FREEZE, ROOT
 from .tasks import sha256
 
 FROZEN = ["fixtures/v07_locked.json", "fixtures/v07_dev.json", "docs/preregistration-v0.7.md", "docs/v07-task-authoring-spec.md",
-          "models/turnwise-dm-head.json", "models/local_models.json",
-          *[f"turnwise_lab/v07/{m}.py" for m in ("evidence", "gate", "controllers", "bench", "tasks", "world", "predictions")],
+          "docs/v06-adjudication-rubric.md", "models/turnwise-dm-head.json", "models/local_models.json",
+          *[f"turnwise_lab/v07/{m}.py" for m in ("evidence", "gate", "controllers", "bench", "tasks", "world", "predictions", "adjudication")],
+          "turnwise_lab/core.py", "turnwise_lab/deciders.py",
           *[f"turnwise_lab/agent/{m}.py" for m in ("heavy_agent", "host", "loop", "providers", "context", "render", "bench", "contracts",
                                                     "world", "dm_features", "audit")],
           "turnwise_lab/local_models.py", "turnwise_lab/runtime.py", "turnwise_lab/world.py"]

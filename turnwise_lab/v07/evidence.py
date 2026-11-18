@@ -15,8 +15,9 @@ metadata on the capability (``EVIDENCE``), the way a framework would annotate
 a tool.
 
 Claim typing is a small lexicon, deliberately. When it cannot type a request
-it says ``untyped`` and the turn goes to a tool-capable agent; it does not
-guess.
+it says ``untyped`` and the turn goes to a tool-capable agent. It is built to
+prefer ``untyped`` over a guess, but it is a lexicon: it can still type a
+request wrongly, and the study counts how often (prediction C3).
 """
 from __future__ import annotations
 
@@ -53,22 +54,36 @@ ROLE_OF = {e.kind: e.role for e in EVIDENCE}
 ALIASES = {"checkout": "checkout", "payments": "payments", "payment": "payments", "search": "search",
            "auth": "auth", "authentication": "auth", "login": "auth"}
 _UNKNOWN_SERVICE = re.compile(r"\b([a-z][a-z0-9]*)[- ](?:svc|service)\b")
+_NOT_A_NAME = {"the", "this", "that", "a", "an", "which", "what", "our", "your", "any", "some", "every", "each", "no", "another", "other", "one",
+               "whose", "their", "its", "my", "micro", "web", "same", "whole", "entire", "wrong", "right", "affected", "upstream", "downstream"}
+EVERY_SERVICE = r"\b(?:any|all|every|each|which) (?:service|services|of them|of the services)\b|\beverything\b|\banything\b|\ball four\b"
 
+# A side effect is requested only inside a *request frame*. An action word on its own is not a request:
+# "is it safe to roll back?", "who approved the rollback?", "cancel the rollback", "the login page" are not.
 ACTION_CUES = (
     ("post_status_update", r"\b(?:post|publish|announce|put|push|update)\b[^.?!]*\bstatus ?page\b|\bstatus ?page\b[^.?!]*\b(?:post|publish|update)\b"),
     ("rollback_deployment", r"\broll(?:ing)?[- ]?back\b|\broll (?:it|that|this|them|\w+) back\b|\brollback\b|\brevert\w*\b|"
                             r"\bback (?:it|that|this|d-\d+) out\b|\bback out\b|\bundo (?:the|that|this|it)\b|\bput \w+ back\b|"
                             r"\bprevious (?:build|version|release)\b|\bgo back to\b"),
-    ("page_oncall", r"(?<!status )\bpag(?:e|ing)\b(?! ?(?:load|size|s\b))|\bwake\b|\bcall ?out\b|\bon the (?:line|phone|call)\b|"
-                    r"\bget (?:someone|somebody)\b.*\b(?:from|on)\b|\bping (?:the )?(?:on.?call|team)\b|\bescalate to (?:the )?on.?call\b"),
+    ("page_oncall", r"\bpag(?:e|ing|ed)\b|\bwake\b|\bcall ?out\b|\bon the (?:line|phone|call|bridge)\b|\bping (?:the )?(?:on.?call|team)\b|"
+                    r"\bescalate to (?:the )?on.?call\b"),
 )
-READ_VERBS = r"\b(?:pull|show|check|fetch|look at|look up|tell me|give me|grab|get me|what(?:'?s| is| are)|how(?:'?s| is| are))\b"
+_PAGE_NOUN_BEFORE = {"status", "login", "landing", "home", "web", "the", "a", "this", "that", "error", "front", "product", "each", "every", "per", "wiki", "docs"}
+_PAGE_NOUN_AFTER = {"is", "was", "has", "load", "loads", "size", "shows", "says", "throws", "throwing", "returns", "keeps", "itself", "and", "or"}
+REQUEST_MARK = (r"\b(?:please|pls|plz|kindly|can (?:you|u|we)|could (?:you|u|we)|would (?:you|u)|will (?:you|u)|go ahead|let'?s|need (?:you )?to|needs to|"
+                r"have to|got to|gotta|time to|want (?:you )?to|just|now|asap|immediately|already)\b")
+TRIGGER_VERB = r"\b(?:do|queue|execute|start|kick off|trigger|run|initiate|perform|proceed with|request|file|raise|get|want|need)\b"
+FILLER = r"^(?:\s|,|ok(?:ay)?|k|kk|so|then|and|and then|yes|yeah|yep|right|alright|argh|well|hey|hi|fine|cool|great|sure)*"
+SELF_DOING = r"(?:\bi'?m going to|\bi am going to|\bi will|\bi'?ll|\bi already|\bwe already|\bi just|\bi can|\bi could|\bwe will|\bwe'?ll)\s+(?:\w+\s+){0,2}$"
+QUESTION_START = r"^(?:is|are|was|were|did|does|do|has|have|had|who|what|when|where|why|how|should|shall|whether|if|any)\b"
+POLITE = r"\b(?:please|pls|plz|kindly|can (?:you|u|we)|could (?:you|u|we)|would (?:you|u)|will (?:you|u))\b"
+NEGATION = (r"\b(?:don'?t|do not|dont|never|without|hold off|not yet|no need to|instead of|cancel|abort|no|not|"
+            r"before (?:we|i|you) (?:even )?(?:think|consider))\b")
+READ_VERBS = r"\b(?:pull|show|check|fetch|look at|look up|tell me|give me|grab|get me|what(?:'?s| is| are| has)|how(?:'?s| is| are))\b"
 GENERAL = r"\b(?:people|in general|generally|usually|typically|what does .{1,30} (?:mean|stand for)|what is an?|what's an?|difference between|instead of|versus|vs)\b"
 CORRECTION = r"\b(?:i meant|meant|wrong (?:svc|service|one)|not \w+,? (?:but )?|sorry,?|correction|typo)\b"
 MAX_LOOKUP_WORDS = 16  # a longer non-causal message usually carries a claim or a second request the lexicon cannot see
 BARE_REFERENT = r"\b(?:it|that|this|them|those)\b"
-QUOTED = r"\"[^\"]*\"|“[^”]*”"
-NEGATION = r"\b(?:don'?t|do not|dont|never|without|hold off|not yet|no need to|instead of|before (?:we|i|you) (?:even )?(?:think|consider))\b"
 CAUSAL = (r"\b(?:why|caus\w*|because|due to|culprit|responsible|behind|blame\w*|to blame|related|connected|linked|led to|root ?cause|"
           r"trigger\w*|red herring|explain\w*|what(?:'s| has)? changed|wh?at changed|any chance|did that|do(?:es|ing)? this|is it the|was it the|"
           r"fault|bad (?:deploy|release|push|config|change)|pointing fingers|set (?:it |this |that )?off|how come|reason|suspect\w*|"
@@ -82,7 +97,7 @@ WEAK_HEALTH = r"\bhow bad\b|\bnumbers\b|\bhow(?:'s| is| are)\b|\bdoing\b"  # onl
 CHANGE_KINDS = (("deploys", r"\bdeploy\w*|\breleas\w*|\brollout\b|\bshipp?ed\b|\bpush(?:ed)?\b|\bbuild\b|\breindex\w*|\bbump\w*|\bd-\d+\b|"
                             r"\bchange[ds]?\b|\bsigned off\b|\bapproved\b"),
                 ("config", r"\bconfig\w*|\bcfg\b|\bsettings?\b|\bbaseline\b|\bdrift\w*|\brate.?limit\w*|\bpool\b|\bshards?\b"))
-LOOKUP_KINDS = (("owner", r"\bown\w*|\bteam\b|\bon.?call\b|\bwho (?:do|should|can) (?:i|we) (?:bug|ask|ping|contact|talk)\b|\bloop in\b|\bwhose\b"),
+LOOKUP_KINDS = (("owner", r"\bown\w*|\bteam\b|\bon.?call\b|\bwho (?:do|should|can) (?:i|we) (?:bug|ask|ping|contact|talk)\b|\bloop in\b|\bwhose\b|\brotation\b"),
                 ("smoke", r"\bsmoke\b"),
                 ("doc", r"\brunbooks?\b|\bpolic(?:y|ies)\b|\bprocedures?\b|\bplaybooks?\b"))
 RECORD = r"\bsev(?:erity)?\b|\bincident (?:commander|id|start\w*)\b|\bcommander\b|\b(?:who'?s|who is) (?:running|leading|the ic)\b|\bic\b|\bstatus ?page (?:say|state|show)\w*"
@@ -103,23 +118,57 @@ def services_in(text: str) -> list[str]:
 
 
 def unknown_services(text: str) -> list[str]:
-    return [m for m in _UNKNOWN_SERVICE.findall(text.lower()) if m not in ALIASES and m not in ("the", "this", "that", "a", "which", "what", "our", "your")]
+    return [m for m in _UNKNOWN_SERVICE.findall(text.lower()) if m not in ALIASES and m not in _NOT_A_NAME]
+
+
+def strip_quoted(text: str) -> str:
+    """The user's own words only. Quoted or pasted text is content: it can never make a request.
+
+    Everything between the first and the last quote mark of a kind is removed (so nested quotes cannot leak), an
+    unbalanced quote removes the rest of the message, and blockquote lines are dropped. Deliberately conservative.
+    """
+    t = "\n".join(line for line in text.split("\n") if not line.lstrip().startswith(">"))
+    for opening, closing in (('"', '"'), ("“", "”"), ("«", "»"), ("`", "`")):
+        i, j = t.find(opening), t.rfind(closing)
+        if i != -1:
+            t = t[:i] + " " + (t[j + 1:] if j > i else "")
+    opens = [m.start() for m in re.finditer(r"(?:(?<=\s)|^|(?<=[(:,]))'(?=\S)", t)]
+    closes = [m.end() for m in re.finditer(r"(?<=\S)'(?=\s|$|[.,;:!?)])", t)]
+    if opens and closes and closes[-1] > opens[0]:
+        t = t[:opens[0]] + " " + t[closes[-1]:]
+    return t
+
+
+def quoted_content(text: str) -> str | None:
+    for opening, closing in (('"', '"'), ("“", "”"), ("«", "»")):
+        i, j = text.find(opening), text.rfind(closing)
+        if i != -1 and j > i + 1:
+            return text[i + 1:j].strip()
+    return None
 
 
 def focus_entity(message: str, conversation: list[dict]) -> tuple[list[str], str]:
     """Entities the request is about, and where they came from.
 
-    Named in the message wins. Otherwise the service mentioned **most recently**
-    in the conversation (either role). v0.5 and v0.6 took the first service in
-    the joined history, which is how a follow-up ended up on the wrong service.
+    Named in the message wins. Otherwise the most recent message that names a service decides, and only if it names
+    exactly one; if it names several, the user's own most recent mention decides, and failing that the reference is
+    ambiguous and every candidate is returned. v0.5 and v0.6 took the first service in the joined history, which is
+    how a follow-up ended up on the wrong service.
     """
     named = services_in(message)
     if named:
         return named, "message"
     for m in reversed(conversation or []):
         found = services_in(m.get("content", ""))
-        if found:
-            return found[-1:], "conversation"
+        if not found:
+            continue
+        if len(found) == 1:
+            return found, "conversation"
+        for u in reversed(conversation):
+            mine = services_in(u.get("content", "")) if u.get("role") == "user" else []
+            if mine:
+                return (mine, "conversation") if len(mine) == 1 else (found, "conversation")
+        return found, "conversation"
     return [], "none"
 
 
@@ -136,6 +185,7 @@ class Claim:
     declined_action: str | None = None  # write capability the user explicitly declined
     record_fields: list[str] = field(default_factory=list)
     cues: list[str] = field(default_factory=list)
+    status_text: str | None = None
 
     def as_json(self) -> dict:
         return {k: v for k, v in self.__dict__.items() if v not in (None, [], "none")}
@@ -145,17 +195,48 @@ def _kinds(table, text) -> list[str]:
     return [kind for kind, pat in table if re.search(pat, text)]
 
 
+def _is_page_verb(clause: str, m: re.Match) -> bool:
+    if not m.group(0).startswith("pag"):
+        return True
+    before = re.findall(r"[a-z']+", clause[:m.start()])[-1:] or [""]
+    after = re.findall(r"[a-z']+", clause[m.end():])[:1] or [""]
+    if m.group(0) == "paged":
+        return bool(re.search(r"\bget\b|\bhave\b|\bneed\b|\bwant\b", clause[:m.start()]))
+    return before[0] not in _PAGE_NOUN_BEFORE and after[0] not in _PAGE_NOUN_AFTER and after[0] != ""
+
+
 def detect_action(text: str) -> tuple[str | None, str | None]:
-    """(requested write, explicitly declined write). A negation anywhere before the cue in the same clause declines it."""
-    t = text.lower()
+    """(requested write, explicitly declined write), from the user's own words (``strip_quoted`` first).
+
+    Requested needs a request frame in the same clause: an imperative ("roll back checkout"), a polite or urgent
+    marker ("could you", "pls", "just", "now"), or a trigger verb before a noun ("queue up the rollback"). A question
+    about an action, a report of one, or the user saying they will do it themselves is neither requested nor declined.
+    """
+    t = strip_quoted(text).lower()
     requested = declined = None
-    for cap, pat in ACTION_CUES:
-        for m in re.finditer(pat, t):
-            clause_start = max(t.rfind(c, 0, m.start()) for c in ".;!?\n") + 1
-            if re.search(NEGATION, t[clause_start:m.start()]):
-                declined = declined or cap
-            else:
-                requested = requested or cap
+    for clause in re.split(r"[.;!\n]|\?", t):
+        raw = clause
+        clause = clause.strip()
+        if not clause:
+            continue
+        ends_question = raw + "?" in t and t[t.find(raw) + len(raw):t.find(raw) + len(raw) + 1] == "?"
+        for cap, pat in ACTION_CUES:
+            for m in re.finditer(pat, clause):
+                if cap == "page_oncall" and not _is_page_verb(clause, m):
+                    continue
+                pre = clause[:m.start()]
+                if re.search(NEGATION, pre):
+                    declined = declined or cap
+                    continue
+                if re.search(SELF_DOING, pre):
+                    continue
+                polite = bool(re.search(POLITE, clause))
+                if (ends_question or re.search(QUESTION_START, clause)) and re.search(QUESTION_START, clause) and not polite:
+                    continue  # a question about the action ("is it safe to roll back?", "who approved the rollback?")
+                imperative = re.sub(FILLER, "", pre).strip() == "" or bool(re.search(r"(?:\band|\bthen|,)\s*(?:just |also |please )?$", pre))
+                framed = imperative or polite or bool(re.search(REQUEST_MARK, clause)) or bool(re.search(TRIGGER_VERB, pre))
+                if framed:
+                    requested = requested or cap
     return requested, declined
 
 
@@ -171,8 +252,8 @@ def type_claim(message: str, conversation: list[dict] | None = None) -> Claim:
     """Deterministic claim typing from the request and the conversation only."""
     conversation = conversation or []
     full = message.lower()
-    text = re.sub(QUOTED, " ", full)  # quoted text is content: it can never request an action or count as the user's own cue
-    entities, source = focus_entity(re.sub(QUOTED, " ", message), conversation)
+    text = strip_quoted(message).lower()  # quoted text is content: it can never request an action or count as the user's own cue
+    entities, source = focus_entity(strip_quoted(message), conversation)
     if not entities and services_in(full) and source == "none" and re.search(VERIFY + "|" + CAUSAL, text):
         entities, source = services_in(full), "quoted"  # ...but when the user asks to check a quoted claim, it says what the claim is about
     c = Claim("untyped", entities, source)
@@ -180,16 +261,20 @@ def type_claim(message: str, conversation: list[dict] | None = None) -> Claim:
     if unknown and not services_in(text):
         c.type, c.cues = "ambiguous", [f"unknown service {unknown[0]!r}"]
         return c
-    if re.search(SMALLTALK, text) and len(text) < 80 and not services_in(text) and not detect_action(text)[0] \
-            and not re.search(ASKING, re.sub(r"how are (?:you|u)|how's it going", " ", text)):
-        c.type = "smalltalk"
-        return c
-    c.action, c.declined_action = detect_action(text)
-    causal, verify = bool(re.search(CAUSAL, text)), bool(re.search(VERIFY, text))
+    c.action, c.declined_action = detect_action(message)
     stripped = text
     for _, pat in ACTION_CUES:  # the words of an action are not an evidence request ("roll back the deploy" is not about deploys)
         stripped = re.sub(pat, " ", stripped)
-    _evidence_kinds(stripped if (c.action or c.declined_action) else (full if source == "quoted" else text), c)
+    if c.action:
+        stripped = re.sub(r"\bd-\d+\b", " ", stripped)  # a deploy id next to an action is the action's object, not a read request
+    evidence_text = stripped if (c.action or c.declined_action) else (full if source == "quoted" else text)
+    _evidence_kinds(evidence_text, c)
+    causal, verify = bool(re.search(CAUSAL, text)), bool(re.search(VERIFY, text))
+    if re.search(SMALLTALK, text) and len(text) < 80 and not services_in(text) and not c.action and not c.symptoms and not c.changes \
+            and "?" not in re.sub(r"how are (?:you|u)\??|how's it going\??", " ", text) \
+            and not re.search(ASKING, re.sub(r"how are (?:you|u)|how's it going", " ", text)):
+        c.type = "smalltalk"
+        return c
     asks_document = "doc" in c.lookups and not c.symptoms
     if asks_document:  # "is there a policy on posting to the status page?" asks what a document says; it requests nothing
         c.type, c.action, c.changes, c.lookups = "lookup", None, [], ["doc"]
@@ -199,29 +284,42 @@ def type_claim(message: str, conversation: list[dict] | None = None) -> Claim:
         c.cues.append(f"action:{c.action}")
         if not re.search(READ_VERBS, stripped):
             c.symptoms, c.changes, c.lookups = [], [], []
-        if c.action != "post_status_update" and len(entities) != 1:
+        if c.action == "post_status_update":
+            after = re.search(r"(?::|\bsaying\b|\bthat says\b|\bto say\b)\s*(\S.{8,})$", strip_quoted(message), re.S)
+            c.status_text = quoted_content(message) or (after.group(1).strip() if after else None)
+            if not c.status_text:
+                c.type = "ambiguous"
+                c.cues.append("status update requested without the text to post")
+                return c
+        elif len(entities) != 1:
             c.type = "ambiguous"
             c.cues.append("action without exactly one identifiable service")
             return c
         c.type = "action"
         return c
+    if not entities and re.search(EVERY_SERVICE, text) and (c.symptoms or c.changes or c.lookups) and not (causal or verify):
+        c.entities, c.entity_source = list(SERVICES), "every service"
+        entities = c.entities
     if (causal or verify) and (c.symptoms or c.changes or entities):
         if not entities and re.search(GENERAL, text):
             c.cues.append("general-knowledge phrasing; not a claim about this incident")
+            return c
+        if len(entities) > 1:
+            c.cues.append("a claim that relates more than one service: not typed, left to the agent")
             return c
         c.type = "causal" if causal else "verification"
         c.cues.append("causal language" if causal else "verification language")
         if len(entities) != 1:
             c.type = "ambiguous"
-            c.cues.append("claim about no single identifiable service")
+            c.cues.append("claim about no identifiable service")
         return c
     if c.symptoms or c.changes or c.lookups:
         if not entities and re.search(GENERAL, text):
             c.cues.append("general-knowledge phrasing; not a lookup")
             return c
-        if not entities:
+        if not entities or (source == "conversation" and len(entities) > 1):
             c.type = "ambiguous"
-            c.cues.append("lookup without an identifiable service")
+            c.cues.append("lookup without one identifiable service")
             return c
         if c.symptoms and c.changes and len(entities) == 1:
             c.type = "verification"  # a symptom and a change named together: their relation is the question
@@ -236,14 +334,14 @@ def type_claim(message: str, conversation: list[dict] | None = None) -> Claim:
         c.type = "record"
         c.record_fields = [f for f, pat in RECORD_FIELDS if re.search(pat, text)] or ["severity", "incident_commander"]
         return c
-    if conversation and entities and len(text) < 60:
+    if conversation and len(entities) == 1 and len(text) < 60:
         prev = next((m["content"] for m in reversed(conversation) if m["role"] == "user"), "")
         p = type_claim(prev, [])
-        if p.action and source == "message" and len(entities) == 1 and re.search(CORRECTION, text):
+        if p.action and source == "message" and re.search(CORRECTION, text):
             c.cues.append("correction: the previous action request now names this service")
-            c.type, c.action = "action", p.action
+            c.type, c.action, c.status_text = "action", p.action, p.status_text
             return c
-        if p.type in ("lookup", "causal", "verification") and not p.action:
+        if p.type in ("lookup", "causal", "verification") and not p.action and not c.declined_action:
             c.cues.append("short follow-up: the previous kind of request carried over to this entity")
             c.type, c.symptoms, c.changes, c.lookups = p.type, p.symptoms, p.changes, p.lookups
             return c
@@ -321,9 +419,9 @@ def compile_contract(claim: Claim, message: str) -> Contract:
             k.requirements.append(Requirement("doc", None, "the request asks what a document says"))
     elif claim.type == "action":
         cap = claim.action
-        k.hold = (cap, {"message": message[:300]} if cap == "post_status_update" else {"service": ents[0]})
-        if ents and cap != "post_status_update":
-            for kind in claim.symptoms:
+        k.hold = (cap, {"message": (claim.status_text or "")[:300]} if cap == "post_status_update" else {"service": ents[0]})
+        if len(ents) == 1:
+            for kind in claim.symptoms + claim.changes + [x for x in claim.lookups if x != "doc"]:
                 k.requirements.append(Requirement(kind, ents[0], "the request also asks for this before the action"))
     seen, uniq = set(), []
     for r in k.requirements:

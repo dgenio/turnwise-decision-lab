@@ -95,6 +95,8 @@ class GroundedGenerator:
         state = self.decider.last_state
         if gen.get("status") != "ok" or state is None:
             return gen
+        if (gen.get("text") or "").strip().upper().startswith("NEED_MORE_EVIDENCE"):
+            return gen  # the controller's own verification protocol: not a reply, so there is nothing to ground
         g = self.gate.ground(gen.get("text") or "", message=state.user_message, conversation=state.conversation,
                              observations=state.observations, host_facts=self.host.host_facts())
         gen["grounding"] = {k: g[k] for k in g if k != "replacement"}
@@ -135,6 +137,8 @@ def record_text(host: Host, fields: list[str]) -> str:
 
 
 def clarify_text(reason: str) -> str:
+    if "text to post" in reason:
+        return f"I need one detail before I can request this: what exactly should the status update say? [{reason}]"
     return ("I need one detail before I can do this safely: which service do you mean (checkout, payments, search or auth)? "
             f"[{reason}]")
 
@@ -176,10 +180,14 @@ def run_contract_turn(message: str, *, host: Host, generator, heavy_lm, turn_id:
             step["terminate_reason"] = reason
         trace.final = {"kind": kind, "text": text, "by": by, "reason": reason}
 
-    for _ in range(host.limits.max_steps):
+    calls_made = 0
+    while True:
         t1 = time.perf_counter()
         k = revise(compile_contract(claim, message), state.observations)
         todo, unavailable = missing(k, state.observations, message, gate.max_retries)
+        if todo and calls_made >= host.limits.max_steps:  # same bound as every other arm: at most max_steps tool calls
+            unavailable, todo = unavailable + todo, []
+            plan["step_limit"] = "tool-call budget spent before the contract was met; the reply says what is missing"
         ms = lambda: round((time.perf_counter() - t1) * 1000, 3)
         if k.clarify:
             d = Decision("clarify", provider="contract-planner", model="host rules v0.7", rationale=k.clarify,
@@ -193,6 +201,7 @@ def run_contract_turn(message: str, *, host: Host, generator, heavy_lm, turn_id:
             d = _call_decision(cap, args, "contract-planner", [Question("plan", [x.key for x in todo], r.key, None, PLAN_SCORE, ms(), None, note=r.why)], r.why)
             v = host.validate(d, state.observations)
             s = step_for(d, v)
+            calls_made += 1
             if not v.ok:
                 obs = Observation(s["step_index"], s["decision_call_id"], d.operation, d.target, dict(d.arguments), "rejected", reason=v.reason)
             else:
@@ -263,8 +272,6 @@ def run_contract_turn(message: str, *, host: Host, generator, heavy_lm, turn_id:
         else:
             finish("verified", findings, "host (deterministic findings)", "contract met; findings computed by the host", s)
         break
-    else:
-        finish("step_limit", host.abstain_message(f"step limit of {host.limits.max_steps} reached"), "host", "step_limit")
     trace.observations = [_obs_json(o) for o in state.observations]
     withheld = sum(1 for e in events if e.get("action") == "withhold")
     trace.totals = _totals(trace, state.observations, t0, host, withheld, events)
@@ -276,11 +283,43 @@ def run_contract_turn(message: str, *, host: Host, generator, heavy_lm, turn_id:
 def run_gated_loop(message: str, *, host: Host, decider, context, generator, turn_id: str, arm: str, conversation=None,
                    gate: ExitGate | None = None, verification: bool = False) -> dict:
     """The unchanged v0.6 loop with the exit gate around its controller and generator."""
+    from ..agent.host import Validation
     from ..agent.loop import execute_user_turn
     gate = gate or ExitGate()
     gd = GatedDecider(decider, gate)
-    tr = execute_user_turn(message, host=host, decider=gd, context=context, generator=GroundedGenerator(generator, gate, gd, host),
-                           turn_id=turn_id, arm=arm, conversation=conversation, verification=verification).as_json()
+    conversation = list(conversation or [])
+    validate = host.validate
+
+    def validate_with_veto(d, executed):
+        reason = gate.veto(message, conversation, d.target) if d.operation in ("call_tool", "call_workflow") else None
+        return Validation(False, d, "rejected", reason) if reason else validate(d, executed)
+    host.validate = validate_with_veto
+    try:
+        tr = execute_user_turn(message, host=host, decider=gd, context=context, generator=GroundedGenerator(generator, gate, gd, host),
+                               turn_id=turn_id, arm=arm, conversation=conversation, verification=verification).as_json()
+    finally:
+        host.validate = validate
+    if tr["final"].get("kind") in ("step_limit", "abstain"):  # a forced exit: only the latch can still act
+        obs = [Observation(o["step_index"], o["call_id"], o["operation"], o["target"], o["arguments"], o["status"], o.get("facts") or {},
+                           o.get("text", ""), o.get("reason", "")) for o in tr["observations"]]
+        v = gate.review(message=message, conversation=conversation, observations=obs, terminal="abstain", interventions=gd.interventions)
+        gd.events.append({"step_index": len(tr["steps"]), "terminal": "abstain", **v.as_json()})
+        if v.action == HOLD:
+            cap, args = v.calls[0]
+            d = _call_decision(cap, args, gate.name, [Question("exit_gate", [], HOLD, None, GATE_SCORE, 0.0, None, note=v.reason)], v.reason)
+            val = host.validate(d, obs)
+            if val.status == "approval_required":
+                gd.interventions += 1
+                o = Observation(len(tr["steps"]), f"{turn_id}/gate", d.operation, cap, dict(args), "approval_required", reason=val.reason)
+                tr["steps"].append({"step_index": len(tr["steps"]), "decision_call_id": f"{turn_id}/gate", "decision": d.as_json(),
+                                    "validation": {"status": val.status, "reason": val.reason}, "observation": _obs_json(o),
+                                    "terminate_reason": "exit gate: the user asked for a side effect; approval request raised at a forced exit"})
+                tr["observations"].append(_obs_json(o))
+                tr["final"] = {"kind": "approval_required", "text": host.approval_message(o), "by": "host (exit gate: action latch)",
+                               "reason": "the user asked for a side effect; the gate raised the approval request"}
+        elif v.action == CLARIFY:
+            gd.interventions += 1
+            tr["final"] = {"kind": "clarify", "text": clarify_text(v.reason), "by": "host (exit gate)", "reason": v.reason}
     tr["totals"]["gate_interventions"] = gd.interventions
     tr["totals"]["gate_events"] = gd.events
     if tr["final"].get("kind") == "answer":

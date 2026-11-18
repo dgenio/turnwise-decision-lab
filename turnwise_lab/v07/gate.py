@@ -31,12 +31,33 @@ TERMINALS = ("finish", "answer", "clarify", "abstain")
 
 ANSWER_CAUSAL = r"\b(?:caus\w+|because of|due to|result(?:ed)? (?:of|from)|led to|culprit|responsible for|root cause|triggered by|explains? the)\b"
 SIDE_EFFECT_CLAIM = re.compile(
-    r"\b(?:i(?:'ve| have)?|we(?:'ve| have)?|has been|have been|had been|was|were|is now|are now|been|successfully|already)\s+"
+    r"\b(?:i(?:'ve| have)?|we(?:'ve| have)?|has been|have been|had been|was|were|is|are|is now|are now|been|successfully|already)\s+"
     r"(?:successfully |now |just |already )?(?:rolled back|reverted|paged|posted|published|restored)\b|"
-    r"\b(?:rollback|page|status (?:update|post))\s+(?:was |has been |is |been )?(?:completed|complete|performed|executed|done|initiated|sent|successful|live)\b")
-NEGATED_CLAIM = re.compile(r"\b(?:not|never|no|nothing|hasn't|haven't|wasn't|weren't|isn't|cannot|can't|won't|without)\b[^.;!?\n]{0,40}$")
+    r"\b(?:rollback|page|status (?:page|update|post))\s+(?:was |has been |has |is |been )?(?:completed|complete|performed|executed|done|initiated|sent|successful|live|updated)\b")
+_CLAUSE_BREAK = re.compile(r"[.;!?\n]|,| but | however | although ")
+NEGATED = r"\b(?:not|never|no|nothing|hasn't|haven't|wasn't|weren't|isn't|aren't|cannot|can't|won't|without|unable|unclear|unknown|don't|doesn't|didn't)\b"
+HYPOTHETICAL = r"\b(?:if|once|after|before|until|when|should|would|could|to be|needs? to be|must be|can be|will be|whether)\b"
+PENDING = r"\b(?:approval|approve|approved by|pending|awaiting|request(?:ed)?|queued)\b"
 VALUE_PATTERNS = (("deploy id", r"\bd-\d+\b"), ("time", r"\b\d{1,2}:\d{2}\b"), ("percentage", r"\b\d+(?:\.\d+)?\s?%"),
                   ("duration", r"\b\d+(?:\.\d+)?\s?ms\b"), ("identifier", r"\b[a-z]+-(?:captain|primary|duty)-?\d*\b"))
+
+
+def _clause_before(text: str, start: int) -> str:
+    last = 0
+    for m in _CLAUSE_BREAK.finditer(text, 0, start):
+        last = m.end()
+    return text[last:start]
+
+
+def _clause_after(text: str, end: int) -> str:
+    m = re.search(r"[.!?\n]", text[end:])
+    return text[end:end + m.start()] if m else text[end:]
+
+
+def causal_assertions(text: str) -> list[str]:
+    """Causal wording that asserts something. "I cannot say what caused it" and "no cause is established" are not assertions."""
+    t = text.lower()
+    return [m.group(0) for m in re.finditer(ANSWER_CAUSAL, t) if not re.search(NEGATED, _clause_before(t, m.start()))]
 
 
 @dataclass
@@ -56,6 +77,7 @@ class Verdict:
 
 def values_in(text: str) -> set[tuple[str, str]]:
     out = set()
+    text = re.sub(r"(?<=\d),(?=\d{3}\b)", "", text)  # 1,840 ms is 1840 ms
     for label, pat in VALUE_PATTERNS:
         for m in re.findall(pat, text.lower()):
             out.add((label, re.sub(r"\s+", "", m).lstrip("0") if label == "time" else re.sub(r"\s+", "", m)))
@@ -63,11 +85,15 @@ def values_in(text: str) -> set[tuple[str, str]]:
 
 
 def side_effect_claims(text: str) -> list[str]:
+    """Statements that a rollback, page or status post *happened*. Negated, hypothetical and pending-approval wording is not a claim."""
+    t = text.lower()
     out = []
-    for m in SIDE_EFFECT_CLAIM.finditer(text.lower()):
-        before = text.lower()[max(0, m.start() - 60):m.start()]
-        if NEGATED_CLAIM.search(before) or re.search(r"\b(?:if|once|after|before|until|when|should|would|could|to be|needs? to be|must be|can be)\b[^.;!?\n]{0,30}$", before):
+    for m in SIDE_EFFECT_CLAIM.finditer(t):
+        before, after = _clause_before(t, m.start()), _clause_after(t, m.end())
+        if re.search(NEGATED, before) or re.search(HYPOTHETICAL, before) or re.search(PENDING, after) or re.search(PENDING, before):
             continue
+        if re.search(r"posted|published", m.group(0)) and "status" not in before + m.group(0) + after:
+            continue  # "d-142 was posted at 11:02" is not a status-page claim
         out.append(m.group(0))
     return out
 
@@ -115,7 +141,8 @@ class ExitGate:
         cj = k.as_json()
         if interventions >= self.max_interventions:
             return Verdict(ALLOW, reason="intervention budget spent; exit allowed and recorded", contract=cj)
-        approvals = [o for o in observations if o.status == "approval_required"]
+        approvals = [o for o in observations if o.status == "approval_required"
+                     and (k.hold is None or (o.target == k.hold[0] and (o.arguments.get("service") == k.hold[1].get("service"))))]
         if k.clarify:
             if terminal == "clarify":
                 return Verdict(ALLOW, reason="clarification is the contract's own outcome", contract=cj)
@@ -149,6 +176,23 @@ class ExitGate:
         return Verdict(ALLOW, reason="contract met" if k.requirements or k.hold else "no contract applies", contract=cj,
                        unavailable=[r.key for r in unavailable], source="request" if (k.requirements or k.hold) else "none")
 
+    def veto(self, message: str, conversation: list[dict], target: str | None) -> str | None:
+        """A write the user explicitly declined in this turn may not even become an approval request."""
+        if not self.latch or target is None:
+            return None
+        claim = type_claim(message, conversation)
+        if claim.declined_action == target and claim.action != target:
+            return f"the user explicitly declined {target} in this turn"
+        return None
+
+    def findings(self, message: str, conversation: list[dict], observations, notice: str = "") -> str:
+        """The host's own account of the evidence gathered so far (used when a generated reply cannot be sent)."""
+        k = self.contract(message, conversation, observations)
+        _, unavailable = missing(k, observations, message, self.max_retries)
+        body = render_findings(k.claim, derive(observations, k.claim), unavailable) if receipts(observations) else \
+            "No evidence was gathered for this request, so there is nothing verified to report."
+        return f"{notice}\n{body}" if notice else body
+
     # --------------------------------------------------------------- grounding
     def ground(self, text: str, *, message: str, conversation: list[dict], observations, host_facts: dict) -> dict:
         """Check a generated reply against receipts. Returns what was found; ``replacement`` is set when the text is withheld."""
@@ -157,7 +201,8 @@ class ExitGate:
             return {"checked": False, "ok": True, "violations": []}
         violations = [{"kind": "claims_side_effect", "text": c} for c in side_effect_claims(text)]
         have = receipts(observations)
-        evidence_bearing = bool(have) and k.claim.type in ("lookup", "causal", "verification", "action", "untyped")
+        about_incident = bool(have) or (bool(k.claim.entities) and not re.search(GENERAL, message.lower()))
+        evidence_bearing = about_incident and k.claim.type in ("lookup", "causal", "verification", "action", "untyped", "ambiguous")
         if evidence_bearing:
             allowed_text = " ".join([render_facts(have), " ".join(d["text"] for d in derive(observations, k.claim)), message,
                                      " ".join(m.get("content", "") for m in conversation or []),
@@ -167,12 +212,9 @@ class ExitGate:
                 violations.append({"kind": "ungrounded_value", "text": f"{label} {value}"})
         out = {"checked": True, "ok": not violations, "violations": violations, "evidence_bearing": evidence_bearing}
         if violations:
-            _, unavailable = missing(k, observations, message, self.max_retries)
             shown = "; ".join(v["text"] for v in violations[:4])
             notice = (f"[The generated summary was withheld by the host: it "
                       f"{'claimed a side effect that was not executed' if any(v['kind'] == 'claims_side_effect' for v in violations) else 'stated values that are in no tool receipt'}"
                       f" ({shown}).]")
-            body = render_findings(k.claim, derive(observations, k.claim), unavailable) if have else \
-                "No evidence was gathered for this request, so there is nothing verified to report."
-            out["replacement"] = f"{notice}\n{body}"
+            out["replacement"] = self.findings(message, conversation, observations, notice)
         return out
