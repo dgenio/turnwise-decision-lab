@@ -24,4 +24,4 @@
 
 ## Release gate
 
-Public source + annotated synthetic results: **ready for GitHub repository creation and a final independent review**. Product performance claims, enterprise use and ContextWeaver roadmap integration: **not ready**. The existing D1 ContextWeaver adoption gate remains unchanged.
+Public source + annotated synthetic results: **published for review in [draft PR #1](https://github.com/dgenio/turnwise-decision-lab/pull/1), not yet merged or released on GitHub Pages**. Product performance claims, enterprise use and ContextWeaver roadmap integration: **not ready**. The existing D1 ContextWeaver adoption gate remains unchanged.

@@ -19,7 +19,7 @@
 - No real Jev or generative-provider model inference performed in this release preparation.
 - No deployed LiteLLM Auto Router, vLLM Semantic Router or native tool search benchmark.
 - No independently labeled, held-out multi-turn corpus, statistical noninferiority assessment, measured token economics or provider latency.
-- No GitHub repository or Pages URL created by this preparation. Requires an authenticated repository-creation operation unavailable in the current connector; code package is ready to push once `dgenio/turnwise-decision-lab` is initialized.
+- The public GitHub repository has been created and the v0.4 source is staged in [draft PR #1](https://github.com/dgenio/turnwise-decision-lab/pull/1); this is not yet a merged release or verified GitHub Pages deployment. The first PR CI run passed on Python 3.10 and 3.12.
 - The local harness is educational and is not a sandbox, IAM implementation, complete mediation layer or signed audit log.
 
 ## Publishing rule
