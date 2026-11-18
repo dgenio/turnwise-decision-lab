@@ -6,7 +6,7 @@
 
 Turnwise is a **runnable engineering exhibit and falsifiable research experiment**. It is not a new agent framework, production router, security boundary or benchmark leaderboard. It complements, and may ultimately be made redundant by, strong native model/tool routing.
 
-**[Open the six-turn interactive planning exhibit](demo/index.html)** · **[Inspect real local execution receipts](demo/local-run.html)** · **[Read the initial trained benchmark](reports/trained-routing-synthetic.md)**
+**[Open the live interactive exhibit](https://dgenio.github.io/turnwise-decision-lab/)** · **[Inspect functional local execution receipts](https://dgenio.github.io/turnwise-decision-lab/local-run.html)** · **[Read the initial trained benchmark](reports/trained-routing-synthetic.md)**
 
 ## Two-minute reproduction (Python 3.10+, zero dependencies)
 
