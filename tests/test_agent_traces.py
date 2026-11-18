@@ -147,3 +147,40 @@ class TraceReplayTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class QualityConstrainedViewTests(unittest.TestCase):
+    """The post-hoc non-inferiority view (docs/quality-constrained-efficiency-v06.md) is computed, not typed."""
+
+    def test_square_and_add_matches_newcombe_worked_example(self):
+        # With no pairing (phi = 0) the interval reduces to Newcombe's hybrid score interval;
+        # his worked example 56/70 vs 48/80 gives 0.0524 to 0.3339.
+        import math
+        from turnwise_lab.agent.bench import _wilson
+        p1, p2 = 56 / 70, 48 / 80
+        l1, u1 = _wilson(56, 70)
+        l2, u2 = _wilson(48, 80)
+        self.assertAlmostEqual(p1 - p2 - math.hypot(p1 - l1, u2 - p2), 0.0524, places=4)
+        self.assertAlmostEqual(p1 - p2 + math.hypot(u1 - p1, p2 - l2), 0.3339, places=4)
+
+    def test_paired_difference_counts_and_exact_mcnemar(self):
+        from turnwise_lab.agent.bench import paired_difference
+        x = [True] * 6 + [True] * 10 + [False] * 7 + [False] * 7
+        y = [True] * 6 + [False] * 10 + [True] * 7 + [False] * 7
+        r = paired_difference(x, y)
+        self.assertEqual((r["both"], r["only_candidate"], r["only_reference"], r["neither"]), (6, 10, 7, 7))
+        self.assertEqual(r["difference_pp"], 10.0)
+        self.assertAlmostEqual(r["mcnemar_exact_p"], 0.629, places=3)  # 2 * P(Bin(17, .5) <= 7)
+        self.assertLess(r["ci95_pp"][0], 0)
+        self.assertGreater(r["ci95_pp"][1], 10.0)
+        same = paired_difference([True, False] * 5, [True, False] * 5)
+        self.assertEqual((same["difference_pp"], same["mcnemar_exact_p"]), (0.0, 1.0))
+
+    def test_committed_report_never_claims_non_inferiority(self):
+        summary = json.loads((ROOT / "reports" / "v06" / "summary.json").read_text())
+        q = summary["quality_constrained"]
+        self.assertEqual(q["reference"], "heavy_agent")
+        for row in q["rows"]:
+            if row["arm"] != "heavy_agent":
+                self.assertTrue(row["quality_gate"].startswith("inconclusive"))
+                self.assertEqual(row["margin_needed_pp"], round(max(0.0, -row["vs_reference"]["ci95_pp"][0]), 1))

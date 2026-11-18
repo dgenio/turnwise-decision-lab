@@ -78,7 +78,7 @@ def page_data() -> dict:
                            "note": scen[i]["expect"]["note"]} for i in SHOWCASE if i in scen and all(i in arms[a] for a in VIEW_ARMS)],
             "arms": arms, "labels": {a: ARM_LABELS[a] for a in ARM_LABELS}, "provenance": prov,
             "heldout": summary["sets"].get("heldout", {}), "predictions": summary.get("predictions", []),
-            "not_run": summary.get("arms_not_run", {})}
+            "not_run": summary.get("arms_not_run", {}), "qce": summary.get("quality_constrained")}
 
 
 def render() -> str:
@@ -172,6 +172,9 @@ footer{margin-top:56px;padding-top:18px;border-top:1px solid var(--line);font-si
 <div class="panel"><table id="resTable"></table></div>
 <h3 style="margin-top:20px">Pre-registered predictions</h3>
 <div class="panel"><table id="predTable"></table></div>
+<h3 style="margin-top:20px">Quality-constrained reading (added after the run)</h3>
+<p class="sub">The project's <a href="{{REPO}}/blob/main/docs/quality-constrained-efficiency-v06.md">quality-constrained efficiency protocol</a> asks a different question. Is the cheaper architecture <em>no worse</em> than the heavy-only agent, within a margin agreed in advance? Only if it is does cost per attempted task count. No margin has been agreed, so no arm passes that gate yet. The table shows how wide a margin each arm would need, given its paired 95% interval on these 30 tasks.</p>
+<div class="panel"><table id="qceTable"></table></div>
 </section>
 
 <section id="limits" aria-labelledby="l-h">
@@ -251,7 +254,10 @@ show(D.scenarios[0].id);
 Object.keys(H).forEach(function(a){var s=H[a].summary;tb.appendChild(el("tr",null,[el("td",{text:D.labels[a]}),el("td",{cls:"n",text:s.successes+"/"+s.tasks}),el("td",{cls:"n",text:String(s.silent_failures)}),el("td",{cls:"n",text:String(s.heavy_calls)}),el("td",{cls:"n",text:s.heavy_tokens.toLocaleString("en-US")}),el("td",{cls:"n",text:String(s.decision_calls)}),el("td",{cls:"n",text:ms(s.wall_ms_p50)+" / "+ms(s.wall_ms_p95)}),el("td",{cls:"n",text:s.local_compute_s_per_success==null?"n/a":s.local_compute_s_per_success+" s"})]));});
 Object.keys(D.not_run).forEach(function(k){tb.appendChild(el("tr",null,[el("td",{text:k}),el("td",{cls:"n",text:"not run"}),el("td",{colspan:"6",text:D.not_run[k]})]));});t.appendChild(tb);
 var p=document.getElementById("predTable");var h2=el("tr");["ID","Prediction","Verdict"].forEach(function(h){h2.appendChild(el("th",{text:h}));});p.appendChild(el("thead",null,[h2]));var pb=el("tbody");
-D.predictions.forEach(function(x){pb.appendChild(el("tr",null,[el("td",{cls:"mono",text:x.id}),el("td",null,[x.prediction,el("div",{cls:"small",text:"observed: "+JSON.stringify(x.observed)})]),el("td",null,[el("span",{cls:"verdict "+(x.verdict==="supported"?"ok":"no"),text:x.verdict})])]));});p.appendChild(pb);})();
+D.predictions.forEach(function(x){pb.appendChild(el("tr",null,[el("td",{cls:"mono",text:x.id}),el("td",null,[x.prediction,el("div",{cls:"small",text:"observed: "+JSON.stringify(x.observed)})]),el("td",null,[el("span",{cls:"verdict "+(x.verdict==="supported"?"ok":"no"),text:x.verdict})])]));});p.appendChild(pb);
+var q=document.getElementById("qceTable");if(D.qce){var h3=el("tr");["Architecture","Success","Difference vs heavy-only (95% CI)","Margin it would need","Compute per attempted task","Heavy input tokens per heavy call (tool schemas)"].forEach(function(h){h3.appendChild(el("th",{text:h}));});q.appendChild(el("thead",null,[h3]));var qb=el("tbody");
+var sg=function(v){return (v>0?"+":"")+v.toFixed(1);};
+D.qce.rows.forEach(function(r){var v=r.vs_reference;qb.appendChild(el("tr",null,[el("td",{text:D.labels[r.arm]}),el("td",{cls:"n",text:r.successes+"/"+r.tasks}),el("td",{cls:"n",text:v?sg(v.difference_pp)+" pp ("+sg(v.ci95_pp[0])+" to "+sg(v.ci95_pp[1])+")":"reference"}),el("td",{cls:"n",text:v?r.margin_needed_pp.toFixed(1)+" pp":"-"}),el("td",{cls:"n",text:r.local_compute_s_per_task+" s"}),el("td",{cls:"n",text:r.heavy_input_tokens_per_heavy_call==null?"no heavy calls":Math.round(r.heavy_input_tokens_per_heavy_call).toLocaleString("en-US")+" ("+Math.round(r.heavy_schema_tokens_per_heavy_call).toLocaleString("en-US")+")"})]));});q.appendChild(qb);}})();
 })();
 </script>
 </body>

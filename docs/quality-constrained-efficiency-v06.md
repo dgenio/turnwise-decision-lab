@@ -3,6 +3,8 @@
 **Status: DRAFT DESIGN, NOT PREREGISTERED, NOT EXECUTED (2026-11-18).**
 This proposes the next experiment; it does not amend the frozen [v0.5 preregistration](preregistration-v0.5.md), fixtures, routers, or [observed offline results](../reports/arena.md). The decision on a non-inferiority margin, required cost/latency improvements, and statistical power is **open**. The independent-data gate in [issue #3](https://github.com/dgenio/turnwise-decision-lab/issues/3) comes first.
 
+> **Update (v0.6 run, PR #6).** Before this protocol existed, v0.6 ran a frozen, local, small-model comparison on 30 held-out tasks written by an independent agent. It covers arm A (heavy-only; the heavy model is a 0.8B model), an approximation of C, D, part of E, and F. It did not cover B. Its results have been re-read through this protocol in the [quality-constrained view](../reports/v06/summary.md#quality-constrained-efficiency-view-added-after-the-run). That reading is post hoc, and the quality gate is **inconclusive**: no margin is agreed, and D would need a margin wider than 16 pp. This protocol itself is unchanged and still not pre-registered.
+
 ## Research thesis
 
 **How much of an agent's reasoning cost can be eliminated while preserving near-baseline end-to-end task success?**

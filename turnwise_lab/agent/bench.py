@@ -15,6 +15,7 @@ from pathlib import Path
 import argparse
 import hashlib
 import json
+import math
 import platform
 import statistics
 import subprocess
@@ -90,6 +91,16 @@ def score(s: dict, tr: dict) -> dict:
     success = success and not forbidden and writes == 0
     gens = [st["generation"] for st in tr.get("steps", []) if st.get("generation") and st["generation"].get("status") == "ok"]
     heavy_calls = sum(1 for g in gens if g.get("tier") == "heavy")
+    heavy_steps = [st for st in tr.get("steps", []) if st.get("generation") and st["generation"].get("status") == "ok"
+                   and st["generation"].get("tier") == "heavy"]
+    if tr.get("arm") == "heavy_agent":
+        # The heavy-only agent sees its system prompt + native tool schemas on every call (served from the KV cache
+        # after the first); that prefix is the cached part of its first call in each turn.
+        first = next((st["generation"] for st in tr.get("steps", []) if st.get("generation")), {}) or {}
+        schema_tokens = (first.get("cached_prompt_tokens") or 0) * len(heavy_steps)
+    else:
+        schema_tokens = sum(b.get("tokens", 0) for st in heavy_steps
+                            for b in ((st.get("context") or {}).get("assembled") or {}).get("included", []) if b.get("id") == "tool_catalog")
     final_tier = "none" if kind == "verified" else (gens[-1]["tier"] if gens and kind == "answer" else "none")
     tot = tr.get("totals", {})
     return {
@@ -125,6 +136,8 @@ def score(s: dict, tr: dict) -> dict:
         "generation_completion_tokens": tot.get("generation_completion_tokens", 0),
         "heavy_tokens": sum((g.get("prompt_tokens") or 0) + (g.get("cached_prompt_tokens") or 0) + (g.get("completion_tokens") or 0)
                             for g in gens if g.get("tier") == "heavy"),
+        "heavy_input_tokens": sum((g.get("prompt_tokens") or 0) + (g.get("cached_prompt_tokens") or 0) for g in gens if g.get("tier") == "heavy"),
+        "heavy_schema_tokens": schema_tokens,
         "wall_ms": tot.get("wall_ms", 0.0),
     }
 
@@ -158,6 +171,11 @@ def summarize(scored: list[dict]) -> dict:
         "generation_completion_tokens": tot("generation_completion_tokens"),
         "wall_ms_total": round(sum(wall), 1), "wall_ms_p50": _pct(wall, 0.5), "wall_ms_p95": _pct(wall, 0.95),
         "local_compute_s_per_success": round(sum(wall) / 1000 / len(ok), 2) if ok else None,
+        "local_compute_s_per_task": round(sum(wall) / 1000 / n, 2) if n else None,
+        "heavy_calls_per_task": round(tot("heavy_calls") / n, 2) if n else None,
+        "heavy_input_tokens": tot("heavy_input_tokens"),
+        "heavy_input_tokens_per_heavy_call": round(tot("heavy_input_tokens") / tot("heavy_calls"), 1) if tot("heavy_calls") else None,
+        "heavy_schema_tokens_per_heavy_call": round(tot("heavy_schema_tokens") / tot("heavy_calls"), 1) if tot("heavy_calls") else None,
         "heavy_tokens_per_success": round(tot("heavy_tokens") / len(ok), 1) if ok else None,
         "provider_cost_usd": None,
     }
@@ -337,11 +355,13 @@ def report() -> dict:
                       "text": (t["final"].get("text") or "").replace("\n", " ")[:160]}
                      for sc, t in zip(scored, data["traces"]) if not sc["success"]]
             sets[arm] = {"label": ARM_LABELS[arm], "summary": summarize(scored), "failures": fails,
+                         "success_by_task": {t["scenario_id"]: sc["success"] for sc, t in zip(scored, data["traces"])},
                          "by_category": {c: summarize([sc for sc, t in zip(scored, data["traces"]) if scen[t["scenario_id"]]["category"] == c])
                                          for c in sorted({s["category"] for s in scen.values()})},
                          "provenance": data["provenance"]}
         out["sets"][set_name] = sets
     out["predictions"] = evaluate_predictions(out["sets"].get("heldout", {}))
+    out["quality_constrained"] = quality_constrained(out["sets"].get("heldout", {}))
     out["post_freeze_changes"] = POST_FREEZE_CHANGES
     return out
 
@@ -397,6 +417,118 @@ def evaluate_predictions(sets: dict) -> list[dict]:
     return out
 
 
+# ------------------------------------------- quality-constrained efficiency view
+# Added after the held-out run, following docs/quality-constrained-efficiency-v06.md (merged in PR #4 after v0.6 was
+# frozen). It re-reads the same traces and changes no score, success count or prediction verdict.
+QCE_REFERENCE = "heavy_agent"
+QCE_ARM_MAP = [
+    ("A. Heavy-only reference", "heavy_agent", "ran; the heavy model is Qwen3.5-0.8B, not a strong frontier model"),
+    ("B. Heavy-only, optimized context / native tool search", "-", "not run"),
+    ("C. Simple host + heavy fallback", "rules", "approximation: deterministic rules pick verified data, light or heavy; no uncertainty fallback"),
+    ("D. Decision service + heavy fallback", "dm_dynamic (dm_nogate without the fallback)",
+     "local learned decision model with an escalation gate; no hosted decision service was called"),
+    ("E. Light argument model + heavy fallback", "inside dm_dynamic's argument cascade; dm_llm_args is the LLM-only ablation",
+     "partial: the light-argument step never triggered on the held-out set"),
+    ("F. Joint bounded architecture", "dm_dynamic (dm_full removes the bounded-context lever)", "ran"),
+]
+
+
+def _wilson(k: int, n: int, z: float = 1.959964) -> tuple[float, float]:
+    if n == 0:
+        return 0.0, 1.0
+    p = k / n
+    den = 1 + z * z / n
+    c = (p + z * z / (2 * n)) / den
+    h = z * math.sqrt(p * (1 - p) / n + z * z / (4 * n * n)) / den
+    return c - h, c + h
+
+
+def paired_difference(x: list[bool], y: list[bool]) -> dict:
+    """Success of x minus success of y on the same tasks: Newcombe (1998) method 10 score interval for paired
+    proportions, and an exact two-sided McNemar test on the discordant pairs."""
+    n = len(x)
+    a = sum(1 for i, j in zip(x, y) if i and j)
+    b = sum(1 for i, j in zip(x, y) if i and not j)
+    c = sum(1 for i, j in zip(x, y) if j and not i)
+    d = n - a - b - c
+    p1, p2 = (a + b) / n, (a + c) / n
+    l1, u1 = _wilson(a + b, n)
+    l2, u2 = _wilson(a + c, n)
+    den = (a + b) * (c + d) * (a + c) * (b + d)
+    phi = (a * d - b * c) / math.sqrt(den) if den else 0.0
+    lo = (p1 - p2) - math.sqrt(max(0.0, (p1 - l1) ** 2 - 2 * phi * (p1 - l1) * (u2 - p2) + (u2 - p2) ** 2))
+    hi = (p1 - p2) + math.sqrt(max(0.0, (u1 - p1) ** 2 - 2 * phi * (u1 - p1) * (p2 - l2) + (p2 - l2) ** 2))
+    m = b + c
+    p_exact = min(1.0, 2 * sum(math.comb(m, k) for k in range(min(b, c) + 1)) / 2 ** m) if m else 1.0
+    return {"tasks": n, "both": a, "only_candidate": b, "only_reference": c, "neither": d,
+            "difference_pp": round((p1 - p2) * 100, 1), "ci95_pp": [round(lo * 100, 1), round(hi * 100, 1)],
+            "mcnemar_exact_p": round(p_exact, 3)}
+
+
+def quality_constrained(arms: dict) -> dict | None:
+    if QCE_REFERENCE not in arms:
+        return None
+    ref = arms[QCE_REFERENCE]["success_by_task"]
+    ids = sorted(ref)
+    rows = []
+    for arm in ARMS:
+        if arm not in arms:
+            continue
+        s = arms[arm]["summary"]
+        row = {"arm": arm, "successes": s["successes"], "tasks": s["tasks"], "executed_writes": s["writes_executed"],
+               "dropped_actions": s["dropped_actions"], "silent_failures": s["silent_failures"],
+               "local_compute_s_per_task": s["local_compute_s_per_task"], "local_compute_s_per_success": s["local_compute_s_per_success"],
+               "wall_ms_p50": s["wall_ms_p50"], "wall_ms_p95": s["wall_ms_p95"], "heavy_calls_per_task": s["heavy_calls_per_task"],
+               "heavy_input_tokens_per_heavy_call": s["heavy_input_tokens_per_heavy_call"],
+               "heavy_schema_tokens_per_heavy_call": s["heavy_schema_tokens_per_heavy_call"]}
+        if arm != QCE_REFERENCE:
+            pdiff = paired_difference([arms[arm]["success_by_task"][i] for i in ids], [ref[i] for i in ids])
+            row["vs_reference"] = pdiff
+            row["margin_needed_pp"] = round(max(0.0, -pdiff["ci95_pp"][0]), 1)
+            row["quality_gate"] = "inconclusive: no non-inferiority margin has been agreed"
+        row["safety_gate"] = "pass: 0 executed writes" if s["writes_executed"] == 0 else "FAIL: executed writes"
+        rows.append(row)
+    return {"reference": QCE_REFERENCE, "rows": rows, "arm_map": [list(t) for t in QCE_ARM_MAP],
+            "protocol": "docs/quality-constrained-efficiency-v06.md", "added_after_run": True}
+
+
+def _qce_markdown(q: dict) -> list[str]:
+    L = ["### Quality-constrained efficiency view (added after the run)", "",
+         "This view follows [`docs/quality-constrained-efficiency-v06.md`](../../docs/quality-constrained-efficiency-v06.md), "
+         "merged in PR #4 after v0.6 was frozen. It re-reads the same traces and changes no score, success count or prediction verdict. "
+         "The reference is the heavy-only agent (A). The protocol asks for non-inferiority against it within a margin agreed in advance. "
+         "No margin has been agreed, so **no arm passes the quality gate**. The table shows the margin each arm would need, "
+         "i.e. how much worse than A its 95% interval still allows.", "",
+         "Quality and safety gates (paired on the same 30 tasks):", "",
+         "| Arm | Success | Difference vs A | 95% CI (paired, Newcombe) | Won / lost vs A | Exact McNemar p | Margin it would need | Executed writes | Dropped actions | Silent failures |",
+         "|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|"]
+    for r in q["rows"]:
+        v = r.get("vs_reference")
+        if v:
+            L.append(f"| {r['arm']} | {r['successes']}/{r['tasks']} | {v['difference_pp']:+.1f} pp | {v['ci95_pp'][0]:+.1f} to {v['ci95_pp'][1]:+.1f} pp | "
+                     f"{v['only_candidate']} / {v['only_reference']} | {v['mcnemar_exact_p']} | {r['margin_needed_pp']} pp | "
+                     f"{r['executed_writes']} | {r['dropped_actions']} | {r['silent_failures']} |")
+        else:
+            L.append(f"| {r['arm']} (reference) | {r['successes']}/{r['tasks']} | - | - | - | - | - | {r['executed_writes']} | "
+                     f"{r['dropped_actions']} | {r['silent_failures']} |")
+    L += ["", "Efficiency (meaningful only once a quality gate passes). Cost is local CPU time, because no provider was billed:", "",
+          "| Arm | Local compute per attempted task | p50 / p95 latency | Heavy calls per task | Heavy input tokens per heavy call | of which tool schemas | Local compute per resolved task (secondary) |",
+          "|---|---:|---:|---:|---:|---:|---:|"]
+    fmt = lambda v, suf="": "n/a" if v is None else f"{v:,}{suf}"
+    for r in q["rows"]:
+        L.append(f"| {r['arm']} | {r['local_compute_s_per_task']} s | {r['wall_ms_p50'] / 1000:.1f} s / {r['wall_ms_p95'] / 1000:.1f} s | "
+                 f"{r['heavy_calls_per_task']} | {fmt(r['heavy_input_tokens_per_heavy_call'])} | {fmt(r['heavy_schema_tokens_per_heavy_call'])} | "
+                 f"{fmt(r['local_compute_s_per_success'], ' s')} |")
+    L += ["", "Tool-schema tokens: for the heavy-only agent, its system prompt plus native tool schemas. That prefix is in context on "
+          "every call and is served from the KV cache after the first. For the other arms, it is the `tool_catalog` prompt block when "
+          "the context step selected it.", "",
+          "How the protocol's arms map onto what v0.6 ran (the letters are the protocol's, not v0.6's arm labels):", "",
+          "| Protocol arm | v0.6 arm | Status |", "|---|---|---|"]
+    L += [f"| {a} | {b} | {c} |" for a, b, c in q["arm_map"]]
+    L.append("")
+    return L
+
+
 def render_markdown(r: dict) -> str:
     L = ["# v0.6 results: decision-driven control vs a heavy-only agent", "",
          "Generated by `python -m turnwise_lab.agent.bench --report` from the recorded traces in `reports/v06/traces/`.",
@@ -438,6 +570,8 @@ def render_markdown(r: dict) -> str:
             for pr in r["predictions"]:
                 L.append(f"| {pr['id']} | {pr['prediction']} | `{json.dumps(pr['observed'])}` | **{pr['verdict']}** |")
             L.append("")
+        if set_name == "heldout" and r.get("quality_constrained"):
+            L += _qce_markdown(r["quality_constrained"])
         L += [f"### Every failure ({set_name})", ""]
         for arm in ARMS:
             if arm not in arms:
@@ -477,6 +611,9 @@ POST_FREEZE_CHANGES: list[str] = [
     "model although required evidence was missing, and it did not use NEED_MORE_EVIDENCE). It does not change success.",
     "Stored scores in traces recorded before those additions lack the new fields; the report recomputes every score from the "
     "observations, so all arms are scored by the same code.",
+    "Analysis added after the held-out run: the quality-constrained efficiency view (paired difference against the heavy-only "
+    "agent with a Newcombe interval and an exact McNemar test, compute per attempted task, heavy input and tool-schema tokens "
+    "per heavy call), following docs/quality-constrained-efficiency-v06.md from PR #4. It changes no score or verdict.",
 ]
 
 

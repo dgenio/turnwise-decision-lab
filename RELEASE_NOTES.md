@@ -20,6 +20,7 @@ Decision-driven control vs the heavy-only agent:
 - **By task family:** the decision-driven loop lost every investigation; the heavy-only agent lost lookups and ambiguous requests.
 - **Escalation:** the conservative gate did not help (P6 falsified), and the verification protocol never fired.
 - **Safety:** no write was executed in any arm.
+- **Quality-constrained reading** (added after the run, per `docs/quality-constrained-efficiency-v06.md` from PR #4): inconclusive. No non-inferiority margin has been agreed. Decision-driven minus heavy-only success is +10 pp, with a paired 95% interval of −16 to +34 pp. Local compute per attempted task was 7.0 s vs 13.3 s.
 
 ---
 

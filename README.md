@@ -10,21 +10,21 @@ It is an experiment with real, recorded inference and its failures kept, not a f
 
 The target is **not** higher accuracy than a conventional heavy-LLM tool-calling agent. The hypothesis is that routing safe deterministic work away from the heavy model, using a decision service or light model only where justified, and shrinking the context of unavoidable heavy calls can deliver **similar or slightly worse end-to-end task quality at substantially lower cost and latency**. When unsure, prefer a heavy fallback; do not silently guess.
 
-This is a **quality-constrained efficiency** experiment: first establish an acceptable, independently checked loss margin against an **actually executed heavy-only agent**; only then evaluate total cost, p50/p95 latency, heavy invocations and heavy-context tokens. No such non-inferiority or economic gain has been demonstrated yet. The existing v0.5 results expose risks rather than validating this thesis. See the [candidate v0.6 protocol](docs/quality-constrained-efficiency-v06.md) and [independent-evidence issue #3](https://github.com/dgenio/turnwise-decision-lab/issues/3).
+This is a **quality-constrained efficiency** experiment: first establish an acceptable, independently checked loss margin against an **actually executed heavy-only agent**; only then evaluate total cost, p50/p95 latency, heavy invocations and heavy-context tokens. No such non-inferiority or economic gain has been demonstrated yet. The existing v0.5 results expose risks rather than validating this thesis. v0.6 (below) is a first local, small-model test against this framing, and on that reading it is **inconclusive** (point 9). See the [candidate v0.6 protocol](docs/quality-constrained-efficiency-v06.md) and [independent-evidence issue #3](https://github.com/dgenio/turnwise-decision-lab/issues/3).
 
 ## Result (v0.6, held-out)
 
-30 tasks were written by an independent agent that never saw the routers. Seven architectures ran on the same synthetic incident world, with the same tools, harness, permissions and heavy model, using real local inference (CPU). Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, the answer content, and no forbidden or executed write. No provider was billed, so dollar cost is null; cost is local compute and heavy-model tokens per resolved task.
+30 tasks were written by an independent agent that never saw the routers. Seven architectures ran on the same synthetic incident world, with the same tools, harness, permissions and heavy model, using real local inference (CPU). Success is checked from the outcome alone: the right kind of reply, the needed evidence actually gathered, the answer content, and no forbidden or executed write. No provider was billed, so dollar cost is null; cost is local compute time per attempted and per resolved task, plus heavy-model tokens.
 
-| Architecture | Success | Silent failures | Heavy-model calls | Heavy-model tokens | p50 / p95 latency | Local compute per resolved task |
-|---|---:|---:|---:|---:|---:|---:|
-| **A. Heavy-only agent**: Qwen3.5-0.8B runs the loop with native tool calling (primary baseline) | 13/30 | 12 | 125 | 174,422 | 14.2 s / 25.2 s | 30.61 s |
-| Deterministic host policy (rules) | 14/30 | 13 | 1 | 615 | 0.4 ms / 12.3 s | 5.14 s |
-| **D. Decision-driven**: turnwise-dm + argument cascade + escalation gate + dynamic prompt blocks | 16/30 | 11 | 9 | 6,105 | 1.6 s / 22.4 s | 13.15 s |
-| E. D with full permitted context (ablation) | 16/30 | 11 | 9 | 6,687 | 1.5 s / 17.5 s | 11.04 s |
-| D without the escalation gate (ablation) | 17/30 | 9 | 6 | 4,957 | 1.3 s / 21.5 s | 10.9 s |
-| D with LLM-only argument construction (ablation) | 13/30 | 11 | 7 | 4,489 | 1.5 s / 20.9 s | 13.17 s |
-| Small LLM as the controller, no trained head | 6/30 | 21 | 0 | 0 | 8.9 s / 19.8 s | 49.69 s |
+| Architecture | Success | Silent failures | Heavy-model calls | Heavy-model tokens | p50 / p95 latency | Local compute per attempted task | per resolved task |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| **A. Heavy-only agent**: Qwen3.5-0.8B runs the loop with native tool calling (primary baseline) | 13/30 | 12 | 125 | 174,422 | 14.2 s / 25.2 s | 13.26 s | 30.61 s |
+| Deterministic host policy (rules) | 14/30 | 13 | 1 | 615 | 0.4 ms / 12.3 s | 2.4 s | 5.14 s |
+| **D. Decision-driven**: turnwise-dm + argument cascade + escalation gate + dynamic prompt blocks | 16/30 | 11 | 9 | 6,105 | 1.6 s / 22.4 s | 7.01 s | 13.15 s |
+| E. D with full permitted context (ablation) | 16/30 | 11 | 9 | 6,687 | 1.5 s / 17.5 s | 5.89 s | 11.04 s |
+| D without the escalation gate (ablation) | 17/30 | 9 | 6 | 4,957 | 1.3 s / 21.5 s | 6.18 s | 10.9 s |
+| D with LLM-only argument construction (ablation) | 13/30 | 11 | 7 | 4,489 | 1.5 s / 20.9 s | 5.71 s | 13.17 s |
+| Small LLM as the controller, no trained head | 6/30 | 21 | 0 | 0 | 8.9 s / 19.8 s | 9.94 s | 49.69 s |
 
 What the experiment found:
 
@@ -49,8 +49,13 @@ What the experiment found:
 6. **Dynamic prompt-block selection did not pay here.** Success was identical with full permitted context. Dynamic selection saved only 11% of prompt tokens and cost more decision time (13.15 vs 11.04 s per resolved task).
 7. **A small LLM is not a controller on its own** (6/30, 21 silent failures). What made the same model usable was a tiny trained head over its scores plus typed observation features from the host.
 8. **Safety held everywhere:** 0 writes executed in any arm.
+9. **As a non-inferiority question, the result is inconclusive.** This reading follows the project's [quality-constrained efficiency protocol](docs/quality-constrained-efficiency-v06.md), which was added after v0.6 was frozen. That protocol asks whether a cheaper architecture is *no worse* than the heavy-only agent within a margin agreed in advance; only then does cost count.
+   - No margin has been agreed, so no arm passes the quality gate.
+   - On the 30 paired tasks, D's success minus A's is +10 pp. The 95% interval runs from −16 to +34 pp (Newcombe paired score interval; D won 10 tasks A lost and lost 7 that A won). Non-inferiority could only be claimed for a margin wider than 16 pp. Rules would need 21 pp, and D without the gate 12 pp.
+   - If a margin of that size were acceptable, the efficiency case is clear. Local compute per *attempted* task was 13.3 s for A, 7.0 s for D and 2.4 s for rules. Each heavy call took 1,347 input tokens for A, 1,129 of them its system prompt and tool schemas; D's heavy calls took 521, 149 of them its tool catalogue.
+   - Details are in the [quality-constrained view](reports/v06/summary.md#quality-constrained-efficiency-view-added-after-the-run). It also maps the protocol's arms A–F onto what v0.6 ran; protocol arm B (native tool search) was not run.
 
-**Bottom line, at this scale.** Compared with letting the LLM run the loop, decision-driven control is far cheaper and better behaved, with comparable success. But it is **not more reliable**, it **loses on multi-step investigations**, and **a deterministic host policy matched it** at a fraction of the cost. These data do not establish that a *learned* decision layer beats good rules, or that the conservative policy as built helps. A stronger heavy model and hosted decision services are the obvious next tests.
+**Bottom line, at this scale.** Compared with letting the LLM run the loop, decision-driven control is far cheaper and better behaved, with comparable success. "Comparable" here means a paired interval from −16 to +34 pp, not demonstrated non-inferiority, and no margin has been agreed. But it is **not more reliable**, it **loses on multi-step investigations**, and **a deterministic host policy matched it** at a fraction of the cost. These data do not establish that a *learned* decision layer beats good rules, or that the conservative policy as built helps. A stronger heavy model and hosted decision services are the obvious next tests.
 
 All 9 pre-registered predictions, every failure and all component ablations are in [the report](reports/v06/summary.md).
 
@@ -148,6 +153,8 @@ This repository adds a reproducible, outcome-scored comparison of *decision-driv
 
 ## v0.5 (historical): outcome-scored routing without a model
 
+**[Explore every v0.5 turn under every design →](https://dgenio.github.io/turnwise-decision-lab/v05-explorer.html)** · [Full report](reports/arena.md) · [Pre-registration](docs/preregistration-v0.5.md)
+
 46 synthetic incident-investigation turns in 10 multi-turn sessions were replayed through seven routing designs. Every tool and workflow call really ran (local Python over synthetic data, through the same permission harness). Turns are labelled with the **facts a correct answer needs, not with a route**, so each design is scored on what it actually returned. **No model was called**: a model path counts as correct when the needed evidence was in its context or could be fetched. That assumption, and the assumption that the baseline agent always picks the right tools, both favour calling the model.
 
 | Design | Correct* | Model calls | Silent wrong answers | Visible failures |
@@ -187,7 +194,7 @@ The outcome-scored offline experiment is complete; the [evaluation plan](docs/ev
 ```bash
 python -m unittest discover -s tests
 python -m turnwise_lab.arena            # writes reports/arena.json and reports/arena.md
-python -m turnwise_lab.explorer         # rebuilds demo/index.html from the report
+python -m turnwise_lab.explorer         # rebuilds demo/v05-explorer.html from the report
 ```
 
 CI regenerates every committed report and page and fails if anything differs by a single byte. `python -m turnwise_lab.arena --timing` also prints local routing overhead: tens of microseconds, which is meaningless next to any model call and therefore not committed.

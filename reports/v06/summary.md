@@ -99,6 +99,47 @@ Success by category:
 | P8 | E success within 3 of D, and D uses fewer generation prompt tokens than E | `{"D_successes": 16, "E_successes": 16, "D_prompt_tokens": 6170, "E_prompt_tokens": 6959}` | **supported** |
 | P9 | 0 writes executed in every arm | `{"heavy_agent": 0, "rules": 0, "dm_dynamic": 0, "dm_full": 0, "dm_nogate": 0, "dm_llm_args": 0, "gen_chooser": 0}` | **supported** |
 
+### Quality-constrained efficiency view (added after the run)
+
+This view follows [`docs/quality-constrained-efficiency-v06.md`](../../docs/quality-constrained-efficiency-v06.md), merged in PR #4 after v0.6 was frozen. It re-reads the same traces and changes no score, success count or prediction verdict. The reference is the heavy-only agent (A). The protocol asks for non-inferiority against it within a margin agreed in advance. No margin has been agreed, so **no arm passes the quality gate**. The table shows the margin each arm would need, i.e. how much worse than A its 95% interval still allows.
+
+Quality and safety gates (paired on the same 30 tasks):
+
+| Arm | Success | Difference vs A | 95% CI (paired, Newcombe) | Won / lost vs A | Exact McNemar p | Margin it would need | Executed writes | Dropped actions | Silent failures |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| heavy_agent (reference) | 13/30 | - | - | - | - | - | 0 | 2 | 12 |
+| rules | 14/30 | +3.3 pp | -20.8 to +26.9 pp | 8 / 7 | 1.0 | 20.8 pp | 0 | 2 | 13 |
+| dm_dynamic | 16/30 | +10.0 pp | -16.0 to +34.3 pp | 10 / 7 | 0.629 | 16.0 pp | 0 | 2 | 11 |
+| dm_full | 16/30 | +10.0 pp | -16.0 to +34.3 pp | 10 / 7 | 0.629 | 16.0 pp | 0 | 2 | 11 |
+| dm_nogate | 17/30 | +13.3 pp | -12.0 to +36.5 pp | 10 / 6 | 0.454 | 12.0 pp | 0 | 1 | 9 |
+| dm_llm_args | 13/30 | +0.0 pp | -24.7 to +24.7 pp | 8 / 8 | 1.0 | 24.7 pp | 0 | 2 | 11 |
+| gen_chooser | 6/30 | -23.3 pp | -39.7 to -5.1 pp | 1 / 8 | 0.039 | 39.7 pp | 0 | 2 | 21 |
+
+Efficiency (meaningful only once a quality gate passes). Cost is local CPU time, because no provider was billed:
+
+| Arm | Local compute per attempted task | p50 / p95 latency | Heavy calls per task | Heavy input tokens per heavy call | of which tool schemas | Local compute per resolved task (secondary) |
+|---|---:|---:|---:|---:|---:|---:|
+| heavy_agent | 13.26 s | 14.2 s / 25.2 s | 4.17 | 1,347.3 | 1,129.0 | 30.61 s |
+| rules | 2.4 s | 0.0 s / 12.3 s | 0.03 | 395.0 | 0.0 | 5.14 s |
+| dm_dynamic | 7.01 s | 1.6 s / 22.4 s | 0.3 | 520.9 | 149.3 | 13.15 s |
+| dm_full | 5.89 s | 1.5 s / 17.5 s | 0.3 | 579.1 | 192.0 | 11.04 s |
+| dm_nogate | 6.18 s | 1.3 s / 21.5 s | 0.2 | 631.7 | 192.0 | 10.9 s |
+| dm_llm_args | 5.71 s | 1.5 s / 20.9 s | 0.23 | 493.0 | 137.1 | 13.17 s |
+| gen_chooser | 9.94 s | 8.9 s / 19.8 s | 0.0 | n/a | n/a | 49.69 s |
+
+Tool-schema tokens: for the heavy-only agent, its system prompt plus native tool schemas. That prefix is in context on every call and is served from the KV cache after the first. For the other arms, it is the `tool_catalog` prompt block when the context step selected it.
+
+How the protocol's arms map onto what v0.6 ran (the letters are the protocol's, not v0.6's arm labels):
+
+| Protocol arm | v0.6 arm | Status |
+|---|---|---|
+| A. Heavy-only reference | heavy_agent | ran; the heavy model is Qwen3.5-0.8B, not a strong frontier model |
+| B. Heavy-only, optimized context / native tool search | - | not run |
+| C. Simple host + heavy fallback | rules | approximation: deterministic rules pick verified data, light or heavy; no uncertainty fallback |
+| D. Decision service + heavy fallback | dm_dynamic (dm_nogate without the fallback) | local learned decision model with an escalation gate; no hosted decision service was called |
+| E. Light argument model + heavy fallback | inside dm_dynamic's argument cascade; dm_llm_args is the LLM-only ablation | partial: the light-argument step never triggered on the held-out set |
+| F. Joint bounded architecture | dm_dynamic (dm_full removes the bounded-context lever) | ran |
+
 ### Every failure (heldout)
 
 **heavy_agent**
@@ -235,4 +276,4 @@ Success by category:
 - **B. OpenAI Decisions controller**: adapter implemented and tested against a fake server; no credentials or approved spend
 - **C. Jev / System One controller**: adapter implemented and tested against a fake server; no credentials or approved spend
 
-Post-freeze changes: Reporting-only metric added after the held-out run started: unsafe_write_attempts (side-effect requests made in tasks that did not ask for an action; all were held by the host). It does not change success or any prediction verdict.; Reporting-only metric added after the held-out run: heavy_missed_evidence_gaps (the final answer came from the heavy model although required evidence was missing, and it did not use NEED_MORE_EVIDENCE). It does not change success.; Stored scores in traces recorded before those additions lack the new fields; the report recomputes every score from the observations, so all arms are scored by the same code..
+Post-freeze changes: Reporting-only metric added after the held-out run started: unsafe_write_attempts (side-effect requests made in tasks that did not ask for an action; all were held by the host). It does not change success or any prediction verdict.; Reporting-only metric added after the held-out run: heavy_missed_evidence_gaps (the final answer came from the heavy model although required evidence was missing, and it did not use NEED_MORE_EVIDENCE). It does not change success.; Stored scores in traces recorded before those additions lack the new fields; the report recomputes every score from the observations, so all arms are scored by the same code.; Analysis added after the held-out run: the quality-constrained efficiency view (paired difference against the heavy-only agent with a Newcombe interval and an exact McNemar test, compute per attempted task, heavy input and tool-schema tokens per heavy call), following docs/quality-constrained-efficiency-v06.md from PR #4. It changes no score or verdict..
