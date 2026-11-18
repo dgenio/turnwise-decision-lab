@@ -9,6 +9,7 @@ A conventional ReAct/native-tool-calling agent delegates repeated next-action ch
 Input to the policy: user turn, bounded conversation/task state, permitted capabilities and tool schemas, tool observations, evidence inventory/provenance, host permissions, budgets and uncertainty signals. **Never** gold labels or hidden evaluation targets.
 
 Policy returns one typed action:
+- `DIRECT(fact_id, evidence_receipts)`: return a host-verified fact without a model call **only** when the host can independently establish provenance, freshness, permissions, correct referent and answer sufficiency. A model's confident assertion is not a verified fact.
 - `CALL_TOOL(tool_id, validated_args)`: host checks registered tool, identity, authorization, argument schema and effects. Deterministic calls are permitted only when arguments and intent are unambiguous.
 - `CALL_LIGHT(context_spec)`: a lower-cost model may decide or synthesize when its reliability is supported.
 - `CALL_HEAVY(context_spec, reason)`: capable model with native tool calling or reasoning; default on ambiguity, unresolved references, incomplete evidence, causal questions, or policy uncertainty.
@@ -21,7 +22,7 @@ After each observation, update bounded state and decide again **within the same 
 1. Host enforces AuthN/AuthZ and side-effect approvals; a model/decision score never grants permission.
 2. Preserve unresolved intents, including side-effect requests; report hold or refusal explicitly.
 3. Avoid stale state propagation: uncertain references escalate; no implicit 'reuse last tool' shortcut.
-4. Evidence sufficiency is checked before deterministic finish or confident causal claims.
+4. Evidence sufficiency and referent identity are checked before `DIRECT`, deterministic `FINISH`, or confident causal claims. No use of inaccessible evaluation labels.
 5. Track end-to-end task success and silent errors, not just completed tool receipts.
 6. Decision policy and context builder are replaceable adapters: deterministic rules, decision models/APIs, small LLMs or heavy LLMs.
 7. Bound loops, retries and budgets; fail safely with an observable reason.
