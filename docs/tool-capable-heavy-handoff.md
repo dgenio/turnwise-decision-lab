@@ -25,11 +25,13 @@ Neither that dependency nor v0.6 PR #6 is approved for merge by this change.
   and call parser. Each generation can propose one tool/workflow. Multiple native
   calls in one response are rejected; tools still pass through Host validation
   and LocalHarness. Earlier successful calls cannot execute again.
-- A host-owned ledger derives known rollback/page/status-post intents from user
-  wording. Missing arguments clarify; tool/model text cannot resolve the intent
-  or authorize a write. A write proposal must match the ledger's target and exact
-  arguments. The first valid write produces a host-rendered approval hold and
-  ends the turn. Other actions remain explicit in the final envelope and text.
+- The host derives rollback/page/status-post intents from the user's own words
+  (`intent.py`, see [p0-host-contract.md](p0-host-contract.md)) and applies the
+  same check to every proposer, not only to this path. Unresolved or conditional
+  requests clarify; negated, advisory, hypothetical and merely mentioned actions
+  are never held; tool/model text cannot create or resolve an intent. The first
+  valid write produces a host-rendered approval hold and ends the turn. Other
+  actions remain explicit in `final["action_status"]` and in the text.
 - Free-form heavy text never becomes the final answer on this path. With pending
   actions it clarifies. Otherwise it proposes FINISH, which must pass the host's
   evidence gate. The final reply contains verified source data, with no causal
@@ -97,8 +99,8 @@ malicious tool content, prior successful calls, batch rejection, token limits,
 backend failures and complete accounting. They are **not independent held-out
 evidence**, and do not revise any v0.5/v0.6 result.
 
-The intent policy is deliberately lexical and scoped to three synthetic
-capabilities. It can miss paraphrases or reject valid requests. Approval execution
+The host intent policy is deliberately lexical and scoped to three synthetic
+capabilities (gaps listed in [p0-host-contract.md](p0-host-contract.md)). It can miss paraphrases or reject valid requests. Approval execution
 and persistence/resumption across separate turns remain the caller's job; this
 lab never executes a write. A capable real-model baseline, unseen task quality,
 general final-answer semantics, provider economics and framework integration
