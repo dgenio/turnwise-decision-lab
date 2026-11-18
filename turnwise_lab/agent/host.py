@@ -9,12 +9,14 @@ they end in an approval request. Nothing a provider returns can change that.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from datetime import datetime
 from typing import Any
 import json
 
 from ..core import Capability as HarnessCapability, Plan, Request
 from ..runtime import HostIdentity, LocalHarness, RegisteredAction
 from .contracts import OPERATIONS, TIERS, Decision, Observation
+from .evidence import assess_evidence
 from .world import HOST_FACTS, SERVICES, IncidentWorld
 
 
@@ -49,6 +51,8 @@ class Limits:
     max_retries_per_call: int = 1
     max_rejections: int = 2
     max_generation_tokens: dict = field(default_factory=lambda: {"light": 96, "heavy": 220})
+    evidence_reference_time: datetime | None = None  # historical replays have no implicit wall clock
+    max_evidence_age_seconds: int = 3600
 
 
 @dataclass
@@ -58,6 +62,7 @@ class Validation:
     status: str  # accepted | rejected | approval_required
     reason: str
     dropped: list[str] = field(default_factory=list)
+    evidence: dict | None = None
 
 
 class Host:
@@ -78,7 +83,8 @@ class Host:
         """What the decision model may *propose*. Writes are listed: proposing one yields an approval request."""
         return CATALOG
 
-    def validate(self, d: Decision, executed: list[Observation]) -> Validation:
+    def validate(self, d: Decision, executed: list[Observation], *, user_message: str = "",
+                 conversation: tuple[dict, ...] | list[dict] = ()) -> Validation:
         if d.operation not in OPERATIONS:
             return Validation(False, d, "rejected", f"unknown operation {d.operation!r}")
         if d.operation in ("call_tool", "call_workflow"):
@@ -109,8 +115,19 @@ class Host:
             if d.model_tier not in TIERS:
                 return Validation(False, d, "rejected", f"model tier {d.model_tier!r} is not one of {list(TIERS)}")
             return Validation(True, d, "accepted", f"{d.model_tier} generation permitted")
-        if d.operation == "finish" and not any(o.status == "ok" for o in executed):
-            return Validation(False, d, "rejected", "finish needs at least one verified observation")
+        if d.operation == "finish":
+            review = assess_evidence(
+                user_message, executed, conversation=conversation,
+                as_of=self.limits.evidence_reference_time,
+                max_age_seconds=self.limits.max_evidence_age_seconds,
+            ).as_json()
+            if not review["sufficient"]:
+                failures = review["missing"] + review["problems"]
+                return Validation(False, d, "rejected",
+                                  "insufficient evidence for deterministic finish: " + ", ".join(failures),
+                                  evidence=review)
+            return Validation(True, d, "accepted", "task-specific verified evidence sufficient for data-only reply",
+                              evidence=review)
         return Validation(True, d, "accepted", f"{d.operation} permitted")
 
     # ------------------------------------------------------------ execution
@@ -127,15 +144,26 @@ class Host:
         return Observation(step_index, call_id, d.operation, cap.id, dict(d.arguments), status, facts=facts, reason=reason)
 
     # ------------------------------------------------------------- finalise
-    def render_verified(self, observations: list[Observation]) -> str:
-        """Deterministic answer from verified tool output only (no model)."""
-        lines = []
+    def render_verified(self, observations: list[Observation], *, evidence: dict) -> str:
+        """Only render relevant, receipt-backed facts after the host's FINISH gate."""
+        if not evidence.get("sufficient"):
+            raise ValueError("verified rendering requires a sufficient host evidence review")
+        approved = set(evidence["verified"])
+        lines, seen = [], set()
         for o in observations:
             if o.status != "ok":
                 continue
             for key, value in o.facts.items():
+                if key not in approved or key in seen:
+                    continue
                 lines.append(f"{key}: {json.dumps(value, separators=(', ', ': '), sort_keys=True)}")
-        return "Verified data (no model used):\n" + "\n".join(lines)
+                seen.add(key)
+        if set(seen) != approved:
+            raise ValueError("verified rendering lost its supporting evidence")
+        intro = ("Verified source facts (no causal inference established):\n"
+                 if evidence["intent"] == "causal_investigation"
+                 else "Verified data (no model used):\n")
+        return intro + "\n".join(lines)
 
     def approval_message(self, obs: Observation) -> str:
         args = ", ".join(f"{k}={v}" for k, v in obs.arguments.items())
