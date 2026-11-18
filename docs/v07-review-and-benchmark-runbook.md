@@ -1,6 +1,6 @@
 # v0.7 execution runbook — prospective quality gate and blinded adjudication
 
-**Status (2026-11-18): proposed study instructions; NOT preregistered, NOT an executed benchmark, NOT spending authorization.** Operationalizes [issue #9](https://github.com/dgenio/turnwise-decision-lab/issues/9) and the [quality-constrained protocol](quality-constrained-efficiency-v06.md). The historical [v0.6 report](../reports/v06/summary.md) and [v0.6 preregistration](preregistration-v0.6.md) remain untouched on the PR #6 branch. Nothing here changes their recorded results.
+**Status (2026-11-18): proposed study instructions; NOT preregistered, NOT an executed benchmark, NOT spending authorization.** Operationalizes [issue #9](https://github.com/dgenio/turnwise-decision-lab/issues/9) and the [quality-constrained protocol](quality-constrained-efficiency-v06.md). The historical [v0.6 report](https://github.com/dgenio/turnwise-decision-lab/blob/claude/happy-ritchie-0b6tt3/reports/v06/summary.md) and [v0.6 preregistration](https://github.com/dgenio/turnwise-decision-lab/blob/claude/happy-ritchie-0b6tt3/docs/preregistration-v0.6.md) remain untouched on the PR #6 branch. Nothing here changes their recorded results.
 
 ## Two separate exercises — do not mix them
 
