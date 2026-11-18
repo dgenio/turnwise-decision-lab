@@ -15,6 +15,7 @@ import json
 from ..core import Capability as HarnessCapability, Plan, Request
 from ..runtime import HostIdentity, LocalHarness, RegisteredAction
 from .contracts import OPERATIONS, TIERS, Decision, Observation
+from .context import BUDGET
 from .world import HOST_FACTS, SERVICES, IncidentWorld
 
 
@@ -49,6 +50,7 @@ class Limits:
     max_retries_per_call: int = 1
     max_rejections: int = 2
     max_generation_tokens: dict = field(default_factory=lambda: {"light": 96, "heavy": 220})
+    max_prompt_tokens: dict = field(default_factory=lambda: dict(BUDGET))
 
 
 @dataclass

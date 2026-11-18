@@ -32,10 +32,13 @@ def tool(target, **args):
 
 
 class EchoGenerator:
-    """Records the assembled prompt; 'generates' a fixed string."""
+    """Records a prompt with a synthetic exact counter; returns fixed text."""
 
     def __init__(self, text="ok"):
         self.prompts, self.text = [], text
+
+    def prompt_counter(self, tier):
+        return lambda messages: len(json.dumps(messages)) // 4
 
     def generate(self, prompt, tier, max_new_tokens):
         self.prompts.append(prompt)

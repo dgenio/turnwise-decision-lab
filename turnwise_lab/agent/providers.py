@@ -12,7 +12,7 @@ from typing import Callable
 import re
 import time
 
-from .context import BLOCKS_BY_ID, eligible_blocks, select_full, select_heuristic, select_lexical
+from .context import BLOCKS_BY_ID, PromptBudgetError, eligible_blocks, select_full, select_heuristic, select_lexical
 from .contracts import (SCORE_LM, SCORE_RULE, SCORE_SCRIPTED, ContextDecision, Decision, Question)
 from .host import CATALOG, CATALOG_BY_ID, Host
 from .world import SERVICES
@@ -462,6 +462,9 @@ class PendingGenerator:
     def counter(self, tier):
         return None
 
+    def prompt_counter(self, tier):
+        return None
+
     def generate(self, prompt, tier, max_new_tokens):
         return {"status": "pending", "tier": tier, "model": None, "text": "[generation pending: no backend configured]",
                 "prompt_tokens": prompt.tokens, "completion_tokens": None, "prefill_ms": None, "decode_ms": None}
@@ -474,9 +477,30 @@ class LocalGenerator:
     def counter(self, tier):
         return self.models[tier].count_tokens
 
+    def prompt_counter(self, tier):
+        lm = self.models[tier]
+        return lambda messages: lm.count_tokens(lm.chat(messages))
+
     def generate(self, prompt, tier, max_new_tokens):
         lm = self.models[tier]
-        g = lm.generate(lm.chat(prompt.messages), max_new_tokens=max_new_tokens)
+        started = time.perf_counter()
+
+        def blocked(reason):
+            return PromptBudgetError(reason, round((time.perf_counter() - started) * 1000, 3))
+
+        if not prompt.can_generate or tier != prompt.tier:
+            raise blocked("invalid_prompt_preflight")
+        try:
+            serialized = lm.chat(prompt.messages)
+            actual = lm.count_tokens(serialized)
+        except Exception:
+            raise blocked("unknown_token_count") from None
+        if type(actual) is not int or actual < 0:
+            raise blocked("unknown_token_count")
+        if actual != prompt.measured_tokens or actual > prompt.budget:
+            raise blocked("prompt_changed")
+        guard_ms = round((time.perf_counter() - started) * 1000, 3)
+        g = lm.generate(serialized, max_new_tokens=max_new_tokens)
         return {"status": "ok", "tier": tier, "model": lm.version, "text": g.text, "prompt_tokens": g.prompt_tokens,
                 "completion_tokens": g.completion_tokens, "prefill_ms": g.prefill_ms, "decode_ms": g.decode_ms,
-                "stopped": g.stopped}
+                "stopped": g.stopped, "budget_guard_ms": guard_ms}

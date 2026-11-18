@@ -6,7 +6,7 @@ from typing import Any, Protocol
 import json
 import time
 
-from .context import assemble
+from .context import PromptBudgetError, assemble
 from .contracts import ContextDecision, Decision, Observation
 from .host import Host
 
@@ -44,6 +44,7 @@ class ContextSelector(Protocol):
 
 
 class Generator(Protocol):
+    def prompt_counter(self, tier: str): ...  # counts the complete serialized chat prompt
     def generate(self, prompt, tier: str, max_new_tokens: int) -> dict: ...
 
 
@@ -129,11 +130,29 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
         if op == "call_model":
             tier = decision.model_tier
             state.current_tier = tier
+            selected_at = time.perf_counter()
             ctx = context.select(state, tier, host.permitted_blocks)
-            counter = count_tokens or getattr(generator, "counter", lambda t: None)(tier)
-            prompt = assemble(state, tier, ctx.proposed, host.permitted_blocks, ctx.policy, count_tokens=counter)
-            gen = generator.generate(prompt, tier, host.limits.max_generation_tokens[tier])
-            step["context"] = {"decision": ctx.as_json(), "assembled": prompt.as_json()}
+            selection_ms = round((time.perf_counter() - selected_at) * 1000, 3)
+            try:
+                counter = count_tokens or getattr(generator, "counter", lambda t: None)(tier)
+                prompt_counter = getattr(generator, "prompt_counter", lambda t: None)(tier)
+            except Exception:
+                counter = prompt_counter = None  # unavailable tokenizer must fail closed
+            prompt = assemble(state, tier, ctx.proposed, host.permitted_blocks, ctx.policy, count_tokens=counter,
+                              count_messages=prompt_counter, budget=host.limits.max_prompt_tokens[tier])
+            step["context"] = {"decision": ctx.as_json(), "assembled": prompt.as_json(), "selection_latency_ms": selection_ms}
+            if not prompt.can_generate:
+                step["generation"] = {"status": "blocked", "tier": tier, "reason": prompt.budget_status}
+                finish("abstain", host.abstain_message(f"prompt budget: {prompt.budget_status}"), "host", step,
+                       prompt.budget_status)
+                break
+            try:
+                gen = generator.generate(prompt, tier, host.limits.max_generation_tokens[tier])
+            except PromptBudgetError as exc:
+                step["generation"] = {"status": "blocked", "tier": tier, "reason": exc.reason,
+                                      "budget_guard_ms": exc.guard_ms}
+                finish("abstain", host.abstain_message(f"prompt budget: {exc.reason}"), "host", step, exc.reason)
+                break
             step["generation"] = gen
             if gen.get("status") == "pending":
                 finish("generation_pending", gen.get("text", ""), f"{tier} model (not executed)", step,
@@ -188,6 +207,10 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
         "generation_prompt_tokens": sum(g.get("prompt_tokens") or 0 for g in gens),
         "generation_completion_tokens": sum(g.get("completion_tokens") or 0 for g in gens),
         "generation_latency_ms": round(sum((g.get("prefill_ms") or 0) + (g.get("decode_ms") or 0) for g in gens), 1),
+        "context_selection_ms": round(sum(s["context"].get("selection_latency_ms", 0) for s in trace.steps if s.get("context")), 3),
+        "prompt_assembly_ms": round(sum(s["context"]["assembled"].get("assembly_latency_ms", 0) for s in trace.steps if s.get("context")), 3),
+        "prompt_budget_blocks": sum(g.get("status") == "blocked" for g in gens),
+        "prompt_budget_guard_ms": round(sum(g.get("budget_guard_ms", 0) for g in gens), 3),
         "wall_ms": round((time.perf_counter() - t_turn) * 1000, 1),
         "writes_executed": len(host.world.write_ledger),
     }

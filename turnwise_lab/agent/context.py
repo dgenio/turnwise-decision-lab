@@ -17,6 +17,7 @@ from dataclasses import dataclass, field
 from typing import Any, Callable
 import json
 import re
+import time
 
 from .. import world as v05
 from ..core import _OBVIOUS_PRIVATE
@@ -111,6 +112,15 @@ def approx_tokens(text: str) -> int:
     return max(1, len(text) // 4)
 
 
+class PromptBudgetError(ValueError):
+    """A backend's last preflight failed before any model execution."""
+
+    def __init__(self, reason: str, guard_ms: float):
+        super().__init__(reason)
+        self.reason = reason
+        self.guard_ms = guard_ms
+
+
 @dataclass
 class AssembledPrompt:
     tier: str
@@ -121,6 +131,17 @@ class AssembledPrompt:
     tokens: int
     token_counter: str
     redactions: int = 0
+    budget: int = 0
+    budget_status: str = "unknown_token_count"
+    estimated_tokens: int | None = None
+    measured_tokens: int | None = None
+    count_scope: str = "content estimate only; chat template not counted"
+    assembly_latency_ms: float = 0.0
+    omitted_evidence: list[dict] = field(default_factory=list)
+
+    @property
+    def can_generate(self) -> bool:
+        return self.budget_status == "within_budget"
 
     def text(self) -> str:
         return "\n\n".join(f"[{m['role']}]\n{m['content']}" for m in self.messages)
@@ -128,7 +149,10 @@ class AssembledPrompt:
     def as_json(self) -> dict:
         return {"tier": self.tier, "policy": self.policy, "messages": self.messages, "included": self.included,
                 "excluded": self.excluded, "tokens": self.tokens, "token_counter": self.token_counter,
-                "redactions": self.redactions}
+                "redactions": self.redactions, "budget": self.budget, "budget_status": self.budget_status,
+                "estimated_tokens": self.estimated_tokens, "measured_tokens": self.measured_tokens,
+                "count_scope": self.count_scope, "assembly_latency_ms": self.assembly_latency_ms,
+                "omitted_evidence": self.omitted_evidence}
 
 
 def eligible_blocks(state, tier: str, permitted: frozenset[str]) -> tuple[list[str], list[dict]]:
@@ -146,11 +170,39 @@ def eligible_blocks(state, tier: str, permitted: frozenset[str]) -> tuple[list[s
 
 
 def assemble(state, tier: str, proposed: list[str], permitted: frozenset[str], policy: str,
-             count_tokens: Callable[[str], int] | None = None, budget: int | None = None) -> AssembledPrompt:
-    counter = count_tokens or approx_tokens
-    budget = budget or BUDGET[tier]
+             count_tokens: Callable[[str], int] | None = None, budget: int | None = None,
+             count_messages: Callable[[list[dict]], int] | None = None) -> AssembledPrompt:
+    """Assemble whole blocks, then count the exact redacted chat prompt.
+
+    ``count_tokens`` attributes individual block costs; only ``count_messages``
+    can certify the complete model-specific template. Estimates never authorize
+    inference. An uncountable or mandatory-only oversized prompt stays visible
+    in the trace and must not be sent to a model.
+    """
+    started = time.perf_counter()
+    budget = BUDGET[tier] if budget is None else budget
+    if type(budget) is not int or budget < 0:
+        raise ValueError("Prompt budget must be a nonnegative integer")
     eligible, excluded = eligible_blocks(state, tier, permitted)
-    chosen = set()
+    mandatory = {b.id for b in BLOCKS if b.mandatory and b.eligible(state, tier)}
+    chosen: set[str] = set()
+
+    def include(bid, visiting):
+        if bid in mandatory:
+            return True
+        if bid in visiting:
+            return False
+        if bid in chosen:
+            return True
+        if bid not in eligible:
+            return False
+        deps = BLOCKS_BY_ID[bid].depends_on
+        if not all(include(dep, visiting | {bid}) for dep in deps):
+            excluded.append({"id": bid, "reason": "missing_dependency", "dependencies": list(deps)})
+            return False
+        chosen.add(bid)
+        return True
+
     for bid in proposed:
         if bid in BLOCKS_BY_ID and BLOCKS_BY_ID[bid].mandatory:
             continue  # mandatory blocks are always in; a policy cannot add or remove them
@@ -160,40 +212,82 @@ def assemble(state, tier: str, proposed: list[str], permitted: frozenset[str], p
             if not any(e["id"] == bid for e in excluded):
                 excluded.append({"id": bid, "reason": "not_eligible"})
         else:
-            chosen.add(bid)
-    for bid in list(chosen):  # dependencies
-        for dep in BLOCKS_BY_ID[bid].depends_on:
-            if dep in eligible:
-                chosen.add(dep)
+            include(bid, set())
     for bid in eligible:
-        if bid not in chosen:
+        if bid not in chosen and not any(e["id"] == bid for e in excluded):
             excluded.append({"id": bid, "reason": "not_selected"})
-    blocks = [b for b in BLOCKS if (b.mandatory and b.eligible(state, tier)) or b.id in chosen]
-    rendered = {b.id: b.render(state, tier) for b in blocks}
-    cost = {bid: counter(text) for bid, text in rendered.items()}
-    request = f"Question: {state.user_message}"
-    total = sum(cost.values()) + counter(request)
-    for b in sorted([b for b in blocks if not b.mandatory], key=lambda b: b.priority):
-        if total <= budget:
-            break
-        blocks.remove(b)
-        total -= cost.pop(b.id)
-        rendered.pop(b.id)
-        excluded.append({"id": b.id, "reason": "over_budget"})
-    redactions = 0
+    blocks = [b for b in BLOCKS if b.id in mandatory or b.id in chosen]
 
-    def redact(text):
-        nonlocal redactions
-        new, n = _OBVIOUS_PRIVATE.subn("[REDACTED]", text)
-        redactions += n
-        return new
-    system = "\n".join(redact(rendered[b.id]) for b in blocks if b.role == "system")
-    user = "\n\n".join([redact(rendered[b.id]) for b in blocks if b.role == "user"] + [redact(request)])
-    included = [{"id": b.id, "tokens": cost[b.id], "trust": b.trust, "source": b.source, "mandatory": b.mandatory}
-                for b in blocks]
-    messages = [{"role": "system", "content": system}, {"role": "user", "content": user}]
-    return AssembledPrompt(tier, policy, messages, included, excluded, total,
-                           "model tokenizer" if count_tokens else "approximate (chars/4)", redactions)
+    # Redact once, before any measurement. Recount the complete template after
+    # each removal: tokenization is not additive across block boundaries.
+    rendered, redacted = {}, {}
+    for b in blocks:
+        rendered[b.id], redacted[b.id] = _OBVIOUS_PRIVATE.subn("[REDACTED]", b.render(state, tier))
+    request, request_redactions = _OBVIOUS_PRIVATE.subn("[REDACTED]", f"Question: {state.user_message}")
+
+    def messages_for_current_blocks():
+        system = "\n".join(rendered[b.id] for b in blocks if b.role == "system")
+        user = "\n\n".join([rendered[b.id] for b in blocks if b.role == "user"] + [request])
+        return [{"role": "system", "content": system}, {"role": "user", "content": user}]
+
+    def valid_count(counter, value):
+        result = counter(value)
+        if type(result) is not int or result < 0:
+            raise ValueError("Tokenizer did not return a nonnegative integer")
+        return result
+
+    counter_failed = False
+
+    def measure():
+        nonlocal counter_failed
+        messages = messages_for_current_blocks()
+        estimate = sum(approx_tokens(m["content"]) for m in messages)
+        measured = None
+        if count_messages is not None and not counter_failed:
+            try:
+                measured = valid_count(count_messages, messages)
+            except Exception:  # unknown is a blocking outcome; never log private exception text
+                counter_failed = True
+        return messages, estimate, measured
+
+    messages, estimated, measured = measure()
+    for b in sorted([b for b in blocks if not b.mandatory], key=lambda b: b.priority):
+        if (measured if measured is not None else estimated) <= budget:
+            break
+        if b not in blocks:
+            continue
+        blocks.remove(b)
+        excluded.append({"id": b.id, "reason": "over_budget"})
+        while True:
+            present = {block.id for block in blocks}
+            dependents = [block for block in blocks if not block.mandatory and any(d not in present for d in block.depends_on)]
+            if not dependents:
+                break
+            for block in dependents:
+                blocks.remove(block)
+                excluded.append({"id": block.id, "reason": "dependency_removed",
+                                 "dependencies": list(block.depends_on)})
+        messages, estimated, measured = measure()
+
+    included = []
+    for b in blocks:
+        cost, kind = approx_tokens(rendered[b.id]), "approximate (chars/4)"
+        if count_tokens is not None:
+            try:
+                cost, kind = valid_count(count_tokens, rendered[b.id]), "model tokenizer (block only)"
+            except Exception:
+                pass  # an attribution estimate cannot certify the whole prompt
+        included.append({"id": b.id, "tokens": cost, "token_counter": kind,
+                         "trust": b.trust, "source": b.source, "mandatory": b.mandatory})
+    omitted = [{"id": e["id"], "reason": e["reason"], "source": BLOCKS_BY_ID[e["id"]].source}
+               for e in excluded if e["id"] in BLOCKS_BY_ID and BLOCKS_BY_ID[e["id"]].trust in ("tool", "reference-untrusted")]
+    status = "unknown_token_count" if measured is None else ("within_budget" if measured <= budget else "mandatory_overflow")
+    return AssembledPrompt(
+        tier, policy, messages, included, excluded, measured if measured is not None else estimated,
+        "model tokenizer (complete chat template)" if measured is not None else "approximate (chars/4)",
+        request_redactions + sum(redacted[b.id] for b in blocks), budget, status, estimated, measured,
+        "complete serialized chat prompt" if measured is not None else "content estimate only; chat template not counted",
+        round((time.perf_counter() - started) * 1000, 3), omitted)
 
 
 # ----------------------------------------------------- non-learned policies

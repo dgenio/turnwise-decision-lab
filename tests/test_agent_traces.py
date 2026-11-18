@@ -2,7 +2,7 @@
 
 The model outputs in reports/v06/traces were produced by real local inference.
 CI cannot re-run that inference, so it does the next best thing: it feeds the
-recorded decisions, context proposals and generations back into the real loop,
+recorded decisions, original prompts and generations back into the real loop,
 Host and world, and checks that every tool observation, final outcome and score
 reproduces exactly. A trace that had been edited by hand, or that depended on
 anything other than the deterministic host, would fail here.
@@ -12,8 +12,10 @@ from __future__ import annotations
 import json
 from pathlib import Path
 import unittest
+from unittest.mock import patch
 
 from turnwise_lab.agent.bench import SETS, load_scenarios, score
+from turnwise_lab.agent.context import AssembledPrompt, BUDGET
 from turnwise_lab.agent.contracts import ContextDecision, Decision
 from turnwise_lab.agent.heavy_agent import run_heavy_agent
 from turnwise_lab.agent.host import Host
@@ -45,10 +47,33 @@ class ReplayContext:
 
     def __init__(self, steps):
         self.ctx = [s["context"]["decision"] for s in steps if s.get("context")]
+        self.prompts = [s["context"] for s in steps if s.get("context")]
 
     def select(self, state, tier, permitted):
         c = self.ctx.pop(0)
         return ContextDecision(list(c["proposed"]), c["policy"])
+
+    def assemble_recorded(self, state, tier, proposed, permitted, policy, **kwargs):
+        """Replay the original prompt as an input, without applying a new policy.
+
+        One original light prompt used 709 actual tokens for a 700-token budget.
+        Preserve that failure, never relabel the old preflight as within budget.
+        Only this test patches assembly, and ReplayGenerator performs no inference.
+        New assembly and exact-count gates are tested in test_prompt_budget.py.
+        """
+        recorded = self.prompts.pop(0)
+        a = recorded["assembled"]
+        assert a["tier"] == tier and a["policy"] == policy
+        assert recorded["decision"]["proposed"] == proposed
+        return RecordedPrompt(**a, budget=BUDGET[tier], budget_status="historical_unchecked")
+
+
+class RecordedPrompt(AssembledPrompt):
+    """Test-only unchecked historical input for a non-executing fake generator."""
+
+    @property
+    def can_generate(self):
+        return True
 
 
 class ReplayGenerator:
@@ -95,10 +120,12 @@ class TraceReplayTests(unittest.TestCase):
                     tr = run_heavy_agent(s["message"], host=host, lm=ReplayLM(t["steps"]), turn_id=s["id"],
                                          conversation=s.get("conversation", [])).as_json()
                 else:
-                    tr = execute_user_turn(s["message"], host=host, decider=ReplayDecider(t["steps"]),
-                                           context=ReplayContext(t["steps"]), generator=ReplayGenerator(t["steps"]),
-                                           turn_id=s["id"], arm=data["arm"], conversation=s.get("conversation", []),
-                                           verification=data["arm"] != "rules").as_json()
+                    context = ReplayContext(t["steps"])
+                    with patch("turnwise_lab.agent.loop.assemble", side_effect=context.assemble_recorded):
+                        tr = execute_user_turn(s["message"], host=host, decider=ReplayDecider(t["steps"]),
+                                               context=context, generator=ReplayGenerator(t["steps"]),
+                                               turn_id=s["id"], arm=data["arm"], conversation=s.get("conversation", []),
+                                               verification=data["arm"] != "rules").as_json()
                 with self.subTest(arm=data["arm"], set=data["set"], scenario=s["id"]):
                     self.assertEqual([_obs_key(o) for o in tr["observations"]], [_obs_key(o) for o in t["observations"]])
                     self.assertEqual((tr["final"]["kind"], tr["final"]["text"]), (t["final"]["kind"], t["final"]["text"]))
