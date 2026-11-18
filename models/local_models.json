@@ -1,0 +1,176 @@
+{
+ "about": "Pinned public model files for optional local inference. Weights are downloaded to a cache outside the repository and are never committed. Verify with scripts/fetch_models.py.",
+ "models": [
+  {
+   "key": "s1-llm-auto-router",
+   "repo": "decisionmodels/s1-llm-auto-router",
+   "revision": "572c5b6cdb53b77fbb26ed33568ebbc5b71c69c0",
+   "role": "specialized decision classifier (difficulty / needs_tools / follow_up / category heads)",
+   "license": "mit",
+   "base_model": null,
+   "base_model_license": null,
+   "files": [
+    {
+     "path": "model.gq.onnx",
+     "size": 183089235,
+     "sha256": "53a02107e46be7913f148037b63b4f4735a400f91221789b0aaefcde0ad8da80",
+     "git_blob": "dc5a11e550405d0109a6781fdd10e5bc756d9e97"
+    },
+    {
+     "path": "tokenizer/tokenizer.json",
+     "size": 34363439,
+     "sha256": "c01f8492531b2e569bd8d28ef1de1c66779275753c78cb497f7118762ae3230d",
+     "git_blob": "643cf3ba926389d59ab887ddafd93aaff63b9b2a"
+    },
+    {
+     "path": "meta.json",
+     "size": 688,
+     "sha256": null,
+     "git_blob": "23d7e11c310aab914f960b25f90762bf0dd17568"
+    },
+    {
+     "path": "LICENSE",
+     "size": 1375,
+     "sha256": null,
+     "git_blob": "1bfa15a7ea5b2dbc38df2e93919986e059b2199b"
+    }
+   ]
+  },
+  {
+   "key": "qwen2.5-0.5b-instruct-int8",
+   "repo": "onnx-community/Qwen2.5-0.5B-Instruct",
+   "revision": "22942cb7d7ba4cc81bb4673549ca4d4614469b5e",
+   "role": "constrained-choice decision model and light generation tier",
+   "license": "inherits base model (apache-2.0)",
+   "base_model": "Qwen/Qwen2.5-0.5B-Instruct",
+   "base_model_license": "apache-2.0",
+   "files": [
+    {
+     "path": "onnx/model_int8.onnx",
+     "size": 512096557,
+     "sha256": "41834041ab1b29eff9fc592f1a29a1844133aea35832ea9fa91682be13016100",
+     "git_blob": "1ae4272fd2a7a1c1b93622b27ba5c2b1f99a54fd"
+    },
+    {
+     "path": "tokenizer.json",
+     "size": 7031673,
+     "sha256": null,
+     "git_blob": "d24314ef7f0afd1b678c2e24c767e19f24f86b0e"
+    },
+    {
+     "path": "config.json",
+     "size": 678,
+     "sha256": null,
+     "git_blob": "eea21cd6f7909a44509a193b7fcdac194766c904"
+    },
+    {
+     "path": "generation_config.json",
+     "size": 242,
+     "sha256": null,
+     "git_blob": "f602853d6100c43666f46c67b1c354fa15fe0b93"
+    },
+    {
+     "path": "tokenizer_config.json",
+     "size": 7849,
+     "sha256": null,
+     "git_blob": "24afe3594154cfee05edda73aeadf3daae0a53ba"
+    }
+   ]
+  },
+  {
+   "key": "qwen2.5-1.5b-instruct-int8",
+   "repo": "onnx-community/Qwen2.5-1.5B-Instruct",
+   "revision": "d54957e3af1be04546436e874a60fe386041b244",
+   "role": "heavy generation tier and conventional tool-calling agent baseline",
+   "license": "inherits base model (apache-2.0)",
+   "base_model": "Qwen/Qwen2.5-1.5B-Instruct",
+   "base_model_license": "apache-2.0",
+   "files": [
+    {
+     "path": "onnx/model_int8.onnx",
+     "size": 1578954293,
+     "sha256": "ee8364373c6fb35644c67fd8127cbee6c3d98ac889f8bb32ea4ac04a29650787",
+     "git_blob": "bfc505d642e6f7c06de053cc9d1486e6be0ebb62"
+    },
+    {
+     "path": "tokenizer.json",
+     "size": 7031673,
+     "sha256": null,
+     "git_blob": "d24314ef7f0afd1b678c2e24c767e19f24f86b0e"
+    },
+    {
+     "path": "config.json",
+     "size": 809,
+     "sha256": null,
+     "git_blob": "161d78e5bcb1c12c3f45614bae0e35e7a49ad5b7"
+    },
+    {
+     "path": "generation_config.json",
+     "size": 242,
+     "sha256": null,
+     "git_blob": "f602853d6100c43666f46c67b1c354fa15fe0b93"
+    },
+    {
+     "path": "tokenizer_config.json",
+     "size": 7849,
+     "sha256": null,
+     "git_blob": "24afe3594154cfee05edda73aeadf3daae0a53ba"
+    }
+   ]
+  },
+  {
+   "key": "qwen3.5-0.8b-q4",
+   "repo": "onnx-community/Qwen3.5-0.8B-ONNX",
+   "revision": "8fe9dbe3fb39fe902e18df9be84b6a0ac77ae0f6",
+   "role": "candidate constrained-choice decision model (evaluated)",
+   "license": "apache-2.0",
+   "base_model": "Qwen/Qwen3.5-0.8B",
+   "base_model_license": "apache-2.0",
+   "files": [
+    {
+     "path": "onnx/decoder_model_merged_q4.onnx",
+     "size": 876359,
+     "sha256": "cfb338c5112e11e2a123d6d03d8870cd800883ee333ec0a25289482b609a16f8",
+     "git_blob": "8447615c3c1f896947d7f3ef333720004a989ae7"
+    },
+    {
+     "path": "onnx/decoder_model_merged_q4.onnx_data",
+     "size": 485425152,
+     "sha256": "fb38200610a2206aa4c10f4c5f41c08107e2b0b44968166943b3937a1eb11f84",
+     "git_blob": "036bf87ae3d1eee3038c7ebcb2021bccf0e67c85"
+    },
+    {
+     "path": "onnx/embed_tokens_q4.onnx",
+     "size": 857,
+     "sha256": "8773dcf4858f855bfce13def4356ca17e0bc516a477154496b6ffb6dd6d084dc",
+     "git_blob": "18426336ba8cd40afbbf2c1c7335d748571f6f38"
+    },
+    {
+     "path": "onnx/embed_tokens_q4.onnx_data",
+     "size": 162897920,
+     "sha256": "9210b1d26eb14136d3522584d17da14cc5f4b82b6f5607e6d80d59424a8cbe99",
+     "git_blob": "55d714e3cc947d56fbb2a23ecf468511de206d57"
+    },
+    {
+     "path": "tokenizer.json",
+     "size": 19226111,
+     "sha256": "89da80cc6689bef4d90cc1028249436975ffb0814618f1d93c65310e05801a9b",
+     "git_blob": "00aea8823de8d1432e09a1c2b7cdfec1d21471c8"
+    },
+    {
+     "path": "config.json",
+     "size": 2849,
+     "sha256": null,
+     "git_blob": "4ba3068385922dd464bb68f8e3a46f9f2a2ad598"
+    },
+    {
+     "path": "tokenizer_config.json",
+     "size": 10069,
+     "sha256": null,
+     "git_blob": "1a7a8b42ef296f48ac686bab602f518da32dd85c"
+    }
+   ]
+  }
+ ],
+ "total_bytes": 2991025919
+}

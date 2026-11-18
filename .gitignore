@@ -4,3 +4,11 @@ __pycache__/
 .pytest_cache/
 *.egg-info/
 dist/
+
+# local model weights / caches (never commit)
+*.onnx
+*.onnx_data
+*.safetensors
+*.gguf
+.cache/
+turnwise-models/
