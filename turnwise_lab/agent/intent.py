@@ -373,7 +373,7 @@ _CLAIM_RE = {cap: [re.compile(p, _F) for p in pats] for cap, pats in CLAIMS.item
 _NOT_A_CLAIM = re.compile(r"(?:\b(?:not|no|never|nothing|without|neither|nor|will|would|could|can|should|may|might|once|if|"
                           r"after|until|pending|awaiting|requested|request|requesting|approval|approve[sd]?|needs?|"
                           r"unless|before|whether|to\s+be|recommend\w*|suggest\w*|consider\w*|propos\w*|options?|"
-                          r"advis\w*|plan\w*|want|prefer|avoid|risk\w*)\b|n't\b)", _F)
+                          r"advis\w*|plan\w*|want|prefer|avoid|risk\w*|ask\w*|question\w*|wonder\w*)\b|n't\b)", _F)
 
 
 def completion_claims(text: str) -> list[dict]:
