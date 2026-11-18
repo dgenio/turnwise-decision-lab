@@ -151,7 +151,7 @@ class TerminationTests(unittest.TestCase):
 
     def test_transient_tool_error_then_retry(self):
         d = ScriptedDecider([tool("get_error_metrics", service="checkout"), tool("get_error_metrics", service="checkout"), Decision("finish")])
-        tr, _, _ = run(d, variant="metrics_flaky")
+        tr, _, _ = run(d, variant="metrics_flaky", message="Show the checkout error trend")
         self.assertEqual([o["status"] for o in tr.observations], ["error", "ok"])
         self.assertEqual(tr.final["kind"], "verified")
 
