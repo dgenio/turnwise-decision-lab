@@ -42,6 +42,13 @@ class ExplorerTests(unittest.TestCase):
         self.assertNotIn("<", data)
         self.assertIn("alert(1)", json.dumps(json.loads(data)))
 
+    def test_alternative_paths_are_labeled_illustrative_not_executed(self):
+        self.assertIn("Illustrative path assumptions — not executed", self.html)
+        self.assertIn("NOT executed counterfactual runs or measured model answers", self.html)
+        self.assertNotIn("If this turn were forced down each path", self.html)
+        # The captions are explanatory, not independently executed runs.
+        self.assertEqual(len(explorer.page_data(self.report)["turns"]), 46)
+
     def test_every_turn_and_arm_is_on_the_page(self):
         data = explorer.page_data(self.report)
         self.assertEqual(len(data["turns"]), self.report["inputs"]["turns"])
