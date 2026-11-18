@@ -1130,6 +1130,65 @@
   }
  },
  "note": "Post-hoc audit of recorded held-out traces; added after the run. Changes no trace, label, score or verdict.",
+ "provenance": {
+  "prompt_only_evidence": [
+   {
+    "arm": "dm_dynamic",
+    "facts": [
+     "doc:note-auth-limits"
+    ],
+    "id": "H08",
+    "success": false
+   },
+   {
+    "arm": "dm_full",
+    "facts": [
+     "doc:note-auth-limits"
+    ],
+    "id": "H08",
+    "success": false
+   },
+   {
+    "arm": "dm_nogate",
+    "facts": [
+     "doc:note-auth-limits"
+    ],
+    "id": "H08",
+    "success": false
+   },
+   {
+    "arm": "gen_chooser",
+    "facts": [
+     "doc:note-auth-limits"
+    ],
+    "id": "H08",
+    "success": false
+   }
+  ],
+  "unrecognised_verification_signals": [
+   {
+    "arm": "dm_dynamic",
+    "category": "action_request",
+    "expected": "approval",
+    "id": "H19",
+    "signal": "NEED_MORE_EVIDENCE: Please provide the specific logs or status updates from the search team regarding their current position and performance."
+   },
+   {
+    "arm": "dm_nogate",
+    "category": "action_request",
+    "expected": "approval",
+    "id": "H18",
+    "signal": "NEED_MORE_EVIDENCE: Please provide the specific timestamp of the checkout being reverted to its previous state, as the current status page only shows the incide"
+   },
+   {
+    "arm": "dm_llm_args",
+    "category": "action_request",
+    "expected": "approval",
+    "id": "H19",
+    "signal": "NEED_MORE_EVIDENCE: Please provide the specific logs or status updates from the search team regarding their current position and performance."
+   }
+  ]
+ },
  "taxonomy": {
   "dm_dynamic": {
    "cases": [

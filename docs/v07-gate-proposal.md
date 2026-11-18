@@ -15,7 +15,8 @@ These findings come from [`reports/v06/audit.md`](../reports/v06/audit.md), a po
 2. **Escalation.**
    - Most failures were *confident* errors: the probability at the decisive step was at or above the gate, so the gate could not fire.
    - Where it did fire, on two action requests, it handed the turn to a text-only generator. That generator could not raise an approval, so both actions were dropped.
-   - The verification protocol never fired.
+   - The verification protocol never registered a request. Three replies ended with `NEED_MORE_EVIDENCE` after prose, and the parser, which requires the marker at the start, ignored them. All three came on action requests.
+   - On H08, runbook retrieval put the needed note into the prompt without a tool call, so the scorer, which counts only tool receipts, marked it missing. The reply contradicted the note anyway.
 3. **Accounting.** The pre-registered "96.5% fewer heavy tokens" does not hold as a compute saving:
    - Counting tokens the 0.8B model actually computed, the decision-driven arm processed about 45% *more* than the heavy-only agent.
    - What did fall was wall-clock compute per attempted task, by 47%, mostly decode time.

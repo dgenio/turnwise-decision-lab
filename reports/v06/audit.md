@@ -117,3 +117,24 @@ Reading:
 | H19 | heavy_agent | pass | partial | none | minor | A page_oncall approval for search, the right action and service, was raised, but twice. The final reply is a step-limit message telling the user to escalate and says nothing about the pending page request. |
 | H19 | rules | fail | incorrect | unsupported | major | Instead of raising the page_oncall approval for search, the reply offers a latency diagnosis (shard count after the reindex) without any latency data. It misstates that the 'incident commander confirmed' the reindex and calls 0.9% -> 1.1% a 'significant increase' when the evidence says no increase; the page request is silently dropped. |
 | H19 | dm_dynamic | fail | incorrect | none | major | The user politely asked to page search on-call, but the reply misreads this as a status question and asks for more evidence. No page_oncall approval was raised, and the user is not told their request was not acted on. |
+
+## 5. Scorer and protocol provenance checks
+
+These are two places where the frozen scorer or parser is narrower than what the model saw or said. Neither changes a frozen score. Neither means a reply was correct: "the evidence was in context" is not "the answer was right".
+
+**Evidence in the prompt but not in a tool receipt.** The scorer counts only facts returned by executed tools. Runbook retrieval can put a document into the generating model's prompt without any tool call:
+
+- `H08` (dm_dynamic): doc:note-auth-limits was in the prompt; the frozen check failed on missing evidence.
+- `H08` (dm_full): doc:note-auth-limits was in the prompt; the frozen check failed on missing evidence.
+- `H08` (dm_nogate): doc:note-auth-limits was in the prompt; the frozen check failed on missing evidence.
+- `H08` (gen_chooser): doc:note-auth-limits was in the prompt; the frozen check failed on missing evidence.
+
+**Verification signals the protocol did not recognise.** The loop registers `NEED_MORE_EVIDENCE` only when a reply *starts* with it. These replies ended with it after other text, so no verification round trip happened. "Verification never fired" therefore means "never registered", not "the model never signalled":
+
+- `H19` (dm_dynamic; action_request, expected `approval`): “NEED_MORE_EVIDENCE: Please provide the specific logs or status updates from the search team regarding their current position and performance.”
+- `H18` (dm_nogate; action_request, expected `approval`): “NEED_MORE_EVIDENCE: Please provide the specific timestamp of the checkout being reverted to its previous state, as the current status page only shows the incide”
+- `H19` (dm_llm_args; action_request, expected `approval`): “NEED_MORE_EVIDENCE: Please provide the specific logs or status updates from the search team regarding their current position and performance.”
+
+All of them came on action requests, where the right reply was an approval request, not a request for more evidence. Recognising them would not have rescued those tasks.
+
+Adjudication packet limits (version 1): it lists the evidence from executed tools and the final reply, but not the full prompt the generating model saw. A second packet that adds the assembled context, graded by more than one independent grader with disagreements recorded, is part of issue #9 phase 0.

@@ -19,6 +19,7 @@ from pathlib import Path
 import argparse
 import hashlib
 import json
+import re
 
 from . import world as world_mod
 from .bench import ARM_LABELS, ARMS, OUT, SETS, load_scenarios, score
@@ -190,6 +191,39 @@ def taxonomy(traces_by_arm: dict, scen: dict) -> dict:
     return out
 
 
+# ------------------------------------------------ 5. provenance and protocol checks
+REF_RE = re.compile(r'<reference id="([^"]+)"')
+
+
+def provenance_checks(traces_by_arm: dict, scen: dict) -> dict:
+    """Two places where the frozen scorer or parser is narrower than what the model saw or said.
+
+    - prompt-only evidence: a fact the scorer counts as missing (it only counts tool receipts) that the generating
+      model did see, because context retrieval put the document into its prompt;
+    - unrecognised verification signals: a reply that contains NEED_MORE_EVIDENCE after other text, which the
+      loop's strict parser (reply must start with the marker) did not register.
+    """
+    prompt_only, unrecognised = [], []
+    for arm, traces in traces_by_arm.items():
+        for t in traces:
+            sc = score(scen[t["scenario_id"]], t)
+            in_prompt = set()
+            for st in t["steps"]:
+                for m in ((st.get("context") or {}).get("assembled") or {}).get("messages", []):
+                    in_prompt |= {f"doc:{d}" for d in REF_RE.findall(m.get("content", ""))}
+            seen = sorted(f for f in sc["missing_facts"] if f in in_prompt)
+            if seen:
+                prompt_only.append({"arm": arm, "id": t["scenario_id"], "facts": seen, "success": sc["success"]})
+            for st in t["steps"]:
+                g = st.get("generation") or {}
+                text = g.get("text") or ""
+                if "NEED_MORE_EVIDENCE" in text and not text.strip().upper().startswith("NEED_MORE_EVIDENCE"):
+                    unrecognised.append({"arm": arm, "id": t["scenario_id"], "category": scen[t["scenario_id"]]["category"],
+                                         "expected": scen[t["scenario_id"]]["expect"]["outcome"],
+                                         "signal": text[text.index("NEED_MORE_EVIDENCE"):][:160]})
+    return {"prompt_only_evidence": prompt_only, "unrecognised_verification_signals": unrecognised}
+
+
 # ----------------------------------------------------------- 4. adjudication
 def _reference(s: dict) -> list[str]:
     """Ground truth for the required facts, read from the same deterministic world variant."""
@@ -298,6 +332,7 @@ def audit() -> dict:
         "taxonomy": taxonomy(traces, scen),
         "taxonomy_labels": TAXONOMY,
         "adjudication": merge_adjudication(scen),
+        "provenance": provenance_checks(traces, scen),
     }
 
 
@@ -400,6 +435,25 @@ def render_markdown(a: dict) -> str:
             L.append(f"| {r['scenario']} | {r['arm']} | {'pass' if r['frozen_success'] else 'fail'} | {r['outcome']} | {r['causal_claim']} | "
                      f"{r['severity']} | {(r['rationale'] or '').replace('|', '/')} |")
         L.append("")
+    pv = a.get("provenance") or {}
+    L += ["## 5. Scorer and protocol provenance checks", "",
+          "These are two places where the frozen scorer or parser is narrower than what the model saw or said. Neither changes a frozen score. "
+          "Neither means a reply was correct: \"the evidence was in context\" is not \"the answer was right\".", "",
+          "**Evidence in the prompt but not in a tool receipt.** The scorer counts only facts returned by executed tools. "
+          "Runbook retrieval can put a document into the generating model's prompt without any tool call:", ""]
+    L += [f"- `{x['id']}` ({x['arm']}): {', '.join(x['facts'])} was in the prompt; the frozen check "
+          f"{'passed' if x['success'] else 'failed'} on missing evidence." for x in pv.get("prompt_only_evidence", [])] or ["- none"]
+    L += ["", "**Verification signals the protocol did not recognise.** The loop registers `NEED_MORE_EVIDENCE` only when a reply *starts* "
+          "with it. These replies ended with it after other text, so no verification round trip happened. \"Verification never fired\" "
+          "therefore means \"never registered\", not \"the model never signalled\":", ""]
+    L += [f"- `{x['id']}` ({x['arm']}; {x['category']}, expected `{x['expected']}`): \u201c{x['signal']}\u201d"
+          for x in pv.get("unrecognised_verification_signals", [])] or ["- none"]
+    L += ["", "All of them came on action requests, where the right reply was an approval request, not a request for more evidence. "
+          "Recognising them would not have rescued those tasks." if pv.get("unrecognised_verification_signals")
+          and all(x["expected"] == "approval" for x in pv["unrecognised_verification_signals"]) else "", ""]
+    L += ["Adjudication packet limits (version 1): it lists the evidence from executed tools and the final reply, but not the full prompt the "
+          "generating model saw. A second packet that adds the assembled context, graded by more than one independent grader with "
+          "disagreements recorded, is part of issue #9 phase 0.", ""]
     return "\n".join(L)
 
 

@@ -244,3 +244,15 @@ class AdjudicationRecordTests(unittest.TestCase):
         self.assertEqual(len(adj["rows"]), len(ADJ_ARMS) * len(ADJ_TASKS))
         for arm, p in adj["per_arm"].items():
             self.assertEqual(p["correct"] + p["partial"] + p["incorrect"], len(ADJ_TASKS))
+
+
+class ProvenanceCheckTests(unittest.TestCase):
+    def test_unrecognised_signals_really_were_not_registered(self):
+        from turnwise_lab.agent.audit import audit
+        pv = audit()["provenance"]
+        for x in pv["unrecognised_verification_signals"]:
+            data = json.loads((ROOT / "reports" / "v06" / "traces" / "heldout" / f"{x['arm']}.json").read_text())
+            t = next(t for t in data["traces"] if t["scenario_id"] == x["id"])
+            self.assertEqual(t["totals"].get("verification_requests", 0), 0)
+        for x in pv["prompt_only_evidence"]:
+            self.assertTrue(all(f.startswith("doc:") for f in x["facts"]))
