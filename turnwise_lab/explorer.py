@@ -313,7 +313,7 @@ footer{margin-top:64px;padding-top:20px;border-top:1px solid var(--line);font-si
   <div><h3>Supported on this workload</h3><ul class="list">
     <li>A router that sees session state can resolve follow-ups ("and for search?") with no model call. A message-only router resolved none of them.</li>
     <li>That same state turns uncertainty into confident wrong answers, and a wrong carried entity cascades to the next turn.</li>
-    <li>Safety comes from capability metadata checked by the host. Verb-matching rules missed 4 write requests (the harness held them) and blocked 5 harmless reads.</li>
+    <li>Safety comes from capability metadata checked by the host. v0.4's verb-matching rules missed 4 of 6 action requests (the harness held all of them) and blocked 5 harmless requests.</li>
     <li>v0.4's learned classifier does not transfer: 17 failures.</li>
   </ul></div>
   <div><h3>Not supported, or not tested</h3><ul class="list">

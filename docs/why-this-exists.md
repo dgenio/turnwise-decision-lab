@@ -41,3 +41,7 @@ Only publish that sentence once **X** and **Y** have been measured with exact so
 - A single extra classification call increases p95 end-to-end latency enough to erase advantages.
 
 If these happen, do not expand the codebase. Publish the negative result and stop or focus on the one demonstrably useful slice.
+
+## What v0.5 found
+
+See [`reports/arena.md`](../reports/arena.md). On authored synthetic sessions, the no-model headroom was large: the oracle answers 80% of turns without a model. Session state was the coupling that unlocked follow-ups, but it also produced silent wrong answers. The route-aware context hypothesis was falsified. By the criteria above this is **HOLD / SHRINK**: the evidence supports studying the state–route coupling and its failure modes, not building a product.

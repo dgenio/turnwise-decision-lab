@@ -1,4 +1,37 @@
-# Turnwise Decision Lab — v0.4 release candidate (2026-11-18)
+# Turnwise Decision Lab: v0.5 (2026-11-18)
+
+**Outcome-scored, counterfactual routing experiment. No model was called.**
+
+## Adds
+
+- `turnwise_lab.arena`: 46 synthetic multi-turn incident turns labelled with the facts a correct answer needs, not with routes. Seven designs: always-agent, message-only v0.4 rules, a joint state-aware router, two ablations, v0.4 Naive Bayes and an oracle. All are scored on what they returned.
+- `turnwise_lab.world`: real read tools and flows over synthetic data, plus write handlers that record and refuse.
+- Pre-registered hypotheses (`docs/preregistration-v0.5.md`) committed before any code. Routers and sessions were frozen before the first run, and the one post-freeze scoring fix is disclosed.
+- A compromised-router red team: 18 forged writes, 0 executed, with a positive control.
+- `demo/index.html`: an interactive explorer with every turn × design. Each cell shows what ran, the context packet (included, dropped, not selected), the receipt vs the outcome check, and per-path counterfactuals. A failure-cost slider sits underneath.
+- CI byte-identity check on all committed evidence.
+
+## Fixes
+
+- `LocalHarness` discarded the plan's context selection on `llm` handoffs and re-packed with a fixed mode. It now honours `plan.context_ids`, restricted to host-supplied sources within budget.
+
+## Results (authored synthetic data; see `reports/arena.md`)
+
+| Design | Correct* | Model calls | Silent wrong | Visible failures |
+|---|---:|---:|---:|---:|
+| Always-agent | 46/46 | 78 | 0 | 0 |
+| v0.4 rules (message-only) | 41/46 | 58 | 0 | 5 |
+| Joint router (state + route-aware context) | 38/46 | 20 | 6 | 2 |
+| Joint without state | 43/46 | 43 | 1 | 2 |
+| Oracle | 46/46 | 9 | 0 | 0 |
+
+\*Correct is an upper bound for any design that calls a model.
+
+H1, H2, H5 and H6 were supported; **H3 (route-aware context) and H4 (every saving router fails silently) were falsified.**
+
+---
+
+# Turnwise Decision Lab: v0.4 (2026-11-18)
 
 **Route the work, not just the model.**
 
@@ -24,4 +57,4 @@
 
 ## Release gate
 
-Public source + annotated synthetic results: **published for review in [draft PR #1](https://github.com/dgenio/turnwise-decision-lab/pull/1), not yet merged or released on GitHub Pages**. Product performance claims, enterprise use and ContextWeaver roadmap integration: **not ready**. The existing D1 ContextWeaver adoption gate remains unchanged.
+Public source + annotated synthetic results: reviewed in [PR #1](https://github.com/dgenio/turnwise-decision-lab/pull/1), merged and deployed to GitHub Pages on 2026-11-18. Product performance claims, enterprise use and ContextWeaver roadmap integration: **not ready**. The existing D1 ContextWeaver adoption gate remains unchanged.

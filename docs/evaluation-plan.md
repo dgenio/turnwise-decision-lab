@@ -1,6 +1,6 @@
 # Pre-registered decision test plan — proposed, not yet executed
 
-Status: **blocked on independent labeled data and approved access to contemporary comparator implementations**. The small fixture replay in `reports/` is only a contract/smoke test. No statistical or economic claims can be made from it.
+Status (v0.5): the **offline** part of this plan now runs as `turnwise_lab.arena`. It has outcome labels instead of route labels, ablations for state and context, an oracle and a red team; see [`reports/arena.md`](../reports/arena.md). Still **blocked** on independently written held-out sessions and on approved access to live comparators. The small fixture replay in `reports/` is only a contract/smoke test. No statistical or economic claims can be made from it.
 
 ## Decision question
 

@@ -1,33 +1,30 @@
-# Release candidate: v0.4 — what is and is not ready
+# Release status: v0.5 (2026-11-18)
 
-**2026-11-18 · Public demo/research RC. No production or external model claims.**
+**Public research exhibit. No production, provider-performance or cost claims.**
 
 ## Ready
 
-- Source-only Python package, MIT license, Python 3.10+ with no core dependency.
-- Offline six-turn interactive exhibit (`demo/index.html`) clearly labeled **planning-only**.
-- Executable closed-world six-turn scenario, with verified direct answer, actual read tool, actual deterministic flow, two generation handoffs and one blocked publication (`turnwise_lab.live_demo`).
-- Generated execution receipts (`reports/live-local-run.json`; mirrored in `demo/live-local-run.json`) with side-effect and host-permission checks in local harness.
-- Frozen dataset of 60 synthetic train / 40 synthetic test cases and a genuinely fitted minimal Naive Bayes route baseline; no claims of independent labeling.
-- Strong simple rules and hybrid arms, with per-case misses shown, classifier-call counts (hybrid: 23 calls, 2 accepted), and unknown API costs/null outcome metrics explicit.
-- Unit/integration tests, including forged-plan tests and a localhost mocked provider HTTP test.
-- Static `demo/local-run.html` displaying the local execution receipt trail; GitHub Pages workflow is present.
-- Public sources contain no real organizational conversations, credentials, customer identifiers, or corporate measurements.
+- Outcome-scored experiment (`turnwise_lab.arena`): 46 synthetic turns, 7 designs, real handlers through `LocalHarness`, oracle upper bound, compromised-router red team. Hypotheses pre-registered and verdicts computed by code (`reports/arena.md`).
+- Interactive explorer generated from the report (`demo/index.html`, published by the Pages workflow on merge to `main`).
+- CI regenerates every committed report and page and fails on any byte difference. The suite runs on Python 3.10 and 3.12.
+- `LocalHarness` now honours a plan's context selection (host-supplied sources only, within budget) instead of silently re-packing.
+- v0.4 artefacts (route-label benchmark, execution receipts, planning-contract exhibit) are kept and still reproducible.
 
-## Not done / blocked
+## Not done
 
-- No real Jev or generative-provider model inference performed in this release preparation.
-- No deployed LiteLLM Auto Router, vLLM Semantic Router or native tool search benchmark.
-- No independently labeled, held-out multi-turn corpus, statistical noninferiority assessment, measured token economics or provider latency.
-- The public GitHub repository has been created and the v0.4 source is staged in [draft PR #1](https://github.com/dgenio/turnwise-decision-lab/pull/1); this is not yet a merged release or verified GitHub Pages deployment. The first PR CI run passed on Python 3.10 and 3.12.
-- The local harness is educational and is not a sandbox, IAM implementation, complete mediation layer or signed audit log.
+- No model, decision model (Jev) or live router (LiteLLM, vLLM Semantic Router, provider tool search) has been run.
+- No held-out sessions written by someone other than the author.
+- No measured answer quality, tokens, latency or price.
+
+## History
+
+- v0.4 was merged as [PR #1](https://github.com/dgenio/turnwise-decision-lab/pull/1) on 2026-11-18, and its Pages deployment succeeded the same day.
+- v0.5 is proposed in a follow-up pull request and is not merged until the maintainer approves.
 
 ## Publishing rule
 
-Release as **"runnable engineering exhibit + initial negative synthetic benchmark"**, not a new routing product or an AI-performance result. A maintainer review of README, source-license consistency, synthetic fixtures and links precedes external promotion. Leave ContextWeaver D1 untouched.
+Describe v0.5 as **a reproducible, outcome-scored testbed with mixed and partly negative results on authored synthetic data**. Do not quote "74% fewer model calls" without the silent-failure count beside it and the workload caveat. Leave ContextWeaver D1 untouched.
 
-**GO** for bounded public source publication when the repository exists. **HOLD** for provider-performance, cost-savings and enterprise-readiness claims.
+## Naming
 
-## Naming check
-
-The word "Turnwise" is already used by unrelated conversational-AI evaluation packages and academic work. Use **Turnwise Decision Lab** plus the distinctive tagline, not "the Turnwise framework"; avoid publishing to PyPI under `turnwise`. This is a search-based conflict flag, not legal trademark clearance.
+"Turnwise" is also used by an unrelated arXiv paper on multi-turn LM evaluation and by PyPI packages for conversation evaluation. Use **Turnwise Decision Lab**, never publish a PyPI package named `turnwise`, and consider a distinct name before any wider promotion. This is a search-based conflict flag, not legal trademark clearance.
