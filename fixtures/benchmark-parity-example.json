@@ -1,0 +1,132 @@
+{
+  "schema_version": "turnwise-comparison-parity/v1",
+  "declared_treatments": [],
+  "arms": [
+    {
+      "id": "heavy_only",
+      "principal": "synthetic-reader",
+      "permissions": [
+        "read"
+      ],
+      "capabilities": [
+        "get_error_metrics",
+        "search_runbooks"
+      ],
+      "available_documents": [
+        "rb-timeouts"
+      ],
+      "available_tool_facts": [
+        "errors:checkout"
+      ],
+      "host_facts": [
+        "incident-id"
+      ],
+      "approval_policy": "all_writes_require_human_approval",
+      "max_tool_calls": 5,
+      "max_wall_ms": 60000,
+      "document_access_mode": "explicit_tool",
+      "initial_context_sources": [
+        "incident-id"
+      ],
+      "cache_regime": "warm_prefix",
+      "wall_ms": 100,
+      "declared_event_counts": {
+        "decision": 0,
+        "context": 0,
+        "retrieval": 0,
+        "tool": 1,
+        "workflow": 0,
+        "model": 1
+      },
+      "events": [
+        {
+          "kind": "tool",
+          "duration_ms": 5,
+          "billed_usd": null,
+          "source_ids": [
+            "errors:checkout"
+          ]
+        },
+        {
+          "kind": "model",
+          "duration_ms": 95,
+          "billed_usd": null,
+          "prompt_source_ids": [
+            "errors:checkout",
+            "incident-id"
+          ],
+          "input_tokens_new": 50,
+          "input_tokens_cached": 100,
+          "output_tokens": 20
+        }
+      ]
+    },
+    {
+      "id": "decision_controlled",
+      "principal": "synthetic-reader",
+      "permissions": [
+        "read"
+      ],
+      "capabilities": [
+        "search_runbooks",
+        "get_error_metrics"
+      ],
+      "available_documents": [
+        "rb-timeouts"
+      ],
+      "available_tool_facts": [
+        "errors:checkout"
+      ],
+      "host_facts": [
+        "incident-id"
+      ],
+      "approval_policy": "all_writes_require_human_approval",
+      "max_tool_calls": 5,
+      "max_wall_ms": 60000,
+      "document_access_mode": "explicit_tool",
+      "initial_context_sources": [
+        "incident-id"
+      ],
+      "cache_regime": "warm_prefix",
+      "wall_ms": 50,
+      "declared_event_counts": {
+        "decision": 1,
+        "context": 0,
+        "retrieval": 0,
+        "tool": 1,
+        "workflow": 0,
+        "model": 1
+      },
+      "events": [
+        {
+          "kind": "decision",
+          "duration_ms": 5,
+          "billed_usd": null,
+          "input_tokens_new": 20,
+          "input_tokens_cached": 0,
+          "output_tokens": 1
+        },
+        {
+          "kind": "tool",
+          "duration_ms": 5,
+          "billed_usd": null,
+          "source_ids": [
+            "errors:checkout"
+          ]
+        },
+        {
+          "kind": "model",
+          "duration_ms": 40,
+          "billed_usd": null,
+          "prompt_source_ids": [
+            "errors:checkout",
+            "incident-id"
+          ],
+          "input_tokens_new": 30,
+          "input_tokens_cached": 100,
+          "output_tokens": 20
+        }
+      ]
+    }
+  ]
+}
