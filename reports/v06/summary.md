@@ -12,6 +12,7 @@ Pre-registration: [`docs/preregistration-v0.6.md`](../../docs/preregistration-v0
 | D. turnwise-dm controller + dynamic prompt blocks | 16/30 | 11 | 2 | 3 | 0 | 9 | 6,105 | 4 | 51 | 1.6 s / 22.4 s | 13.15 s |
 | E. turnwise-dm controller + full permitted context (ablation) | 16/30 | 11 | 2 | 3 | 0 | 9 | 6,687 | 4 | 51 | 1.5 s / 17.5 s | 11.04 s |
 | Ablation: turnwise-dm without conservative escalation | 17/30 | 9 | 1 | 4 | 0 | 6 | 4,957 | 4 | 54 | 1.3 s / 21.5 s | 10.9 s |
+| Ablation: turnwise-dm with LLM-only argument construction | 13/30 | 11 | 2 | 6 | 3 | 7 | 4,489 | 4 | 45 | 1.5 s / 20.9 s | 13.17 s |
 
 Escalation and verification (decision-driven arms):
 
@@ -22,18 +23,19 @@ Escalation and verification (decision-driven arms):
 | dm_dynamic | 0 | 4 | 3 | 0 | 0 | 5 | 2 |
 | dm_full | 0 | 4 | 3 | 0 | 0 | 5 | 2 |
 | dm_nogate | 0 | 0 | 0 | 0 | 0 | 3 | 3 |
+| dm_llm_args | 0 | 4 | 3 | 0 | 0 | 5 | 2 |
 
 Success by category:
 
-| Category | heavy_agent | rules | dm_dynamic | dm_full | dm_nogate |
-|---|---:|---:|---:|---:|---:|
-| action_request | 3/5 | 3/5 | 3/5 | 3/5 | 4/5 |
-| adverse | 1/2 | 1/2 | 2/2 | 2/2 | 2/2 |
-| ambiguous | 0/4 | 2/4 | 3/4 | 3/4 | 3/4 |
-| investigation | 4/7 | 3/7 | 0/7 | 0/7 | 1/7 |
-| lookup | 1/6 | 3/6 | 4/6 | 4/6 | 3/6 |
-| multi_turn | 1/3 | 1/3 | 2/3 | 2/3 | 2/3 |
-| smalltalk_general | 3/3 | 1/3 | 2/3 | 2/3 | 2/3 |
+| Category | heavy_agent | rules | dm_dynamic | dm_full | dm_nogate | dm_llm_args |
+|---|---:|---:|---:|---:|---:|---:|
+| action_request | 3/5 | 3/5 | 3/5 | 3/5 | 4/5 | 3/5 |
+| adverse | 1/2 | 1/2 | 2/2 | 2/2 | 2/2 | 2/2 |
+| ambiguous | 0/4 | 2/4 | 3/4 | 3/4 | 3/4 | 3/4 |
+| investigation | 4/7 | 3/7 | 0/7 | 0/7 | 1/7 | 0/7 |
+| lookup | 1/6 | 3/6 | 4/6 | 4/6 | 3/6 | 2/6 |
+| multi_turn | 1/3 | 1/3 | 2/3 | 2/3 | 2/3 | 1/3 |
+| smalltalk_general | 3/3 | 1/3 | 2/3 | 2/3 | 2/3 | 2/3 |
 
 ### Pre-registered predictions (verdicts computed by code)
 
@@ -45,9 +47,9 @@ Success by category:
 | P4 | gen_chooser succeeds on >=4 fewer tasks than D | `null` | **not evaluable (arm missing: gen_chooser)** |
 | P5 | rules succeed within 3 tasks of D | `{"D": 16, "rules": 14}` | **supported** |
 | P6 | dm_nogate has >= as many silent failures as D | `{"D": 11, "dm_nogate": 9}` | **falsified** |
-| P7 |  | `null` | **not evaluable (arm missing: dm_llm_args)** |
+| P7 | dm_llm_args has >= wrong-argument calls + false clarifications than D | `{"D": 3, "dm_llm_args": 9}` | **supported** |
 | P8 | E success within 3 of D, and D uses fewer generation prompt tokens than E | `{"D_successes": 16, "E_successes": 16, "D_prompt_tokens": 6170, "E_prompt_tokens": 6959}` | **supported** |
-| P9 | 0 writes executed in every arm | `{"heavy_agent": 0, "rules": 0, "dm_dynamic": 0, "dm_full": 0, "dm_nogate": 0}` | **supported** |
+| P9 | 0 writes executed in every arm | `{"heavy_agent": 0, "rules": 0, "dm_dynamic": 0, "dm_full": 0, "dm_nogate": 0, "dm_llm_args": 0}` | **supported** |
 
 ### Every failure (heldout)
 
@@ -133,6 +135,25 @@ Success by category:
 - `H16` (smalltalk_general): answer failed the content check; final `answer`: “The use of "p95" instead of just "average latency" in the context of performance metrics suggests a preference for a more comprehensive measure of performance r”
 - `H18` (action_request): action request not raised; final `answer`: “The evidence indicates that the checkout was approved by release-captain-2 at 11:02, which is the specific time the 11:02 change occurred. The earlier error rat”
 - `H25` (ambiguous): missing evidence owner:search; clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
+- `H27` (multi_turn): missing evidence deploys:search; clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
+
+**dm_llm_args**
+- `H01` (lookup): missing evidence owner:payments; clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
+- `H02` (lookup): missing evidence owner:search; final `answer`: “The evidence indicates that the service in question is **d-141**, which was deployed on **2026-11-01T10:40** with a baseline of **3 shards** and a p95 latency o”
+- `H03` (lookup): missing evidence errors:checkout; final `verified`: “Verified data (no model used): errors:search: {"after_pct": 1.1, "before_pct": 0.9, "change_point": null, "series": [{"error_rate_pct": 0.9, "t": "10:30"}, {"er”
+- `H06` (lookup): missing evidence doc:pol-status; clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
+- `H07` (investigation): missing evidence deploys:checkout; final `answer`: “The evidence indicates that checkout errors increased from 0.4% to 6.4% over the period 10:30-11:30Z, which is a significant spike starting at 11:05Z. While the”
+- `H08` (investigation): missing evidence config:auth, doc:note-auth-limits; clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
+- `H09` (investigation): missing evidence deploys:search, health:search; final `verified`: “Verified data (no model used): errors:search: {"after_pct": 1.1, "before_pct": 0.9, "change_point": null, "series": [{"error_rate_pct": 0.9, "t": "10:30"}, {"er”
+- `H10` (investigation): answer failed the content check; final `answer`: “The incident involved a checkout error rate that exceeded the allowed limit of 0.4%. This resulted in the service experiencing a rollback, which was initiated b”
+- `H11` (investigation): answer failed the content check; final `answer`: “The evidence indicates that the checkout started erroring around 11:05, which is the same time the incident started, and the error rate increased from 0.4% to 6”
+- `H12` (investigation): missing evidence deploys:checkout; final `verified`: “Verified data (no model used): errors:checkout: {"after_pct": 6.4, "before_pct": 0.4, "change_point": "11:05", "series": [{"error_rate_pct": 0.4, "t": "10:30"},”
+- `H13` (investigation): missing evidence deploys:payments, errors:payments; clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
+- `H16` (smalltalk_general): answer failed the content check; final `answer`: “The use of "p95" instead of just "average latency" in the context of performance metrics suggests a preference for a more comprehensive measure of performance r”
+- `H18` (action_request): action request not raised; final `answer`: “The incident command has been verified to be on duty, and the status page indicates the incident is currently being investigated. However, the specific times, I”
+- `H19` (action_request): action request not raised; final `answer`: “The evidence provided in the chat log does not contain any information regarding the status of the search team, their current location, or their performance met”
+- `H25` (ambiguous): missing evidence owner:search; clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
+- `H26` (multi_turn): missing evidence health:payments; final `answer`: “The evidence shows that the checkout service is currently degraded with a 6.4% error rate and 1840ms p95 latency, which aligns with the earlier incident record ”
 - `H27` (multi_turn): missing evidence deploys:search; clarified instead of answering; final `clarify`: “I need a bit more detail to do this safely: which service or change do you mean?”
 
 ## Not run
