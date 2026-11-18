@@ -15,6 +15,7 @@ from pathlib import Path
 import argparse
 import copy
 import json
+import os
 import re
 
 from ..agent import bench as v06
@@ -26,7 +27,9 @@ from .gate import ExitGate, causal_assertions, side_effect_claims
 from .tasks import SETS, load_tasks, runtime_view, sha256
 
 ROOT = Path(__file__).resolve().parents[2]
-OUT = ROOT / "reports" / "v07"
+# A long run can record into a scratch directory (TURNWISE_V07_OUT) and be copied into reports/v07 when it is complete,
+# so the repository never holds a half-recorded arm.
+OUT = Path(os.environ["TURNWISE_V07_OUT"]) if os.environ.get("TURNWISE_V07_OUT") else ROOT / "reports" / "v07"
 FREEZE = ROOT / "docs" / "v07-freeze.json"
 ARMS = ("heavy_agent", "heavy_agent_gated", "rules", "rules_gated", "dm_dynamic", "dm_dynamic_gated", "contract", "contract_narrated")
 PAIRS = (("heavy_agent", "heavy_agent_gated"), ("rules", "rules_gated"), ("dm_dynamic", "dm_dynamic_gated"))

@@ -23,8 +23,8 @@ from dataclasses import dataclass, field
 import re
 
 from ..agent.render import render_facts
-from .evidence import (CHANGE, GENERAL, ROLE_OF, SYMPTOM, Claim, Contract, Requirement, compile_contract, derive, missing, receipts,
-                       render_findings, revise, services_in, type_claim)
+from .evidence import (ACTION_CUES, CHANGE, GENERAL, ROLE_OF, SYMPTOM, Claim, Contract, Requirement, compile_contract, derive, missing, receipts,
+                       render_findings, revise, services_in, strip_quoted, type_claim)
 
 ALLOW, ACQUIRE, HOLD, CLARIFY = "allow", "acquire", "hold", "clarify"
 TERMINALS = ("finish", "answer", "clarify", "abstain")
@@ -152,6 +152,12 @@ class ExitGate:
                 return Verdict(CLARIFY, reason=f"reply without evidence to a request the host cannot resolve ({k.clarify})", contract=cj)
             return Verdict(ALLOW, reason="request not resolvable by the host; the controller gathered evidence, its exit stands",
                            contract=cj, source="none")
+        if terminal == "write":  # the controller itself proposes a side effect, which ends the turn as an approval request
+            todo, _ = missing(k, observations, message, self.max_retries) if self.sufficiency else ([], [])
+            if todo and k.hold:
+                return Verdict(ACQUIRE, [r.call(message, receipts(observations)) for r in todo],
+                               "approval request held back: the request also asks for evidence first", cj, [r.key for r in todo])
+            return Verdict(ALLOW, reason="write proposal passes to host validation", contract=cj, source="none")
         if terminal == "clarify" and k.claim.type in ("untyped", "smalltalk", "record"):
             return Verdict(ALLOW, reason="no contract; controller's clarification stands", contract=cj, source="none")
         if terminal == "clarify" and not self.override_clarify:
@@ -159,8 +165,8 @@ class ExitGate:
         todo, unavailable = missing(k, observations, message, self.max_retries) if self.sufficiency else ([], [])
         if terminal == "abstain":  # the turn is ending anyway (step limit, malformed call): only the latch can still act
             todo = []
-        if not todo and self.sufficiency and text and k.claim.type == "untyped":
-            ak = self._answer_contract(text, message, conversation, observations, k.claim)
+        if not todo and self.sufficiency and k.claim.type == "untyped" and terminal in ("answer", "finish"):
+            ak = self._answer_contract(text or "", message, conversation, observations, k.claim)
             if ak is not None:
                 t2, u2 = missing(ak, observations, message, self.max_retries)
                 if t2:
@@ -183,6 +189,9 @@ class ExitGate:
         claim = type_claim(message, conversation)
         if claim.declined_action == target and claim.action != target:
             return f"the user explicitly declined {target} in this turn"
+        cue = dict(ACTION_CUES).get(target)
+        if cue and claim.action != target and re.search(cue, message.lower()) and not re.search(cue, strip_quoted(message).lower()):
+            return f"the only mention of {target} is inside quoted text, which cannot make a request"
         return None
 
     def findings(self, message: str, conversation: list[dict], observations, notice: str = "") -> str:

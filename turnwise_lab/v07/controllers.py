@@ -62,6 +62,8 @@ class GatedDecider:
         terminal = {"finish": "finish", "clarify": "clarify", "abstain": "abstain"}.get(d.operation)
         if d.operation == "call_model" and not d.requires_continuation:
             terminal = "answer"
+        if d.operation in ("call_tool", "call_workflow") and d.target in CATALOG_BY_ID and CATALOG_BY_ID[d.target].side_effect:
+            terminal = "write"
         if terminal is None:
             return d
         v = self.gate.review(message=state.user_message, conversation=state.conversation, observations=state.observations,

@@ -65,7 +65,7 @@ ACTION_CUES = (
     ("rollback_deployment", r"\broll(?:ing)?[- ]?back\b|\broll (?:it|that|this|them|\w+) back\b|\brollback\b|\brevert\w*\b|"
                             r"\bback (?:it|that|this|d-\d+) out\b|\bback out\b|\bundo (?:the|that|this|it)\b|\bput \w+ back\b|"
                             r"\bprevious (?:build|version|release)\b|\bgo back to\b"),
-    ("page_oncall", r"\bpag(?:e|ing|ed)\b|\bwake\b|\bcall ?out\b|\bon the (?:line|phone|call|bridge)\b|\bping (?:the )?(?:on.?call|team)\b|"
+    ("page_oncall", r"\bpag(?:e|ing|ed)\b|\bw[ao]ken?\b|\bcall ?out\b|\bon the (?:line|phone|call|bridge)\b|\bping (?:the )?(?:on.?call|team)\b|"
                     r"\bescalate to (?:the )?on.?call\b"),
 )
 _PAGE_NOUN_BEFORE = {"status", "login", "landing", "home", "web", "the", "a", "this", "that", "error", "front", "product", "each", "every", "per", "wiki", "docs"}
@@ -201,7 +201,7 @@ def _is_page_verb(clause: str, m: re.Match) -> bool:
     before = re.findall(r"[a-z']+", clause[:m.start()])[-1:] or [""]
     after = re.findall(r"[a-z']+", clause[m.end():])[:1] or [""]
     if m.group(0) == "paged":
-        return bool(re.search(r"\bget\b|\bhave\b|\bneed\b|\bwant\b", clause[:m.start()]))
+        return bool(re.search(r"\bget\b|\bhave\b|\bneed\b|\bwant\b|\bgot\b", clause[:m.start()]))
     return before[0] not in _PAGE_NOUN_BEFORE and after[0] not in _PAGE_NOUN_AFTER and after[0] != ""
 
 
