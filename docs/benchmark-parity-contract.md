@@ -13,7 +13,7 @@ Require each study arm to declare the same *non-negotiable* host principal, perm
 ## Run locally
 
 ```sh
-python -m unittest tests.test_parity
+python -m unittest discover -s tests -p test_parity.py
 python -m turnwise_lab.parity fixtures/benchmark-parity-example.json
 ```
 
