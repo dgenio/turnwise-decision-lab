@@ -334,5 +334,52 @@ class NativeAgentHandoffContrastTests(unittest.TestCase):
         self.assertEqual(host.world.write_ledger, [])
 
 
+
+class P0HostIntegrationTests(unittest.TestCase):
+    """Additional #37-specific tests: typed proposals never supersede host intent or action receipts."""
+
+    def test_user_requested_model_write_needs_policy_adoption_and_human_approval(self):
+        tr, host, policy, _ = run_core(
+            [heavy(), adopt_latest_proposal],
+            [proposal("rollback_deployment", service="checkout")],
+            message="Roll back checkout.")
+        self.assertEqual(len(policy.seen_snapshots), 2)
+        self.assertEqual(tr["final"]["kind"], "approval_required")
+        self.assertEqual(tr["final"]["action_status"][0]["status"], "held_for_approval")
+        self.assertEqual(tr["final"]["model_proposals"][0]["disposition"], "held_for_approval")
+        self.assertEqual(tr["final"]["writes_executed"], 0)
+        self.assertEqual(host.world.write_ledger, [])
+
+    def test_typed_answer_claiming_unexecuted_write_is_withheld(self):
+        tr, host, _, _ = run_core(
+            [heavy()], [answer("I rolled checkout back. The deploy has been reverted.")])
+        self.assertEqual(tr["final"]["kind"], "abstain")
+        self.assertEqual(tr["final"]["reason"], "unsupported_action_claim")
+        self.assertTrue(tr["final"]["unsupported_action_claims"])
+        self.assertEqual(tr["final"]["writes_executed"], 0)
+        self.assertEqual(host.world.write_ledger, [])
+
+    def test_model_needs_evidence_cannot_bypass_host_finish_sufficiency(self):
+        tr, _, policy, _ = run_core(
+            [heavy(), Decision("finish"), Decision("abstain")],
+            [needs_evidence("Please inspect deployment history.")])
+        self.assertEqual([s["validation"]["status"] for s in tr["steps"]],
+                         ["accepted", "rejected", "accepted"])
+        self.assertIn("insufficient evidence", tr["steps"][1]["validation"]["reason"])
+        self.assertEqual(len(policy.seen_snapshots), 3)
+        self.assertEqual(tr["final"]["kind"], "abstain")
+
+    def test_unresolved_user_action_remains_visible_when_typed_model_never_finishes(self):
+        tr, host, _, _ = run_core(
+            [heavy(), heavy()],
+            [needs_evidence("missing"), needs_evidence("still missing")],
+            message="Roll back checkout.", limits=Limits(max_steps=2))
+        self.assertEqual(tr["final"]["kind"], "step_limit")
+        self.assertEqual(tr["final"]["action_status"][0]["status"], "not_attempted")
+        self.assertEqual(tr["final"]["writes_executed"], 0)
+        self.assertEqual(host.world.write_ledger, [])
+
+
+
 if __name__ == "__main__":
     unittest.main()
