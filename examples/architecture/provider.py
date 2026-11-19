@@ -5,8 +5,10 @@ one ``ProviderLedger``, via ``httpx2`` event hooks on the clients handed to the
 framework (the ``openai`` client, which both frameworks use, is built on ``httpx2``):
 
 * **Caps before sending.** The request hook refuses a request *before* it leaves
-  the process once the request cap is reached, or once the next request could
-  push the estimated spend over the authorised amount. A refusal raises
+  the process once the request cap is reached, if it does not carry the
+  configured ``max_output_tokens``, or if its own bound (body bytes as an upper
+  bound on input tokens, plus its ``max_output_tokens``) could push the
+  conservative spend over the authorised amount. A refusal raises
   ``ProviderCapReached``, a ``RunHalt``: the Turnwise runtime stops at once
   instead of treating it as one more observation.
 * **No hidden retries.** The clients are built with ``max_retries=0``; the
@@ -38,10 +40,17 @@ from .turnwise_core import ModelCallFailed, RunHalt
 
 REAL_SOURCE = "REAL provider inference (OpenAI Responses API)"
 DOUBLE_SOURCE = "PROVIDER DOUBLE (simulated responses; no inference performed)"
+# Pinned for both frameworks, so OPENAI_BASE_URL (Agents SDK) / OPENAI_API_BASE (LlamaIndex) cannot redirect a
+# run labelled as real OpenAI inference, or send the two frameworks to different hosts.
+REAL_BASE_URL = "https://api.openai.com/v1"
 DOUBLE_BASE_URL = "https://provider-double.invalid/v1"  # .invalid never resolves, even if the double were bypassed
 DOUBLE_API_KEY = "provider-double-not-a-credential"
-# Only for the *worst-case estimate* of one request; the ledger also checks actual usage as it arrives.
+# Only for the *planning estimate* of the worst case (live_smoke --plan). The spend cap itself prices each
+# request from its actual size before sending (see ``request_bound``).
 ASSUMED_MAX_INPUT_TOKENS = 8000
+# A tokenizer token is at least one byte, so the request body's byte length bounds its text's input tokens; the
+# margin covers the provider's per-message formatting tokens.
+INPUT_TOKEN_MARGIN = 512
 
 
 class ProviderCapReached(RunHalt):
@@ -59,7 +68,13 @@ class Prices:
         return (input_tokens * self.input_per_mtok + output_tokens * self.output_per_mtok) / 1_000_000
 
     def worst_request(self, max_output_tokens: int) -> float:
+        """Planning estimate only (assumes ASSUMED_MAX_INPUT_TOKENS of input)."""
         return self.cost(ASSUMED_MAX_INPUT_TOKENS, max_output_tokens)
+
+
+def request_bound(content: bytes, max_output_tokens: int) -> tuple[int, int]:
+    """Upper bounds (input tokens, output tokens) for one request, from its actual body."""
+    return len(content or b"") + INPUT_TOKEN_MARGIN, max_output_tokens
 
 
 @dataclass(frozen=True)
@@ -78,8 +93,10 @@ class Exchange:
     """One HTTP request to the provider and what came back."""
 
     n: int
+    host: str
     endpoint: str
     request: dict[str, Any]
+    bound_tokens: tuple[int, int] = (0, 0)  # (input, output) upper bounds computed before sending
     status: int | None = None  # None: no response received (timeout or transport error)
     response: dict[str, Any] = field(default_factory=dict)
     usage: dict[str, int] = field(default_factory=dict)
@@ -116,12 +133,12 @@ class ProviderLedger:
         return self.prices.cost(u["input_tokens"], u["output_tokens"])
 
     def spend_bound_usd(self) -> float | None:
-        """A conservative bound: reported usage, plus the worst case for every request that got no response
-        (a timeout the provider may still have billed) or a success without usage."""
+        """A conservative bound: reported usage, plus each request's own pre-send bound when it got no response
+        (a timeout the provider may still have billed, or one still in flight) or a success without usage."""
         if self.prices is None:
             return None
-        unknown = sum(1 for e in self.exchanges if e.status is None or (e.status < 400 and not e.usage))
-        return self.reported_cost_usd() + unknown * self.prices.worst_request(self.max_output_tokens)
+        unknown = [e for e in self.exchanges if e.status is None or (e.status < 400 and not e.usage)]
+        return self.reported_cost_usd() + sum(self.prices.cost(*e.bound_tokens) for e in unknown)
 
     def last_refusal(self) -> str | None:
         with self._lock:
@@ -130,17 +147,23 @@ class ProviderLedger:
     # -- the hooks
     def admit(self, request: httpx2.Request) -> None:
         with self._lock:
+            summary = summarize_request(request.content)
+            max_out = summary.get("max_output_tokens")
             why = None
             if len(self.exchanges) >= self.max_requests:
                 why = f"provider request cap reached ({self.max_requests})"
-            elif self.usd_cap is not None:
-                projected = self.spend_bound_usd() + self.prices.worst_request(self.max_output_tokens)
+            elif not isinstance(max_out, int) or isinstance(max_out, bool) or not 0 < max_out <= self.max_output_tokens:
+                # Every model request must carry the configured output bound; anything else is refused unsent.
+                why = f"request carries no output bound within max_output_tokens={self.max_output_tokens} (got {max_out!r})"
+            bound = request_bound(request.content, max_out if isinstance(max_out, int) else 0)
+            if why is None and self.usd_cap is not None:
+                projected = self.spend_bound_usd() + self.prices.cost(*bound)
                 if projected > self.usd_cap:
                     why = f"next request could exceed the authorised spend (${projected:.4f} > ${self.usd_cap:.2f})"
             if why:
                 self.refused.append(why)
                 raise ProviderCapReached(why + "; the request was NOT sent")
-            exchange = Exchange(len(self.exchanges) + 1, request.url.path, summarize_request(request.content))
+            exchange = Exchange(len(self.exchanges) + 1, request.url.host, request.url.path, summary, bound)
             self.exchanges.append(exchange)
             request.extensions["turnwise_exchange"] = exchange.n
             self._started[exchange.n] = time.monotonic()
@@ -191,8 +214,8 @@ class ProviderSetup:
         return self.transport is not None
 
     @property
-    def base_url(self) -> str | None:
-        return DOUBLE_BASE_URL if self.simulated else None
+    def base_url(self) -> str:
+        return DOUBLE_BASE_URL if self.simulated else REAL_BASE_URL
 
     def api_key(self) -> str:
         if self.simulated:

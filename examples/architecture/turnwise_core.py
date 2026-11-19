@@ -180,8 +180,8 @@ class Policy(Protocol):
 class RunHalt(Exception):
     """Stop the run at once, e.g. a provider spending cap. Not an observation for the policy.
 
-    Frameworks may wrap it (the ``openai`` client turns a hook exception into
-    ``APIConnectionError``), so the runtime looks for it along the exception chain.
+    A framework or port may re-raise it wrapped in another exception, so the
+    runtime looks for it along the whole exception chain.
     """
 
 
@@ -370,10 +370,11 @@ class TurnwiseRuntime:
     def _handoff(self, step: int, d: Decision) -> None:
         self._handoffs += 1
         before = len(self.host.receipts)
+        halt: BaseException | None = None
         try:
             text = self.model.handoff(handoff_message(self.host, d.context), self.budget.handoff_max_turns)
         except Exception as exc:  # e.g. not supported, or the agent hit its turn limit: an observation, not a crash
-            _raise_if_halt(exc)
+            halt = exc if _find_halt(exc) is not None else None
             text, failure = "", f"handoff ended without an answer: {describe_failure(exc)}"
         else:
             failure = ""
@@ -385,6 +386,8 @@ class TurnwiseRuntime:
         for i, r in enumerate(new, start=1):
             self.rows.append(TraceRow(f"{step}.{i}", NATIVE, f"tool call {r.call()}", host_text(r), r.summary(),
                                       short=f"native agent -> tool {r.tool}" + status_tag(r)))
+        if halt is not None:  # the native agent's own tool calls are in the trace above; then the run stops
+            _raise_if_halt(halt)
         # A native agent declares no citations. The runtime attaches every executed receipt the agent was given
         # or produced, and says so: for a handoff, FINISH's citation check is therefore weak.
         cited = tuple(d.context) + tuple(r.id for r in new if r.executed)
@@ -474,8 +477,12 @@ def _exception_chain(exc: BaseException) -> list[BaseException]:
     return chain
 
 
+def _find_halt(exc: BaseException) -> RunHalt | None:
+    return next((e for e in _exception_chain(exc) if isinstance(e, RunHalt)), None)
+
+
 def _raise_if_halt(exc: BaseException) -> None:
-    halt = next((e for e in _exception_chain(exc) if isinstance(e, RunHalt)), None)
+    halt = _find_halt(exc)
     if halt is not None:
         raise _Halted(str(halt)) from exc
 
@@ -490,7 +497,9 @@ def describe_failure(exc: BaseException) -> str:
     names = {cls.__name__ for e in chain for cls in type(e).__mro__}
     status = next((s for s in (getattr(e, "status_code", None) for e in chain) if isinstance(s, int)), None)
     message = " ".join(str(exc).split())
-    if "ModelRefusalError" in names:
+    if _find_halt(exc) is not None:
+        category = "run halted"
+    elif "ModelRefusalError" in names:
         category = "refusal"
     elif names & {"APITimeoutError", "ModelTimeoutError", "TimeoutException", "TimeoutError"}:
         category = "timeout"

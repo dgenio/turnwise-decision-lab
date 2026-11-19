@@ -393,14 +393,44 @@ class LimitsTests(unittest.TestCase):
 
     def test_spend_cap_refuses_a_request_that_could_exceed_the_authorisation(self):
         prices = Prices(input_per_mtok=2.0, output_per_mtok=10.0)
-        worst = prices.worst_request(2000)
         for framework in FRAMEWORKS:
             with self.subTest(framework):
+                _, _, probe = turnwise(framework, ProviderDouble(), prices=prices)
+                first_bound = prices.cost(*probe.ledger.exchanges[0].bound_tokens)
+                # The cap admits exactly the first request's bound. The second step's packet is larger (one more
+                # receipt), so reported cost + its bound exceeds the cap: refused before sending.
                 double = ProviderDouble()
-                # The first request fits; after it, reported cost + the next request's worst case does not.
-                result, rt, setup = turnwise(framework, double, prices=prices, usd_cap=worst * 1.01)
+                result, rt, setup = turnwise(framework, double, prices=prices, usd_cap=first_bound)
                 self.assertEqual(len(double.requests), 1)
                 self.assertIn("authorised spend", result.answer)
+                self.assertLessEqual(setup.ledger.spend_bound_usd(), first_bound)
+
+    def test_spend_cap_prices_each_request_by_its_actual_size(self):
+        # Review finding: a fixed 8,000-token assumption let a ~100k-token request through a $0.05 cap.
+        import httpx2
+        prices = Prices(input_per_mtok=2.5, output_per_mtok=10.0)
+        ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=10, prices=prices, usd_cap=0.05)
+        huge = json.dumps({"model": MODEL, "max_output_tokens": 2000, "input": "x" * 400_000}).encode()
+        with self.assertRaises(Exception) as ctx:
+            ledger.admit(httpx2.Request("POST", "https://provider-double.invalid/v1/responses", content=huge))
+        self.assertIn("authorised spend", str(ctx.exception))
+        self.assertEqual(ledger.exchanges, [])
+
+    def test_requests_without_the_configured_output_bound_are_refused_unsent(self):
+        import httpx2
+        ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=10, max_output_tokens=2000)
+        for body in ({"model": MODEL}, {"model": MODEL, "max_output_tokens": 50_000},
+                     {"model": MODEL, "max_output_tokens": True}):
+            with self.subTest(body=body), self.assertRaises(Exception) as ctx:
+                ledger.admit(httpx2.Request("POST", "https://provider-double.invalid/v1/responses",
+                                            content=json.dumps(body).encode()))
+            self.assertIn("no output bound", str(ctx.exception))
+        self.assertEqual(ledger.exchanges, [])
+
+    def test_a_cap_refusal_is_reported_as_a_halt(self):
+        from examples.architecture.turnwise_core import describe_failure
+        outcome, _, _ = conventional("openai-agents", ProviderDouble(), max_requests=1)
+        self.assertTrue(describe_failure(outcome).startswith("run halted"), describe_failure(outcome))
 
 
 @unittest.skipUnless(HAVE_FRAMEWORKS, "frameworks not installed")
@@ -421,6 +451,48 @@ class ParityTests(unittest.TestCase):
                 self.assertEqual({b["model"] for b in bodies}, {settings["model"]})
                 self.assertEqual({b.get("max_output_tokens") for b in bodies}, {1500})  # incl. LlamaIndex steps
                 self.assertEqual({json.dumps(b.get(key)) for b in bodies}, {json.dumps(value)})
+
+    def test_every_model_setting_matches_within_and_across_frameworks(self):
+        # Review finding: only one key per case was compared. Compare them all, for the accepted settings.
+        keys = ("model", "max_output_tokens", "temperature", "reasoning")
+        for settings in (dict(model="gpt-6.1-sol"), dict(model="gpt-6.1-sol", reasoning_effort="low"),
+                         dict(model="gpt-4.1", temperature=0.0), dict(model="gpt-4.1", temperature=0.7)):
+            self.assertEqual(live_smoke.parity_problems(ProviderSettings(**settings)), [])
+            sent = {}
+            for framework in FRAMEWORKS:
+                for run in (conventional, turnwise):
+                    double = ProviderDouble()
+                    run(framework, double, **settings)
+                    sent[(framework, run.__name__)] = {json.dumps({k: b.get(k) for k in keys + ("top_p",)})
+                                                       for b in double.requests}
+            with self.subTest(**settings):
+                self.assertEqual(sent[("llamaindex", "conventional")], sent[("llamaindex", "turnwise")])
+                self.assertEqual(sent[("openai-agents", "conventional")], sent[("openai-agents", "turnwise")])
+                strip = lambda rows: {json.dumps({k: json.loads(r)[k] for k in keys}) for r in rows}  # noqa: E731
+                self.assertEqual(strip(sent[("openai-agents", "conventional")]),
+                                 strip(sent[("llamaindex", "conventional")]))
+
+    def test_harness_refuses_settings_the_frameworks_would_send_differently(self):
+        for settings, fragment in ((dict(model="gpt-4.1"), "set --temperature explicitly"),
+                                   (dict(model="gpt-6.1-sol", temperature=0.0), "drop --temperature"),
+                                   (dict(model="gpt-4.1", temperature=0.0, reasoning_effort="low"),
+                                    "drop --reasoning-effort")):
+            with self.subTest(**settings):
+                problems = live_smoke.parity_problems(ProviderSettings(**settings))
+                self.assertTrue(any(fragment in p for p in problems), problems)
+
+    def test_real_mode_pins_the_openai_endpoint_in_both_frameworks(self):
+        # Review finding: OPENAI_BASE_URL / OPENAI_API_BASE could redirect a run labelled as real OpenAI inference.
+        from examples.architecture.llamaindex.models import choose_llms
+        from examples.architecture.openai_agents.models import choose_models
+        env = {"OPENAI_API_KEY": "sk-not-used-ledger-cap-is-zero", "OPENAI_BASE_URL": "https://elsewhere.invalid/v1",
+               "OPENAI_API_BASE": "https://another.invalid/v1"}
+        with mock.patch.dict(os.environ, env):
+            setup = ProviderSetup(ProviderSettings(MODEL), ProviderLedger(source=REAL_SOURCE, max_requests=0))
+            sdk_model = choose_models(provider=setup).heavy
+            li_llm = choose_llms(provider=setup).heavy
+        self.assertEqual(str(sdk_model._client.base_url).rstrip("/"), "https://api.openai.com/v1")
+        self.assertEqual(li_llm.api_base.rstrip("/"), "https://api.openai.com/v1")
 
     def test_native_agents_offer_equivalent_tool_schemas_on_the_wire(self):
         tools = {}
@@ -542,6 +614,58 @@ class LiveSmokeHarnessTests(unittest.TestCase):
                 self.assertEqual(code, 2)
                 self.assertIn(message, err)
 
+    def test_paid_gate_refuses_meaningless_numbers_and_divergent_settings(self):
+        base = ["--provider", "openai", "--model", MODEL]
+        env = {"OPENAI_API_KEY": "sk-present-but-not-authorisation"}
+        cases = [
+            (base + ["--input-usd-per-mtok", "0", "--output-usd-per-mtok", "0", "--authorize-usd", "0"], "positive"),
+            (base + ["--input-usd-per-mtok", "-2", "--output-usd-per-mtok", "-10", "--authorize-usd", "1"],
+             "positive"),
+            (base + ["--max-output-tokens", "-100000"], "--max-output-tokens"),
+            (base + ["--temperature", "0"], "drop --temperature"),
+        ]
+        for argv, message in cases:
+            with self.subTest(message=message, argv=argv):
+                with mock.patch("examples.architecture.live_smoke.run_matrix") as run:
+                    code, out, err = self._main(argv, env)
+                    run.assert_not_called()
+                self.assertEqual(code, 2)
+                self.assertIn(message, err)
+
+    def test_exit_status_distinguishes_inconclusive_from_usage_errors(self):
+        with mock.patch("examples.architecture.live_smoke.ProviderDouble",
+                        side_effect=lambda *a, **k: ProviderDouble(faults=["http_500"])):
+            code, out, err = self._main(["--configs", "openai-agents/conventional"])
+        self.assertEqual(code, 3)
+        self.assertIn("VERDICT: INCONCLUSIVE", out)
+
+    def test_an_interrupted_run_keeps_the_partial_report(self):
+        import tempfile
+        real = live_smoke.run_config
+        calls = {"n": 0}
+
+        def interrupt_second(*args, **kwargs):
+            calls["n"] += 1
+            if calls["n"] == 2:
+                raise KeyboardInterrupt
+            return real(*args, **kwargs)
+
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, "report.json")
+            with mock.patch("examples.architecture.live_smoke.run_config", side_effect=interrupt_second):
+                code, out, err = self._main(["--out", path])
+            with open(path, encoding="utf-8") as fh:
+                saved = json.load(fh)
+        self.assertEqual(code, 130)
+        self.assertEqual((saved["verdict"], saved["complete"]), ("INTERRUPTED", False))
+        self.assertEqual([r["config"] for r in saved["configs"]], ["openai-agents / conventional"])
+
+    def test_rehearsal_also_rejects_an_unsupported_model_before_any_request(self):
+        with mock.patch("examples.architecture.live_smoke.run_matrix") as run:
+            code, out, err = self._main(["--model", "gpt-6.2-sol"])
+            run.assert_not_called()
+        self.assertIn("does not support model 'gpt-6.2-sol'", str(code) + err)
+
     def test_plan_prints_the_worst_case_and_sends_nothing(self):
         with mock.patch("examples.architecture.live_smoke.run_matrix") as run:
             code, out, err = self._main(["--plan", "--provider", "openai", "--model", MODEL,
@@ -549,7 +673,8 @@ class LiveSmokeHarnessTests(unittest.TestCase):
             run.assert_not_called()
         self.assertEqual(code, 0)
         self.assertIn("max 28 provider requests in total", err)
-        self.assertIn("= $1.1200", err)  # 28 x (8000 x $2.50 + 2000 x $10) / 1e6
+        self.assertIn("= $1.1200", err)  # planning estimate: 28 x (8000 x $2.50 + 2000 x $10) / 1e6
+        self.assertIn("hard bound", err)
 
     def test_preflight_rejects_a_model_id_a_framework_does_not_support_before_any_request(self):
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": "sk-not-used-ledger-cap-is-zero"}), \
@@ -560,7 +685,7 @@ class LiveSmokeHarnessTests(unittest.TestCase):
     def test_real_provider_setup_needs_a_key_and_never_falls_back_to_the_double(self):
         setup = ProviderSetup(ProviderSettings(MODEL), ProviderLedger(source=REAL_SOURCE, max_requests=0))
         self.assertFalse(setup.simulated)
-        self.assertIsNone(setup.base_url)
+        self.assertEqual(setup.base_url, "https://api.openai.com/v1")
         with mock.patch.dict(os.environ, {"OPENAI_API_KEY": ""}):
             with self.assertRaises(SystemExit):
                 setup.api_key()

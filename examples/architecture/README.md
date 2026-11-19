@@ -227,8 +227,10 @@ The offline demo replaces each framework's *model object* with a test double (`S
 - Retries are 0, at both the client and the SDK retry layer.
 - The timeout is explicit.
 - `max_output_tokens` is explicit.
+- A request is refused unsent if it does not carry that output bound.
 - There is a request cap per configuration (the framework's own limit).
-- A paid run has a spend cap: it refuses any request whose worst case could exceed the authorisation.
+- A paid run has a spend cap. Before sending, each request is priced from its own size (body bytes as an upper bound on input tokens, plus its `max_output_tokens`), and it is refused if it could take the conservative spend past the authorisation.
+- In real mode the endpoint is pinned to `https://api.openai.com/v1` for both frameworks. Environment base-URL overrides are ignored, and every request's host is recorded and checked.
 - Every request and response is recorded.
 
 **The smoke harness** ([`live_smoke.py`](live_smoke.py)):
@@ -237,7 +239,8 @@ The offline demo replaces each framework's *model object* with a test double (`S
 - It records provider requests, host tool calls, typed outcomes, controllers, termination and errors.
 - It grades each configuration PASS / FAIL / INCONCLUSIVE on mechanism checks.
 - CI rehearses it against the double.
-- `--provider openai` refuses to start without an explicit `--model`, prices, `OPENAI_API_KEY` and an `--authorize-usd` that covers the computed worst case.
+- `--provider openai` refuses to start without an explicit `--model`, positive prices, `OPENAI_API_KEY` and an `--authorize-usd` that covers the planned worst case.
+- In every mode it refuses model ids that a pinned framework does not know, and settings the two frameworks would send differently: a temperature for a model LlamaIndex treats as reasoning, a reasoning effort for one it does not, or a non-reasoning model without an explicit temperature.
 
 The proposed paid run is in the [decision packet](../../docs/live-smoke-decision-packet.md).
 
@@ -246,7 +249,7 @@ Compatibility findings from building this. Each one is fixed or guarded, and cov
 - **Hidden retries and long timeouts.** The previous `--live` used SDK and client defaults: `openai` retries twice with a 600 s read timeout, and `llama-index-llms-openai` retries 3 times with a 60 s timeout. There was no request or spend cap. All live use is now bounded and routed through the harness.
 - **LlamaIndex took a different path live.** With `OpenAIResponses`, `structured_predict` uses the Responses API's constrained decoding (`responses.parse`, `tool_choice="none"`), not the function-calling program that the offline mock exercises.
 - **It also dropped the LLM's own bounds.** That `responses.parse` call omits the LLM's `max_output_tokens`, reasoning options and sampling parameters. The Turnwise port now passes them explicitly (`step_llm_kwargs`), so A and B send the same bounds.
-- **Chat Completions is not used for LlamaIndex.** The previous live path used `llama_index.llms.openai.OpenAI`. Current OpenAI models (e.g. `gpt-6.1-sol`) document that tool calling requires the Responses API, so LlamaIndex now uses `OpenAIResponses`, the same API as the Agents SDK. The Chat Completions adapter also discards `refusal`.
+- **Chat Completions is not used for LlamaIndex.** The previous live path used `llama_index.llms.openai.OpenAI`. OpenAI's `gpt-6.1-sol` model page (read 2026-11-19) states *"Tool calling requires the Responses API"*, although `llama-index-llms-openai` 0.9.0 does not list that model as Responses-only. LlamaIndex now uses `OpenAIResponses`, the same API as the Agents SDK. The Chat Completions adapter also discards `refusal`.
 - **Refusals and truncation are hidden by LlamaIndex.** A refused or `incomplete` structured step surfaces only as a generic `ValueError`, and a refused or truncated `FunctionAgent` turn ends as an ordinary, empty completion. The Turnwise port and the harness read the wire record to name these.
 - **Model ids.** `llama-index-llms-openai==0.9.0` validates ids against its own table, which reaches `gpt-6.1-sol`. Newer ids such as `gpt-6.2-sol` fail, and the harness preflight refuses them before any request.
 - **Reasoning items.** On the next turn, the Agents SDK echoes `reasoning` items by id, which works with the API's default `store`. Setting `store=false` without encrypted reasoning content would break multi-turn runs on reasoning models (the double emulates the API's rejection). LlamaIndex sends `store=false` and drops reasoning items.

@@ -93,10 +93,11 @@ def step_llm_kwargs(llm: Any) -> dict[str, Any]:
         return {}
     if not isinstance(llm, OpenAIResponses):
         return {}  # the offline MockFunctionCallingLLM: nothing to bound
+    # Mirrors OpenAIResponses._get_model_kwargs (llama-index-llms-openai 0.9.0, responses.py:407-436).
     kwargs: dict[str, Any] = {}
     if llm.max_output_tokens is not None:
         kwargs["max_output_tokens"] = llm.max_output_tokens
-    if llm.reasoning_options is not None:
+    if llm.model in O1_MODELS and llm.reasoning_options is not None:
         kwargs["reasoning"] = llm.reasoning_options
     if llm.reasoning_options is None and llm.model not in O1_MODELS:
         kwargs.update(temperature=llm.temperature, top_p=llm.top_p)

@@ -15,7 +15,9 @@ The same synthetic scenario (`investigate`: *"Could the latest checkout deployme
 | LlamaIndex, conventional | `FunctionAgent` + `FunctionTool` (6 tools) | the model, inside the agent workflow |
 | LlamaIndex, Turnwise Core | `OpenAIResponses.structured_predict(StepOutcome, ...)` | the typed policy |
 
-Both frameworks call the **OpenAI Responses API**. The Agents SDK uses `OpenAIResponsesModel`; LlamaIndex uses `llama_index.llms.openai.OpenAIResponses`, because current OpenAI models document that tool calling requires the Responses API.
+Both frameworks call the **OpenAI Responses API** at `https://api.openai.com/v1`. The endpoint is pinned, so `OPENAI_BASE_URL` / `OPENAI_API_BASE` cannot redirect it. The Agents SDK uses `OpenAIResponsesModel`; LlamaIndex uses `llama_index.llms.openai.OpenAIResponses`.
+
+The `gpt-6.1-sol` model page states: *"Tool calling requires the Responses API."* Note that `llama-index-llms-openai==0.9.0` does not list it as Responses-only. Using the same API in both frameworks is also the parity choice.
 
 ## Proposed provider and model
 
@@ -23,13 +25,13 @@ Both frameworks call the **OpenAI Responses API**. The Agents SDK uses `OpenAIRe
 
 - It is a current model, not marked deprecated, and supports the Responses API, function calling and structured outputs (OpenAI model page, read 2026-11-19).
 - Both pinned framework versions accept the id. `llama-index-llms-openai==0.9.0` knows models up to `gpt-6.1-sol`; newer ids such as `gpt-6.2-sol` fail its model table, and the harness preflight refuses them before any request.
-- The effort is set explicitly because the Agents SDK applies its reasoning defaults only to `gpt-5*` ids. Without it, both frameworks would fall back to the provider default (`medium`).
+- The effort is set explicitly. On this code path, a `Model` instance with explicit `ModelSettings`, the Agents SDK applies none of its default model settings. LlamaIndex sends reasoning options only when they are set. Without the setting, both would get the provider default (`medium`). The harness refuses settings the frameworks would send differently: a temperature for a model LlamaIndex treats as reasoning, a reasoning effort for one it does not, and a missing temperature for a non-reasoning model.
 
 **Alternative: `gpt-4.1` with `temperature = 0`.** This model is non-reasoning, so it has no reasoning items and lets the sampling settings be identical in both frameworks. It is cheaper, but OpenAI marks it **Deprecated** (no shutdown date given). Choose one model, not both.
 
 ## Calls
 
-Caps are enforced by the harness *before* a request is sent, and every request is counted. There are no retries: `max_retries=0` on the client and `ModelRetrySettings(max_retries=0)` in the SDK.
+Caps are enforced by the harness *before* a request is sent, and every request is counted. A request is refused unsent if it does not carry the configured `max_output_tokens`. There are no retries: `max_retries=0` on the client and `ModelRetrySettings(max_retries=0)` in the SDK.
 
 | Configuration | Expected model calls | Maximum (hard cap = the framework's own limit) |
 |---|---|---|
@@ -60,7 +62,9 @@ Regional (data-residency) endpoints add 10%. The harness uses the default endpoi
 - **Expected** (`gpt-6.1-sol`): about 12 requests × ~1,200 input tokens, plus up to ~600 output tokens each, comes to about **$0.05–$0.25**. Input sizes come from the provider-double rehearsal; real tokenisation and reasoning length are not known before running.
 - **Worst case** (`gpt-6.1-sol`): 28 requests × (8,000 input × $2.50 + 2,000 output × $10.00) / 10⁶ = **$1.12**. For `gpt-4.1` it is $0.90.
 
-The harness computes this worst case itself. It refuses to start if the worst case exceeds `--authorize-usd`, and it refuses any single request that could take the spend past it.
+The harness computes this worst case itself, and refuses to start if it exceeds `--authorize-usd`. The 8,000-input-token figure is a planning estimate.
+
+The **hard bound** is separate. Before each request is sent, the ledger prices that request from its actual size, using the body's byte length + 512 as an upper bound on input tokens, plus its `max_output_tokens`. It refuses the request if that bound, added to the spend so far, could exceed the authorisation. The spend so far is reported usage plus the bound of any request that got no response.
 
 ## Authorisation requested
 
@@ -86,7 +90,7 @@ Third, the paid run. It needs `OPENAI_API_KEY` in the environment and only runs 
 python -m examples.architecture.live_smoke --provider openai --model gpt-6.1-sol --reasoning-effort low --max-output-tokens 2000 --timeout 60 --input-usd-per-mtok 2.50 --output-usd-per-mtok 10.00 --authorize-usd 2.00 --out live-smoke-gpt-6.1-sol.json
 ```
 
-The exit status is 0 for PASS, 2 for INCONCLUSIVE and 1 for FAIL.
+The exit status is 0 for PASS, 1 for FAIL, 2 for a usage error or refusal to start, 3 for INCONCLUSIVE and 130 if interrupted. With `--out`, the JSON report is rewritten after every configuration, so an interrupted run keeps the record of the requests it already sent.
 
 ## What is recorded
 
@@ -110,7 +114,7 @@ Each configuration is graded on **mechanism only**.
 
 - a write was executed;
 - a host receipt came from someone other than the expected controller (the model's own tool calls in A, policy decisions in B);
-- an endpoint other than `/responses` was called;
+- an endpoint other than `/responses` on the expected host was called;
 - a request used a different model;
 - A did not offer all 6 tools natively, or used a structured-output format;
 - B offered any tool to the model, or did not request the `StepOutcome` JSON schema;
