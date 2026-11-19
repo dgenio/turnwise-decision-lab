@@ -2,6 +2,8 @@
 
 **Status:** architectural hypothesis and experimental design, not a validated optimization, novel algorithm, production agent or performance claim. **Scope:** a policy *inside* an existing agent's execution loop. First articulated as the core research question in [#28](https://github.com/dgenio/turnwise-decision-lab/issues/28); measurement gates live in [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9).
 
+> **2026-11-19 note.** An offline implementation of this contract now exists on `main` in [`examples/architecture/`](../examples/architecture/README.md) (OpenAI Agents SDK and LlamaIndex, simulated model). It differs from the pseudocode below in two documented ways: it has no `ABSTAIN` operation (budget exhaustion and `HOLD`/`CLARIFY` stop visibly instead), and its `CALL_HEAVY` is a single tool-less model call returning a typed outcome, with tool-capable native continuation available only as the separate `HANDOFF_AGENT` contrast. The evidence boundaries below are dated and unchanged.
+
 ## The question
 
 A model router usually answers: **which generative model should handle this request?**

@@ -1,5 +1,7 @@
 # Publishing and verifying Turnwise Decision Lab
 
+> **Historical (2026-11-18).** Release checklist written for the v0.4/v0.5 PRs, both now merged. The Pages and announcement rules still apply; for current status see [release-status.md](release-status.md).
+
 Repository: https://github.com/dgenio/turnwise-decision-lab
 v0.4 was merged in [PR #1](https://github.com/dgenio/turnwise-decision-lab/pull/1). Pages is live at https://dgenio.github.io/turnwise-decision-lab/ (deployed by `.github/workflows/pages.yml` on pushes to `main` that touch `demo/`).
 
