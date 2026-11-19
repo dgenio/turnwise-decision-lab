@@ -9,6 +9,7 @@ from turnwise_lab.v07.gate import CLARIFY
 from turnwise_lab.v07.world import StudyWorld
 from turnwise_lab.v08.guard import IntentBoundHost, NoSyntheticHoldGate, user_history
 from turnwise_lab.v08.run import run_hosted_turn, run_local_turn
+from turnwise_lab.v08.pilot import ARMS, CHECKLIST, ChecklistChat, run_arm
 
 
 def proposed(action, *, provider="hosted-agent", **args):
@@ -39,8 +40,10 @@ class FakeHostedChat:
 
     def __init__(self, outputs):
         self.outputs = list(outputs)
+        self.seen = []
 
     def complete(self, messages, tools):
+        self.seen.append([dict(m) for m in messages])
         if not self.outputs:
             raise AssertionError("unexpected additional model call")
         return self.outputs.pop(0), {
@@ -173,6 +176,32 @@ class AssistantTextIsNotReferentAuthority(unittest.TestCase):
             {"role": "assistant", "content": "payments are failing"},
         ]
         self.assertEqual(user_history(history), [history[0]])
+
+
+class NoSpendPilotWiring(unittest.TestCase):
+    def test_all_four_arms_are_independent_and_prompt_checklist_is_visible(self):
+        for arm in ARMS:
+            with self.subTest(arm=arm):
+                chat = FakeHostedChat([{"content": "Hello.", "tool_calls": []}])
+                trace = run_arm(arm, "hello", world=StudyWorld(), chat=chat, turn_id="test-" + arm)
+                self.assertEqual(trace["pilot_arm"], arm)
+                self.assertEqual(trace["checklist_added"], "+P" in arm)
+                self.assertEqual(trace["external_exit_gate"], "+G" in arm)
+                self.assertEqual(CHECKLIST in chat.seen[0][0]["content"], "+P" in arm)
+                self.assertEqual(trace["totals"]["writes_executed"], 0)
+
+    def test_checklist_wrapper_never_mutates_baseline_messages(self):
+        chat = FakeHostedChat([{"content": "OK", "tool_calls": []}])
+        messages = [{"role": "system", "content": "Original system"}, {"role": "user", "content": "hello"}]
+        ChecklistChat(chat).complete(messages, [])
+        self.assertEqual(messages[0]["content"], "Original system")
+        self.assertIn(CHECKLIST, chat.seen[0][0]["content"])
+
+    def test_unsupported_pilot_arm_is_rejected_before_any_model_call(self):
+        chat = FakeHostedChat([])
+        with self.assertRaises(ValueError):
+            run_arm("turnwise-unimplemented", "hello", world=StudyWorld(), chat=chat, turn_id="no")
+        self.assertFalse(chat.seen)
 
 
 class GuardedExecutionIntegration(unittest.TestCase):
