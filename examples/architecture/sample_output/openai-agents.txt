@@ -1,0 +1,174 @@
+####################################################################################################
+# Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: investigate
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
+####################################################################################################
+
+=== Conventional agent -- OpenAI Agents SDK (Agent + Runner.run_sync + function tools) ===
+model : SIMULATED model (deterministic stand-in; no inference performed); plugged in via agents.testing.ScriptedModel
+task  : Could the latest checkout deployment explain the increase in errors?
+
+STEP 1
+  controller  : LLM (inside the SDK Runner loop)
+  decision    : tool call error_trend(service=checkout)
+  host        : validated and executed -> r1
+  observation : error rate 0.4% -> 6.4% around deploy d-142 -> appended to the conversation; the LLM
+                decides again
+STEP 2
+  controller  : LLM (inside the SDK Runner loop)
+  decision    : tool call recent_deploys(service=checkout)
+  host        : validated and executed -> r2
+  observation : d-142 at 2026-11-01T11:02:00Z: raise upstream timeout 8s->12s; shrink connection
+                pool 50->20 -> appended to the conversation; the LLM decides again
+STEP 3
+  controller  : LLM (inside the SDK Runner loop)
+  decision    : tool call validate_config(service=checkout)
+  host        : validated and executed -> r3
+  observation : drift: pool_size 20 (baseline 50), upstream_timeout_s 12 (baseline 8) -> appended to
+                the conversation; the LLM decides again
+STEP 4
+  controller  : LLM (inside the SDK Runner loop)
+  decision    : final answer (no tool call) -> the SDK Runner ends the run
+  host        : not consulted: the run ends when the model stops calling tools
+  observation : "Plausibly yes. checkout's error rate rose from 0.4% to 6.4% around deploy d-142
+                (2026-11-01T11:02:00Z: raise upstream timeout 8s->12s; shrink connection pool..."
+
+RESULT  completed (SDK final_output)
+        Plausibly yes. checkout's error rate rose from 0.4% to 6.4% around deploy d-142
+        (2026-11-01T11:02:00Z: raise upstream timeout 8s->12s; shrink connection pool 50->20).
+        Configuration validation shows drift from the approved baseline: pool_size 20 (baseline 50),
+        upstream_timeout_s 12 (baseline 8). The timing is consistent with the deploy causing the
+        errors, but this is correlation, not proof.
+  note: the SDK ends the run when the model answers without a tool call; no host check of the
+        answer
+  note: host action record: no side effect was requested or executed
+  counts: model_calls=4, host_tool_requests=3  (operation counts in this run only; not a cost, latency or quality measurement)
+  writes executed: 0
+
+=== Turnwise Core -- same agent, policy: TriagePolicy (deterministic rules) (OpenAI Agents SDK) ===
+model : SIMULATED model (deterministic stand-in; no inference performed); plugged in via agents.testing.ScriptedModel
+task  : Could the latest checkout deployment explain the increase in errors?
+
+STEP 1
+  controller  : Turnwise policy
+  decision    : CALL_TOOL error_trend(service=checkout)
+  why         : symptom evidence is a cheap read and still missing
+  host        : validated and executed -> r1
+  observation : error rate 0.4% -> 6.4% around deploy d-142 -> back to the policy
+STEP 2
+  controller  : Turnwise policy
+  decision    : CALL_TOOL recent_deploys(service=checkout)
+  why         : change evidence is a cheap read and still missing
+  host        : validated and executed -> r2
+  observation : d-142 at 2026-11-01T11:02:00Z: raise upstream timeout 8s->12s; shrink connection
+                pool 50->20 -> back to the policy
+STEP 3
+  controller  : Turnwise policy
+  decision    : CALL_HEAVY context=[r1, r2] may_propose=[service_health, validate_config,
+                search_docs]
+  why         : the question needs reasoning over the evidence; use the capable model
+  host        : validated; called the heavy model once via OpenAI Agents SDK:
+                Runner.run_sync(agent.clone(tools=[], output_type=StepOutcome), max_turns=1)
+  observation : m1 tool_proposal validate_config(service=checkout): "I need validate_config evidence
+                before I can answer." -> back to the policy
+STEP 4
+  controller  : Turnwise policy
+  decision    : CALL_WORKFLOW validate_config(service=checkout) [adopts m1's proposal]
+  why         : adopt m1's proposal: a registered read that has not been done
+  host        : validated and executed -> r3
+  observation : drift: pool_size 20 (baseline 50), upstream_timeout_s 12 (baseline 8) -> back to the
+                policy
+STEP 5
+  controller  : Turnwise policy
+  decision    : CALL_HEAVY context=[r1, r2, r3] may_propose=[service_health, search_docs]
+  why         : the question needs reasoning over the evidence; use the capable model
+  host        : validated; called the heavy model once via OpenAI Agents SDK:
+                Runner.run_sync(agent.clone(tools=[], output_type=StepOutcome), max_turns=1)
+  observation : m2 answer_candidate citing [r1, r2, r3]: "Plausibly yes. checkout's error rate rose
+                from 0.4% to 6.4% around deploy d-142 (2026-11-01T11:02:00Z: raise upstream timeout
+                8s->12s; sh..." -> back to the policy
+STEP 6
+  controller  : Turnwise policy
+  decision    : FINISH with answer candidate m2
+  why         : m2 is an answer candidate; ask the host to accept it
+  host        : accepted m2: its citations [r1, r2, r3] are executed host receipts it was shown; the
+                keyword screen found no claimed side effect. Causal correctness is NOT verified.
+  observation : run ends
+
+RESULT  finished
+        Plausibly yes. checkout's error rate rose from 0.4% to 6.4% around deploy d-142
+        (2026-11-01T11:02:00Z: raise upstream timeout 8s->12s; shrink connection pool 50->20).
+        Configuration validation shows drift from the approved baseline: pool_size 20 (baseline 50),
+        upstream_timeout_s 12 (baseline 8). The timing is consistent with the deploy causing the
+        errors, but this is correlation, not proof.
+  note: model proposal m1 validate_config(service=checkout): adopted by the policy, host executed
+        (r3)
+  note: host action record: no side effect was requested or executed
+  counts: policy_decisions=6, model_calls_chosen_by_policy=2, host_tool_requests=3, rejected=0  (operation counts in this run only; not a cost, latency or quality measurement)
+  writes executed: 0
+
+=== Agent handoff (contrast; NOT Turnwise Core) -- same agent, policy: HandoffPolicy (OpenAI Agents SDK) ===
+model : SIMULATED model (deterministic stand-in; no inference performed); plugged in via agents.testing.ScriptedModel
+task  : Could the latest checkout deployment explain the increase in errors?
+
+STEP 1
+  controller  : Turnwise policy
+  decision    : CALL_TOOL error_trend(service=checkout)
+  why         : symptom evidence is a cheap read and still missing
+  host        : validated and executed -> r1
+  observation : error rate 0.4% -> 6.4% around deploy d-142 -> back to the policy
+STEP 2
+  controller  : Turnwise policy
+  decision    : CALL_TOOL recent_deploys(service=checkout)
+  why         : change evidence is a cheap read and still missing
+  host        : validated and executed -> r2
+  observation : d-142 at 2026-11-01T11:02:00Z: raise upstream timeout 8s->12s; shrink connection
+                pool 50->20 -> back to the policy
+STEP 3
+  controller  : Turnwise policy
+  decision    : HANDOFF_AGENT context=[r1, r2]
+  why         : cheap evidence gathered; delegate the rest of the task to the native agent
+  host        : validated; control TRANSFERRED to the native agent (max 6 turns)
+  observation : the native agent now chooses operations itself
+STEP 3.1
+  controller  : native agent (handoff)
+  decision    : tool call validate_config(service=checkout)
+  host        : validated and executed -> r3
+  observation : drift: pool_size 20 (baseline 50), upstream_timeout_s 12 (baseline 8)
+STEP 3.2
+  controller  : native agent (handoff)
+  decision    : final answer -> control returns to the policy
+  host        : not consulted until the policy decides again
+  observation : m1 answer_candidate citing [r1, r2, r3]: "Plausibly yes. checkout's error rate rose
+                from 0.4% to 6.4% around deploy d-142 (2026-11-01T11:02:00Z: raise upstream timeout
+                8s->12s; sh..."
+STEP 4
+  controller  : Turnwise policy
+  decision    : FINISH with answer candidate m1
+  why         : m1 is an answer candidate; ask the host to accept it
+  host        : accepted m1: citations [r1, r2, r3] were attached by the runtime (the native agent
+                declares none), so this provenance check is weak; the keyword screen found no
+                claimed side effect. Causal correctness is NOT verified.
+  observation : run ends
+
+RESULT  finished
+        Plausibly yes. checkout's error rate rose from 0.4% to 6.4% around deploy d-142
+        (2026-11-01T11:02:00Z: raise upstream timeout 8s->12s; shrink connection pool 50->20).
+        Configuration validation shows drift from the approved baseline: pool_size 20 (baseline 50),
+        upstream_timeout_s 12 (baseline 8). The timing is consistent with the deploy causing the
+        errors, but this is correlation, not proof.
+  note: host action record: no side effect was requested or executed
+  counts: policy_decisions=4, model_calls_chosen_by_policy=0, handoffs (agent's own model calls not counted here)=1, host_tool_requests=3, rejected=0  (operation counts in this run only; not a cost, latency or quality measurement)
+  writes executed: 0
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> tool error_trend                              |    1  policy -> CALL_TOOL error_trend
+   2  LLM -> tool recent_deploys                           |    2  policy -> CALL_TOOL recent_deploys
+   3  LLM -> tool validate_config                          |    3  policy -> CALL_HEAVY => proposes validate_config
+   4  LLM -> final answer, run ends                        |    4  policy -> CALL_WORKFLOW validate_config (adopts m1)
+                                                           |    5  policy -> CALL_HEAVY => answer candidate
+                                                           |    6  policy -> FINISH [finished]
+  result: completed (SDK final_output)                     |   result: finished

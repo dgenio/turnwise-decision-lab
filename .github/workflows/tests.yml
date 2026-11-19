@@ -27,3 +27,34 @@ jobs:
           python -m turnwise_lab.evaluate --output reports/synthetic-contract-replay.json
       - name: Committed evidence must be byte-identical to a fresh run (v0.4 benchmark JSON excluded; it records wall-clock timings)
         run: git diff --exit-code -- reports demo
+
+  architecture-examples:
+    # The OpenAI Agents SDK / LlamaIndex examples in examples/architecture. Offline: the frameworks run
+    # for real with their own test-double models; no credentials, no inference, no provider spend.
+    strategy:
+      fail-fast: false
+      matrix:
+        python-version: ['3.11', '3.12']
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - name: Install the pinned framework versions
+        run: pip install -r examples/architecture/requirements.txt
+      - name: Architecture tests (a skipped framework test is a failure here; proxy-routed network pointed at a dead port)
+        env:
+          TURNWISE_REQUIRE_FRAMEWORKS: '1'
+          OPENAI_API_KEY: ''
+          HTTP_PROXY: http://127.0.0.1:9
+          HTTPS_PROXY: http://127.0.0.1:9
+        run: python -m unittest tests.test_architecture_core tests.test_architecture_openai_agents tests.test_architecture_llamaindex -v
+      - name: Run the demo; committed sample output must be byte-identical
+        env:
+          OPENAI_API_KEY: ''
+          HTTP_PROXY: http://127.0.0.1:9
+          HTTPS_PROXY: http://127.0.0.1:9
+        run: |
+          examples/architecture/regenerate_samples.sh
+          git diff --exit-code -- examples/architecture/sample_output
