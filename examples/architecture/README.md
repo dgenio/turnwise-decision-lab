@@ -229,8 +229,8 @@ The offline demo replaces each framework's *model object* with a test double (`S
 - `max_output_tokens` is explicit.
 - A request is refused unsent if it does not carry that output bound.
 - There is a request cap per configuration (the framework's own limit).
-- A paid run has a spend cap. Before sending, each request is priced from its own size (body bytes as an upper bound on input tokens, plus one `max_output_tokens` for every reasoning item echoed back by id, plus its own `max_output_tokens`), and it is refused if it could take the conservative spend past the authorisation.
-- In real mode the endpoint is pinned to `https://api.openai.com/v1` for both frameworks. Environment base-URL overrides are ignored, and every request's host is recorded and checked.
+- A paid run has a spend guard. Before sending, each request is priced from its own size (body bytes as a conservative text-token estimate, plus one `max_output_tokens` for every reasoning item echoed back by id, plus its own `max_output_tokens`), and refused if its reservation could take spending past the authorisation. HTTP errors with missing usage keep their reservation; actual reported usage cannot lower it. This is **not a provider-enforced billing ceiling**: it relies on operator-supplied current prices, textual payloads and the API's token reporting.
+- In real mode the endpoint is pinned to `https://api.openai.com/v1/responses` for both frameworks. Environment base-URL overrides are ignored; the ledger refuses an off-target host, scheme or path **before** sending, and every request's destination is also checked in the trace.
 - Every request and response is recorded.
 
 **The smoke harness** ([`live_smoke.py`](live_smoke.py)):

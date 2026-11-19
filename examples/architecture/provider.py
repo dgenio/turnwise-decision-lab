@@ -142,12 +142,20 @@ class ProviderLedger:
         return self.prices.cost(u["input_tokens"], u["output_tokens"])
 
     def spend_bound_usd(self) -> float | None:
-        """A conservative bound: reported usage, plus each request's own pre-send bound when it got no response
-        (a timeout the provider may still have billed, or one still in flight) or a success without usage."""
+        """Reserve at least each admitted request's size-derived bound, even for HTTP errors.
+
+        An error response with no usage does not prove that the provider billed zero.
+        A reported usage larger than our estimate must also count. Keep actual
+        reported usage separately, for transparency; never use it to *reduce* a
+        previously reserved request budget. This is an estimated billing guard,
+        not a guarantee about a provider's final invoice.
+        """
         if self.prices is None:
             return None
-        unknown = [e for e in self.exchanges if e.status is None or (e.status < 400 and not e.usage)]
-        return self.reported_cost_usd() + sum(self.prices.cost(*e.bound_tokens) for e in unknown)
+        return sum(max(self.prices.cost(*e.bound_tokens),
+                       self.prices.cost(e.usage.get("input_tokens", 0),
+                                        e.usage.get("output_tokens", 0)))
+                   for e in self.exchanges)
 
     def last_refusal(self) -> str | None:
         with self._lock:
@@ -158,8 +166,14 @@ class ProviderLedger:
         with self._lock:
             summary = summarize_request(request.content)
             max_out = summary.get("max_output_tokens")
+            expected_host = "provider-double.invalid" if self.source == DOUBLE_SOURCE else "api.openai.com"
             why = None
-            if len(self.exchanges) >= self.max_requests:
+            # Guard the target before network transport, not only in a post-run trace check.
+            # This also refuses a redirect or framework override of the pinned Responses endpoint.
+            if (request.url.scheme != "https" or request.url.host != expected_host
+                    or request.url.path != "/v1/responses"):
+                why = f"provider endpoint is not the pinned Responses API ({request.url})"
+            elif len(self.exchanges) >= self.max_requests:
                 why = f"provider request cap reached ({self.max_requests})"
             elif not isinstance(max_out, int) or isinstance(max_out, bool) or not 0 < max_out <= self.max_output_tokens:
                 # Every model request must carry the configured output bound; anything else is refused unsent.

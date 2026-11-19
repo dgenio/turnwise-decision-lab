@@ -400,12 +400,53 @@ class LimitsTests(unittest.TestCase):
                 _, _, probe = turnwise(framework, ProviderDouble(), prices=prices)
                 first_bound = prices.cost(*probe.ledger.exchanges[0].bound_tokens)
                 # The cap admits exactly the first request's bound. The second step's packet is larger (one more
-                # receipt), so reported cost + its bound exceeds the cap: refused before sending.
+                # receipt), so reserved cost + its bound exceeds the cap: refused before sending.
                 double = ProviderDouble()
                 result, rt, setup = turnwise(framework, double, prices=prices, usd_cap=first_bound)
                 self.assertEqual(len(double.requests), 1)
                 self.assertIn("authorised spend", result.answer)
                 self.assertLessEqual(setup.ledger.spend_bound_usd(), first_bound)
+
+
+    def test_http_errors_without_usage_keep_their_budget_reservation(self):
+        # A 429/500 cannot prove zero billed usage. Reserve its pre-send bound
+        # before allowing the next configuration or retry.
+        import httpx2
+        from examples.architecture.provider import ProviderCapReached
+        prices = Prices(input_per_mtok=2.5, output_per_mtok=10.0)
+        payload = json.dumps({"model": MODEL, "max_output_tokens": 2000}).encode()
+        for status in (429, 500):
+            with self.subTest(status=status):
+                first = httpx2.Request("POST", "https://provider-double.invalid/v1/responses",
+                                       content=payload)
+                max_first = prices.cost(*live_smoke.request_bound(payload, 2000)) if hasattr(
+                    live_smoke, "request_bound") else prices.cost(len(payload) + 512, 2000)
+                ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=2, prices=prices,
+                                        usd_cap=max_first)
+                ledger.admit(first)
+                ledger.receive(httpx2.Response(status, json={"error": {"message": "provider error"}},
+                                               request=first))
+                self.assertEqual(ledger.reported_cost_usd(), 0.0)
+                self.assertAlmostEqual(ledger.spend_bound_usd(), max_first)
+                second = httpx2.Request("POST", "https://provider-double.invalid/v1/responses",
+                                        content=payload)
+                with self.assertRaises(ProviderCapReached):
+                    ledger.admit(second)
+                self.assertEqual(len(ledger.exchanges), 1)
+
+    def test_provider_endpoint_is_checked_before_any_request_is_sent(self):
+        import httpx2
+        from examples.architecture.provider import ProviderCapReached
+        ledger = ProviderLedger(source=REAL_SOURCE, max_requests=4)
+        payload = json.dumps({"model": MODEL, "max_output_tokens": 2000}).encode()
+        for target in ("http://api.openai.com/v1/responses",
+                       "https://other.example/v1/responses",
+                       "https://api.openai.com/v1/chat/completions"):
+            with self.subTest(target=target):
+                with self.assertRaises(ProviderCapReached) as ctx:
+                    ledger.admit(httpx2.Request("POST", target, content=payload))
+                self.assertIn("pinned Responses API", str(ctx.exception))
+        self.assertEqual(ledger.exchanges, [])
 
     def test_spend_cap_prices_each_request_by_its_actual_size(self):
         # Review finding: a fixed 8,000-token assumption let a ~100k-token request through a $0.05 cap.
