@@ -64,7 +64,7 @@ Regional (data-residency) endpoints add 10%. The harness uses the default endpoi
 
 The harness computes this worst case itself, and refuses to start if it exceeds `--authorize-usd`. The 8,000-input-token figure is a planning estimate.
 
-The **hard bound** is separate. Before each request is sent, the ledger prices that request from its actual size, using the body's byte length + 512 as an upper bound on input tokens, plus its `max_output_tokens`. It refuses the request if that bound, added to the spend so far, could exceed the authorisation. The spend so far is reported usage plus the bound of any request that got no response.
+The **hard bound** is separate. Before each request is sent, the ledger prices that request from its actual size, using the body's byte length + 512 as an upper bound on input tokens, plus its `max_output_tokens`. Each reasoning item that the Agents SDK echoes back by id adds another `max_output_tokens` of input, because its stored content may be billed but is not in the body. It refuses the request if that bound, added to the spend so far, could exceed the authorisation. The spend so far is reported usage plus the bound of any request that got no response.
 
 ## Authorisation requested
 

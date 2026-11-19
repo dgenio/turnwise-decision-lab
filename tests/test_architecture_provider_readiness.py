@@ -64,8 +64,10 @@ def setUpModule():
 
 
 def make_setup(double, *, max_requests=10, model=MODEL, prices=None, usd_cap=None, **settings):
-    ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=max_requests, prices=prices, usd_cap=usd_cap)
-    return ProviderSetup(ProviderSettings(model, **settings), ledger, double.transport())
+    settings = ProviderSettings(model, **settings)
+    ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=max_requests, prices=prices, usd_cap=usd_cap,
+                            max_output_tokens=settings.max_output_tokens)
+    return ProviderSetup(settings, ledger, double.transport())
 
 
 def conventional(framework, double, task=None, **kw):
@@ -658,7 +660,49 @@ class LiveSmokeHarnessTests(unittest.TestCase):
                 saved = json.load(fh)
         self.assertEqual(code, 130)
         self.assertEqual((saved["verdict"], saved["complete"]), ("INTERRUPTED", False))
-        self.assertEqual([r["config"] for r in saved["configs"]], ["openai-agents / conventional"])
+        self.assertEqual(saved["source"], DOUBLE_SOURCE)  # the header is there, not just a verdict
+        self.assertEqual([r["config"] for r in saved["configs"]],
+                         ["openai-agents / conventional", "openai-agents / turnwise"])
+        self.assertEqual(saved["configs"][1]["verdict"], "INTERRUPTED")
+
+    def test_an_interrupt_mid_configuration_keeps_the_requests_already_sent(self):
+        # Review finding: Ctrl-C inside a configuration lost its requests, including one cut off in flight.
+        class InterruptOnSecond(ProviderDouble):
+            def handle(self, request):
+                if len(self.requests) == 1:
+                    self.requests.append({})
+                    raise KeyboardInterrupt
+                return super().handle(request)
+
+        saved = {}
+        with self.assertRaises(KeyboardInterrupt):
+            live_smoke.run_matrix(ProviderSettings(MODEL), double=InterruptOnSecond(),
+                                  on_record=lambda report: saved.update(json.loads(json.dumps(report))))
+        rec = saved["configs"][0]
+        self.assertEqual((saved["verdict"], rec["verdict"]), ("INTERRUPTED", "INTERRUPTED"))
+        self.assertEqual(len(rec["provider_requests"]), 2)  # the completed one and the one cut off
+        self.assertIsNone(rec["provider_requests"][1]["status"])
+
+    def test_misconfigured_bounds_and_prices_fail_loudly(self):
+        with self.assertRaises(ValueError):
+            ProviderSetup(ProviderSettings(MODEL, max_output_tokens=4000),
+                          ProviderLedger(source=DOUBLE_SOURCE, max_requests=1))  # ledger default 2000
+        for bad in ((0, 10), (-2, -10)):
+            with self.assertRaises(ValueError):
+                Prices(*bad)
+        with self.assertRaises(ValueError):
+            live_smoke.run_matrix(ProviderSettings("gpt-4.1"), double=ProviderDouble())  # no explicit temperature
+
+    def test_echoed_reasoning_items_widen_the_input_bound(self):
+        # The SDK echoes reasoning items by id; their stored content may be billed as input but is not in the body.
+        from examples.architecture.provider import request_bound
+        plain = request_bound(b"x" * 1000, 2000)
+        echoed = request_bound(b"x" * 1000, 2000, reasoning_refs=2)
+        self.assertEqual(echoed[0] - plain[0], 4000)
+        double = ProviderDouble(reasoning_items=True)
+        _, _, setup = conventional("openai-agents", double)
+        bounds = [e.bound_tokens[0] for e in setup.ledger.exchanges]
+        self.assertGreater(bounds[1] - bounds[0], 2000)  # request 2 echoes rs_1
 
     def test_rehearsal_also_rejects_an_unsupported_model_before_any_request(self):
         with mock.patch("examples.architecture.live_smoke.run_matrix") as run:

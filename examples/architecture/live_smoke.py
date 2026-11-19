@@ -229,6 +229,9 @@ def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = No
     ``on_record(report)`` is called with the partial report after every configuration, so a caller can keep
     the record of requests already made even if the run is interrupted.
     """
+    problems = parity_problems(settings)
+    if problems:
+        raise ValueError("; ".join(problems))
     source = DOUBLE_SOURCE if double is not None else REAL_SOURCE
     report: dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -240,12 +243,28 @@ def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = No
         "complete": False, "verdict": "INCOMPLETE", "configs": [],
     }
     spent = 0.0
+    if on_record is not None:
+        on_record(report)  # the header exists before the first request
     for framework, architecture in configs:
         usd_cap = None if authorize_usd is None else max(authorize_usd - spent, 0.0)
         ledger = ProviderLedger(source=source, max_requests=request_cap(architecture), prices=prices,
                                 usd_cap=usd_cap, max_output_tokens=settings.max_output_tokens)
         setup = ProviderSetup(settings, ledger, None if double is None else double.transport())
-        rec = run_config(framework, architecture, setup)
+        try:
+            rec = run_config(framework, architecture, setup)
+        except KeyboardInterrupt:
+            # Keep what this configuration already sent, including a request cut off in flight (possibly billed).
+            report["configs"].append({
+                "config": f"{framework} / {architecture}", "framework": framework, "architecture": architecture,
+                "source": source, "verdict": "INTERRUPTED", "error": "interrupted (KeyboardInterrupt)",
+                "provider_requests": [asdict(e) for e in ledger.exchanges], "refused_requests": list(ledger.refused),
+                "usage": ledger.usage_totals(), "spend_bound_usd": ledger.spend_bound_usd()})
+            report["verdict"] = "INTERRUPTED"
+            if prices is not None:
+                report["spend_bound_usd"] = spent + (ledger.spend_bound_usd() or 0.0)
+            if on_record is not None:
+                on_record(report)
+            raise
         report["configs"].append(rec)
         spent += rec["spend_bound_usd"] or 0.0
         if prices is not None:

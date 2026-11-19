@@ -229,7 +229,7 @@ The offline demo replaces each framework's *model object* with a test double (`S
 - `max_output_tokens` is explicit.
 - A request is refused unsent if it does not carry that output bound.
 - There is a request cap per configuration (the framework's own limit).
-- A paid run has a spend cap. Before sending, each request is priced from its own size (body bytes as an upper bound on input tokens, plus its `max_output_tokens`), and it is refused if it could take the conservative spend past the authorisation.
+- A paid run has a spend cap. Before sending, each request is priced from its own size (body bytes as an upper bound on input tokens, plus one `max_output_tokens` for every reasoning item echoed back by id, plus its own `max_output_tokens`), and it is refused if it could take the conservative spend past the authorisation.
 - In real mode the endpoint is pinned to `https://api.openai.com/v1` for both frameworks. Environment base-URL overrides are ignored, and every request's host is recorded and checked.
 - Every request and response is recorded.
 

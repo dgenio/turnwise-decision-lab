@@ -64,6 +64,10 @@ class Prices:
     input_per_mtok: float
     output_per_mtok: float
 
+    def __post_init__(self) -> None:
+        if not (self.input_per_mtok > 0 and self.output_per_mtok > 0):
+            raise ValueError("prices must be positive")
+
     def cost(self, input_tokens: int, output_tokens: int) -> float:
         return (input_tokens * self.input_per_mtok + output_tokens * self.output_per_mtok) / 1_000_000
 
@@ -72,9 +76,14 @@ class Prices:
         return self.cost(ASSUMED_MAX_INPUT_TOKENS, max_output_tokens)
 
 
-def request_bound(content: bytes, max_output_tokens: int) -> tuple[int, int]:
-    """Upper bounds (input tokens, output tokens) for one request, from its actual body."""
-    return len(content or b"") + INPUT_TOKEN_MARGIN, max_output_tokens
+def request_bound(content: bytes, max_output_tokens: int, reasoning_refs: int = 0) -> tuple[int, int]:
+    """Upper bounds (input tokens, output tokens) for one request, from its actual body.
+
+    ``reasoning_refs``: reasoning items echoed back in the input. The Agents SDK echoes them by id only, and the
+    provider may bill the stored reasoning behind each id as input, which is not in the body. Each one is
+    bounded by the output limit of the turn that produced it (the same ``max_output_tokens``).
+    """
+    return len(content or b"") + INPUT_TOKEN_MARGIN + reasoning_refs * max_output_tokens, max_output_tokens
 
 
 @dataclass(frozen=True)
@@ -111,8 +120,8 @@ class ProviderLedger:
 
     def __init__(self, *, source: str, max_requests: int, prices: Prices | None = None,
                  usd_cap: float | None = None, max_output_tokens: int = 2000):
-        if usd_cap is not None and prices is None:
-            raise ValueError("a spend cap needs prices")
+        if usd_cap is not None and (prices is None or usd_cap < 0):
+            raise ValueError("a spend cap needs prices and must not be negative")
         self.source, self.max_requests, self.prices, self.usd_cap = source, max_requests, prices, usd_cap
         self.max_output_tokens = max_output_tokens
         self.exchanges: list[Exchange] = []
@@ -155,7 +164,8 @@ class ProviderLedger:
             elif not isinstance(max_out, int) or isinstance(max_out, bool) or not 0 < max_out <= self.max_output_tokens:
                 # Every model request must carry the configured output bound; anything else is refused unsent.
                 why = f"request carries no output bound within max_output_tokens={self.max_output_tokens} (got {max_out!r})"
-            bound = request_bound(request.content, max_out if isinstance(max_out, int) else 0)
+            bound = request_bound(request.content, max_out if isinstance(max_out, int) else 0,
+                                  summary.get("input_items", []).count("reasoning"))
             if why is None and self.usd_cap is not None:
                 projected = self.spend_bound_usd() + self.prices.cost(*bound)
                 if projected > self.usd_cap:
@@ -208,6 +218,11 @@ class ProviderSetup:
     settings: ProviderSettings
     ledger: ProviderLedger
     transport: Any = None  # None: the real provider over the network
+
+    def __post_init__(self) -> None:
+        if self.ledger.max_output_tokens != self.settings.max_output_tokens:
+            raise ValueError(f"the ledger's output bound ({self.ledger.max_output_tokens}) must equal the settings' "
+                             f"max_output_tokens ({self.settings.max_output_tokens})")
 
     @property
     def simulated(self) -> bool:
