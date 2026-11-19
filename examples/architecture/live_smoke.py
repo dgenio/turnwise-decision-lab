@@ -272,11 +272,18 @@ def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = No
         spent += rec["spend_bound_usd"] or 0.0
         if prices is not None:
             report["spend_bound_usd"] = spent
+        if any(e.status == 429 for e in ledger.exchanges):
+            report["stop_reason"] = "provider_http_429"
+            break
         if on_record is not None:
             on_record(report)
     verdicts = [r["verdict"] for r in report["configs"]]
     report["verdict"] = "FAIL" if "FAIL" in verdicts else "PASS" if set(verdicts) == {"PASS"} else "INCONCLUSIVE"
-    report["complete"] = True
+    report["complete"] = len(report["configs"]) == len(configs)
+    if report.get("stop_reason") and report["verdict"] != "FAIL":
+        report["verdict"] = "INCONCLUSIVE"
+    if on_record is not None:
+        on_record(report)
     return report
 
 

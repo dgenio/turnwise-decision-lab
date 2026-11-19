@@ -604,6 +604,21 @@ class LiveSmokeHarnessTests(unittest.TestCase):
         self.assertIn("PROVIDER DOUBLE (simulated responses; no inference performed)", text)
         self.assertIn("synthetic: provider double", text)
 
+    def test_first_429_stops_all_further_transport_in_each_matrix_position(self):
+        for pos, before in enumerate((0, 4, 6, 10)):
+            with self.subTest(pos=pos):
+                double = ProviderDouble(faults=[None] * before + ["http_429"])
+                report = live_smoke.run_matrix(ProviderSettings(MODEL), double=double)
+                self.assertEqual(len(double.requests), before + 1)
+                self.assertEqual(len(report["configs"]), pos + 1)
+                self.assertEqual(report["stop_reason"], "provider_http_429")
+                self.assertEqual(report["verdict"], "INCONCLUSIVE")
+                last = report["configs"][-1]
+                self.assertEqual(last["provider_requests"][-1]["status"], 429)
+                if last["architecture"] == "turnwise":
+                    self.assertEqual(last["termination"]["status"], "held")
+                    self.assertEqual(last["policy_observed_outcome_ids"][-1], last["typed_outcomes"][-1]["id"])
+
     def test_provider_failures_are_inconclusive_and_the_matrix_continues(self):
         report = live_smoke.run_matrix(ProviderSettings(MODEL), double=ProviderDouble(faults=["http_500"]))
         verdicts = [r["verdict"] for r in report["configs"]]

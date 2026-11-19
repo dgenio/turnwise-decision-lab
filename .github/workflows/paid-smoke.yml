@@ -90,10 +90,19 @@ jobs:
         run: |
           umask 077
           if test -f "$RUNNER_TEMP/paid.json"; then
-            "$RUNNER_TEMP/venv/bin/python" -m examples.architecture.actions_summary "$RUNNER_TEMP/paid.json" >> "$GITHUB_STEP_SUMMARY"
+            "$RUNNER_TEMP/venv/bin/python" -m examples.architecture.actions_summary "$RUNNER_TEMP/paid.json" > "$RUNNER_TEMP/summary.tmp"
+            mv "$RUNNER_TEMP/summary.tmp" "$RUNNER_TEMP/turnwise-summary.json"
+            { echo '```json'; cat "$RUNNER_TEMP/turnwise-summary.json"; echo '```'; } >> "$GITHUB_STEP_SUMMARY"
           else
             echo 'No evidence file was produced. Real inference is unverified.' >> "$GITHUB_STEP_SUMMARY"
           fi
+      - name: Upload only the sanitized JSON
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: turnwise-summary
+          path: ${{ runner.temp }}/turnwise-summary.json
+          if-no-files-found: warn
       - name: Remove private trace
         if: always()
         run: rm -f "$RUNNER_TEMP/paid.json"

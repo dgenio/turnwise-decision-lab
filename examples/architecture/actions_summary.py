@@ -28,6 +28,8 @@ def summarize(report):
         rec = next((r for r in report["configs"] if (r["framework"], r["architecture"]) ==
                     (framework, architecture)), None)
         if rec is None:
+            if report.get("stop_reason") == "provider_http_429":
+                row.update(termination="not_started_after_http_429", admitted_requests=0, reserved_usd=0)
             continue
         requests = rec["provider_requests"]
         outcomes = rec.get("typed_outcomes", [])
@@ -48,6 +50,10 @@ def summarize(report):
             if rec["verdict"] != "INTERRUPTED" else "INCONCLUSIVE",
             admitted_requests=len(requests),
             http_status=[number(r["status"]) for r in requests],
+            provider_error_codes=[choice(r["response"].get("error_code"),
+                                         ("rate_limit_exceeded", "insufficient_quota", "slow_down",
+                                          "billing_hard_limit_reached", "credit_balance_exhausted"))
+                                  for r in requests if r["status"] is not None and r["status"] >= 400],
             responses_with_output=sum(bool(r["response"].get("output")) for r in requests),
             usage_records=len(usage),
             reported_tokens={k: sum(number(u[k]) for u in usage if k in u)
@@ -71,6 +77,4 @@ def summarize(report):
 
 
 if __name__ == "__main__":
-    print("```json")
     print(json.dumps(summarize(json.loads(Path(sys.argv[1]).read_text())), indent=2))
-    print("```")
