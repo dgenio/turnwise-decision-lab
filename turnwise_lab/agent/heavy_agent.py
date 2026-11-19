@@ -125,7 +125,7 @@ def run_heavy_agent(message: str, *, host: Host, lm, turn_id: str, conversation:
         d = Decision(op, name, dict(args) if isinstance(args, dict) else {}, provider=provider, model=lm.version if provider == "heavy-agent" else "host rule",
                      questions=[Question("tool_call", [], name, None, kind)])
         v = host.validate(d, observations)
-        vetoed = gate.veto(message, conversation or [], name, d.arguments) if gate is not None and provider == "heavy-agent" else None
+        vetoed = gate.veto(message, conversation or [], name) if gate is not None and provider == "heavy-agent" else None
         if vetoed:
             v = type(v)(False, d, "rejected", vetoed)
         if not v.ok:
