@@ -173,6 +173,8 @@ class ProviderLedger:
             if (request.url.scheme != "https" or request.url.host != expected_host
                     or request.url.path != "/v1/responses"):
                 why = f"provider endpoint is not the pinned Responses API ({request.url})"
+            elif any(e.status == 429 for e in self.exchanges):
+                why = "provider returned HTTP 429; this attempt is stopped"
             elif len(self.exchanges) >= self.max_requests:
                 why = f"provider request cap reached ({self.max_requests})"
             elif not isinstance(max_out, int) or isinstance(max_out, bool) or not 0 < max_out <= self.max_output_tokens:
@@ -270,6 +272,8 @@ def classify_from_wire(ledger: ProviderLedger | None, since: int) -> ModelCallFa
     if not new or new[-1].status is None:
         return None
     last = new[-1]
+    if last.status == 429:
+        return ModelCallFailed("provider error HTTP 429", "provider refused the request")
     if last.refusal() is not None:
         return ModelCallFailed("refusal", last.refusal()[:160])
     if last.response.get("status") == "incomplete":
@@ -312,7 +316,9 @@ def summarize_response(response: httpx2.Response) -> tuple[dict[str, Any], dict[
         return {"unparsed": str(body)[:300]}, {}
     if response.status_code >= 400 or "output" not in body:
         err = body.get("error")
-        return {"error": (err.get("message") if isinstance(err, dict) else str(err or body))[:300]}, {}
+        message = err.get("message") if isinstance(err, dict) else err or body
+        code = err.get("code") if isinstance(err, dict) else None
+        return {"error": str(message or "")[:300], "error_code": code}, {}
     out: list[dict[str, Any]] = []
     for item in body.get("output") or []:
         kind = item.get("type")

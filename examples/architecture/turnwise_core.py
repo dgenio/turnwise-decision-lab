@@ -28,7 +28,7 @@ from __future__ import annotations
 import copy
 import json
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from enum import Enum
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol, Union
@@ -118,6 +118,7 @@ class ModelOutcome:
     cited: tuple[str, ...] = ()
     shown: tuple[str, ...] = ()  # receipt ids that were in front of the model
     note: str = ""
+    provider_rate_limited: bool = False  # Set by the host adapter, never parsed from model text.
 
     def summary(self) -> str:
         if self.kind == "tool_proposal" and self.proposal:
@@ -352,12 +353,16 @@ class TurnwiseRuntime:
     def _call_model(self, step: int, d: Decision, tier: str) -> None:
         packet = self._packet(d, tier)
         self._model_calls += 1
+        rate_limited = False
         try:
             raw = self.model.call(tier, packet)
         except Exception as exc:  # a failed model call is an observation, not a crash or an answer...
             _raise_if_halt(exc)  # ...unless it is a halt (e.g. the provider spending cap): then the run stops
+            rate_limited = isinstance(exc, ModelCallFailed) and exc.category == "provider error HTTP 429"
             raw = {"kind": "invalid", "text": f"model call failed: {describe_failure(exc)}"}
         outcome = parse_outcome(raw, oid=f"m{len(self.outcomes) + 1}", source=f"{tier}_model", shown=d.context)
+        if rate_limited:
+            outcome = replace(outcome, provider_rate_limited=True)
         self.outcomes.append(outcome)
         self._latest = outcome
         self.rows.append(TraceRow(

@@ -71,6 +71,8 @@ class TriagePolicy:
         # 4. React to the latest model observation. The model proposes; the policy decides.
         note = ""
         if isinstance(last, ModelOutcome):
+            if last.provider_rate_limited:
+                return Decision(Op.HOLD, "provider returned HTTP 429", message="Provider unavailable for this attempt.")
             if last.kind == "answer_candidate":
                 return Decision(Op.FINISH, f"{last.id} is an answer candidate; ask the host to accept it",
                                 candidate=last.id)
