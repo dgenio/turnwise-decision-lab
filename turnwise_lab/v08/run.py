@@ -28,8 +28,9 @@ def run_local_turn(message: str, *, world, generator, heavy_lm, turn_id: str,
     gate = NoSyntheticHoldGate()
     claim = type_claim(message, user_history(history))
     if claim.type in ("action", "ambiguous", "untyped") or claim.declined_action:
-        return run_heavy_agent(message, host=host, lm=heavy_lm, turn_id=turn_id,
-                               conversation=history, gate=gate, arm=arm).as_json()
+        with host.native_proposal_scope():
+            return run_heavy_agent(message, host=host, lm=heavy_lm, turn_id=turn_id,
+                                   conversation=history, gate=gate, arm=arm).as_json()
     return run_contract_turn(message, host=host, generator=generator, heavy_lm=heavy_lm,
                              turn_id=turn_id, conversation=user_history(history),
                              gate=gate, arm=arm)
@@ -45,5 +46,6 @@ def run_hosted_turn(message: str, *, world, chat, turn_id: str,
     history = list(conversation or [])
     host = IntentBoundHost(world)
     host.bind_request(message, history)
-    return run_hosted_agent(message, host=host, chat=chat, turn_id=turn_id,
-                            conversation=history, gate=NoSyntheticHoldGate(), arm=arm)
+    with host.native_proposal_scope():
+        return run_hosted_agent(message, host=host, chat=chat, turn_id=turn_id,
+                                conversation=history, gate=NoSyntheticHoldGate(), arm=arm)
