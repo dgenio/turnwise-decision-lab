@@ -164,6 +164,8 @@ class GuardedExecutionIntegration(unittest.TestCase):
         )
         self.assertFalse([o for o in tr["observations"] if o["status"] == "approval_required"])
         self.assertEqual(tr["totals"]["writes_executed"], 0)
+        self.assertEqual(tr["final"]["action_status"], "requested_but_not_approved")
+        self.assertNotEqual(tr["final"]["kind"], "approval_required")
 
     def test_native_hosted_agent_exact_target_can_request_approval(self):
         chat = FakeHostedChat([
@@ -190,6 +192,19 @@ class GuardedExecutionIntegration(unittest.TestCase):
         receipts = {k for o in trace["observations"] if o["status"] == "ok" for k in o["facts"]}
         self.assertIn("errors:checkout", receipts)
         self.assertNotIn("errors:payments", receipts)
+
+
+    def test_model_cannot_claim_an_action_was_completed(self):
+        chat = FakeHostedChat([
+            {"tool_calls": [tool_call("page_oncall", service="checkout")], "content": ""},
+            {"tool_calls": [], "content": "Done. I contacted the team and they are working on it."},
+        ])
+        tr = run_hosted_turn("page checkout now", world=StudyWorld(), chat=chat, turn_id="false-completion")
+        self.assertEqual(tr["final"]["kind"], "approval_required")
+        self.assertEqual(tr["final"]["action_status"], "held_for_approval")
+        self.assertIn("Nothing was executed", tr["final"]["text"])
+        self.assertNotIn("contacted the team", tr["final"]["text"])
+        self.assertEqual(tr["totals"]["writes_executed"], 0)
 
 
 if __name__ == "__main__":
