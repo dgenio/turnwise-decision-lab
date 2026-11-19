@@ -19,7 +19,8 @@ class WorkflowTests(unittest.TestCase):
         self.assertIn("needs: reserve", workflow)
         self.assertIn('gh api --method POST "$api/refs"', workflow)
         self.assertNotIn("--method PATCH", workflow)
-        self.assertIn("ref=refs/tags/turnwise-paid-gpt-6-1-sol-001", workflow)
+        self.assertIn('gh api "$api/ref/tags/turnwise-paid-gpt-6-1-sol-001"', workflow)
+        self.assertIn("ref=refs/tags/turnwise-paid-gpt-6-1-sol-002", workflow)
         self.assertEqual(workflow.count("--provider openai"), 1)
         self.assertEqual(workflow.count("uses: actions/upload-artifact@"), 1)
         upload = workflow.split("uses: actions/upload-artifact@", 1)[1].split("      - name:", 1)[0]

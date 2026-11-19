@@ -2,7 +2,7 @@ name: One authorized GPT-6.1 Sol smoke
 on: workflow_dispatch
 permissions: {}
 concurrency:
-  group: turnwise-paid-gpt-6-1-sol-001
+  group: turnwise-paid-gpt-6-1-sol
   cancel-in-progress: false
 
 env:
@@ -57,7 +57,8 @@ jobs:
           set -euo pipefail
           api="repos/$GITHUB_REPOSITORY/git"
           test "$(gh api "$api/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA"
-          ref=refs/tags/turnwise-paid-gpt-6-1-sol-001
+          test "$(gh api "$api/ref/tags/turnwise-paid-gpt-6-1-sol-001" --jq .object.sha)" = 8ac5bca6aeef945be399e36362032e54631c4e2e
+          ref=refs/tags/turnwise-paid-gpt-6-1-sol-002
           response=$(gh api --method POST "$api/refs" -f ref="$ref" -f sha="$GITHUB_SHA")
           jq -e --arg ref "$ref" --arg sha "$GITHUB_SHA" '.ref == $ref and .object.sha == $sha' <<< "$response" >/dev/null
 
