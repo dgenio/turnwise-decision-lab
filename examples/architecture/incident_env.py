@@ -19,6 +19,7 @@ from __future__ import annotations
 import copy
 import json
 import re
+import threading
 from dataclasses import dataclass, field
 from typing import Any, Mapping
 
@@ -186,6 +187,7 @@ class IncidentHost:
         self.max_tool_calls = max_tool_calls
         self.write_ledger: list[str] = []
         self.receipts: list[Receipt] = []
+        self._lock = threading.Lock()  # frameworks may run several tool calls of one response concurrently
         self._harness = LocalHarness(build_actions(self.write_ledger), allow_writes=False)
         # The principal may request writes, but nothing grants or approves one here.
         self._identity = HostIdentity("demo-operator", permissions=frozenset({"read", "write"}))
@@ -217,6 +219,10 @@ class IncidentHost:
 
     # -- the one execution path
     def execute(self, tool_id: str, arguments: Any, *, proposed_by: str) -> Receipt:
+        with self._lock:  # budget check, execution and receipt id are one atomic step
+            return self._execute(tool_id, arguments, proposed_by=proposed_by)
+
+    def _execute(self, tool_id: str, arguments: Any, *, proposed_by: str) -> Receipt:
         spec = TOOLS_BY_ID.get(tool_id) if isinstance(tool_id, str) else None
         args = dict(arguments) if isinstance(arguments, Mapping) else None
         status, reason, facts = "rejected", "", {}

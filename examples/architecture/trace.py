@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import textwrap
 from dataclasses import dataclass, field
-from typing import Iterable, Sequence
+from typing import Iterable, Mapping, Sequence
 
 from .incident_env import Receipt
 
@@ -42,22 +42,40 @@ class RunResult:
 class NativeTurnItem:
     """One item a model emitted in a conventional framework loop."""
 
-    kind: str  # "tool_call" | "answer"
+    kind: str  # "tool_call" | "answer" | "text" (text the model sent alongside tool calls)
     tool: str = ""
     arguments: str = ""
     text: str = ""
+    call_id: str = ""  # the framework's id for this tool call
+
+
+def receipt_id_from_output(output: object) -> str | None:
+    """The host receipt id inside a tool result the framework returned (our tools return receipt JSON)."""
+    try:
+        data = json.loads(output) if isinstance(output, str) else None
+    except ValueError:
+        return None
+    return data.get("receipt") if isinstance(data, dict) and isinstance(data.get("receipt"), str) else None
 
 
 def conventional_rows(turns: Sequence[Sequence[NativeTurnItem]], receipts: Sequence[Receipt], *,
-                      controller: str, loop_name: str) -> list[TraceRow]:
-    """Rows for a native agent loop: each model response is one LLM decision."""
+                      receipt_for_call: Mapping[str, str], controller: str, loop_name: str) -> list[TraceRow]:
+    """Rows for a native agent loop: each model response is one LLM decision.
+
+    Tool calls are paired with host receipts by the framework's call id, never by order: frameworks may
+    run several tool calls of one response concurrently, in any order.
+    """
     rows: list[TraceRow] = []
-    pending = list(receipts)
+    by_id = {r.id: r for r in receipts}
     for i, items in enumerate(turns, start=1):
         for item in items:
-            if item.kind == "tool_call":
-                receipt = pending.pop(0) if pending and pending[0].tool == item.tool else None
-                host = "not invoked (the framework rejected the call)" if receipt is None else _host_text(receipt)
+            if item.kind == "text":
+                rows.append(TraceRow(str(i), controller, "text alongside the tool call(s) (not a decision)",
+                                     "not consulted", _quote(item.text), short="LLM -> text beside tool calls"))
+            elif item.kind == "tool_call":
+                receipt = by_id.get(receipt_for_call.get(item.call_id, ""))
+                host = ("no host receipt: the framework did not invoke the tool" if receipt is None
+                        else _host_text(receipt))
                 obs = "" if receipt is None else receipt.summary()
                 rows.append(TraceRow(str(i), controller, f"tool call {item.tool}({_args(item.arguments)})", host,
                                      f"{obs} -> appended to the conversation; the LLM decides again".lstrip(" ->"),

@@ -72,7 +72,7 @@ for step in range(1, budget.max_steps + 1):                 # TurnwiseRuntime.ru
 The LlamaIndex pair has the same shape:
 
 - **A** is a `FunctionAgent` with `FunctionTool`s.
-- **B** uses one `llm.structured_predict(StepOutcome, ...)` on the agent's own LLM per model operation.
+- **B** uses one `llm.structured_predict(StepOutcome, ...)` per model operation: on the agent's own LLM for `CALL_HEAVY`, or on a separate light LLM for `CALL_LIGHT`.
 
 ## Run it
 
@@ -96,7 +96,7 @@ python -m examples.architecture.run_demo --framework all --scenario all --handof
 
 **By default nothing leaves your machine.** The frameworks run for real: the SDK `Runner`, function-tool dispatch, structured-output parsing and LlamaIndex's agent workflow. Only the model is replaced, by each framework's own offline test double: `agents.testing.ScriptedModel` and LlamaIndex's `MockFunctionCallingLLM`. Their replies come from [`simulated_model.py`](simulated_model.py), a small deterministic investigator. It reacts only to what the framework actually passes it: instructions, the task, tool results, or the Turnwise context packet. Every trace says `SIMULATED`, and no output claims inference happened.
 
-`--live` uses real OpenAI models. You choose the model names:
+`--live` uses real OpenAI models. The defaults are `gpt-4.1` (heavy) and `gpt-4.1-mini` (light); override them with the environment variables. A preflight checks every selected framework before any paid call is made:
 
 ```bash
 OPENAI_API_KEY=... TURNWISE_HEAVY_MODEL=... TURNWISE_LIGHT_MODEL=... python -m examples.architecture.run_demo --live
@@ -159,7 +159,7 @@ In A the same request (`validate_config`) was simply executed: the model decided
 | `CALL_LIGHT` | One call to the cheaper model, with policy-selected context. | `--scenario status` |
 | `CALL_HEAVY` | One call to the capable model with policy-selected context. It returns a typed outcome and executes nothing. | `--scenario investigate` |
 | `FINISH` | Ask the host to accept a model's answer candidate. The host checks that the cited receipts were executed and shown to the model. A keyword screen refuses any wording of a completed side effect when no write executed. It does **not** check causal truth. | `investigate`, `status` |
-| `HOLD` / `CLARIFY` | Stop visibly. A held write is **not** an executed action. | `--scenario rollback` |
+| `HOLD` / `CLARIFY` | Stop visibly. A held write is **not** an executed action. | `HOLD`: `--scenario rollback`; `CLARIFY`: a request that names no service (tests) |
 | `HANDOFF_AGENT` | **Contrast only, not Turnwise Core.** The native agent runs its own loop for a bounded segment. The trace labels those steps `native agent (handoff)`, and control returns to the policy afterwards. The run's title is derived from what happened: any handoff makes it "Agent handoff (contrast; NOT Turnwise Core)". The agent declares no citations; the runtime attaches the receipts it was given or produced and says so, so `FINISH`'s provenance check is weak for handoffs. | `--handoff --scenario investigate` |
 
 ## What the host enforces, for both architectures
@@ -217,8 +217,15 @@ What is identical in A and B:
 What differs, by design of the two architectures:
 - **The conversation.** In B, each model step sees a host-assembled JSON packet (policy-selected receipts plus the tools it may *propose*) instead of the running conversation.
 - **The instructions.** B appends a step contract that overrides the "use the tools" instruction.
+- **The light model.** B's `CALL_LIGHT` uses a separate, cheaper model; A always uses the capable one. Offline both are the same simulated stand-in. Under `--live` the defaults differ (`gpt-4.1-mini` vs `gpt-4.1`).
+- **Malformed tool calls in A.** An unknown tool name never reaches the host in A. The OpenAI SDK aborts the run (`ModelBehaviorError`). LlamaIndex returns an error to the model, and the trace shows "no host receipt". Bad *arguments* do reach the host in both and are rejected there.
 - **Write tools.** B's model is never offered `rollback_deploy` to propose.
 - **Budgets.** The native agents have `max_turns` / `max_iterations` = 10, and Turnwise has the `Budget` in `turnwise_core.py`.
+
+How A's traces are built:
+- Each model response is one row group.
+- Tool calls are paired with host receipts **by the framework's call id**, because LlamaIndex may run one response's calls concurrently.
+- Text sent alongside tool calls is shown as such.
 
 No efficiency comparison is made.
 

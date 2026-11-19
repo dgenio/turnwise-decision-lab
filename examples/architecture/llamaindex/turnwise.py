@@ -4,7 +4,8 @@ Same task, same ``build_agent(...)`` (system prompt, tools, LLM), same host.
 What changes is who chooses the next operation: ``TurnwiseRuntime`` asks the
 policy after every observation. The model is invoked as ONE bounded operation
 through LlamaIndex structured prediction -- ``llm.structured_predict(StepOutcome,
-...)`` on the agent's own LLM -- so a tool request comes back as a typed
+...)`` on the agent's own LLM (``CALL_HEAVY``) or a separate light LLM
+(``CALL_LIGHT``) -- so a tool request comes back as a typed
 ``StepOutcome(kind="tool_proposal")`` for the policy. No agent workflow runs
 in that call, and no tool is executed on the model's say-so.
 
@@ -32,7 +33,8 @@ from .models import PACKET_MARKER
 class LlamaIndexModelPort:
     """How Turnwise invokes the model through LlamaIndex: one structured call, no tools, no agent loop."""
 
-    describe = "LlamaIndex: llm.structured_predict(StepOutcome, ...) on the agent's own LLM"
+    describe = ("LlamaIndex: llm.structured_predict(StepOutcome, ...) -- the agent's own LLM for heavy, "
+                "a separate light LLM for light")
 
     def __init__(self, agent: FunctionAgent, host: IncidentHost, *, light_llm: Any, label: str):
         self.agent, self.host, self.label = agent, host, label
@@ -50,7 +52,7 @@ class LlamaIndexModelPort:
     def handoff(self, task_text: str, max_turns: int) -> str:
         # The same agent definition, with its tools: the LLM controls this segment.
         native = build_agent(self.agent.llm, HostSession(self.host, actor="native_agent"))
-        final, _ = asyncio.run(run_agent(native, task_text, max_turns))
+        final, _, _ = asyncio.run(run_agent(native, task_text, max_turns))
         return final.response.content or ""
 
 

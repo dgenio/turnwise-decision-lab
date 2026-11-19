@@ -82,6 +82,51 @@ class LlamaIndexPairTests(unittest.TestCase):
         self.assertIn("REJECTED", next(r.host for r in conventional.rows if "rollback_deploy" in r.decision))
         self.assertEqual(conventional.writes_executed, 0)
 
+    def test_parallel_tool_calls_are_paired_with_receipts_by_call_id(self):
+        # The workflow may run one response's tool calls concurrently and in any order.
+        from llama_index.core.base.llms.types import TextBlock, ToolCallBlock
+        from llama_index.core.llms import ChatMessage, MessageRole
+        from llama_index.core.llms.mock import MockFunctionCallingLLM
+
+        tools = ["validate_config", "error_trend", "recent_deploys"]
+
+        def generate(messages, **kwargs):
+            if not any(m.role == MessageRole.TOOL for m in messages):
+                return ChatMessage(role=MessageRole.ASSISTANT, blocks=[TextBlock(text="Checking three things.")] + [
+                    ToolCallBlock(tool_call_id=f"c{i}", tool_name=t, tool_kwargs={"service": "checkout"})
+                    for i, t in enumerate(tools)])
+            return ChatMessage(role=MessageRole.ASSISTANT, content="Done.")
+
+        expected = {"validate_config": "drift:", "error_trend": "error rate", "recent_deploys": "d-142"}
+        for _ in range(25):
+            llm = MockFunctionCallingLLM(response_generator=generate, is_chat_model=True)
+            result = run_conventional(TASKS["investigate"], llm, model_label="SIMULATED (test script)")
+            rows = [r for r in result.rows if r.decision.startswith("tool call")]
+            self.assertEqual(result.rows[0].decision, "text alongside the tool call(s) (not a decision)")
+            self.assertEqual(len(rows), 3)
+            for row in rows:
+                self.assertNotIn("no host receipt", row.host)
+                self.assertIn(expected[row.decision.split(" ")[2].split("(")[0]], row.observation)
+
+    def test_live_preflight_fails_before_any_run_when_a_framework_cannot_go_live(self):
+        try:
+            import llama_index.llms.openai  # noqa: F401
+            self.skipTest("llama-index-llms-openai is installed")
+        except ImportError:
+            pass
+        from examples.architecture import run_demo
+        saved = os.environ.get("OPENAI_API_KEY")
+        os.environ["OPENAI_API_KEY"] = "dummy-key-never-used"
+        try:
+            with self.assertRaises(SystemExit) as ctx:
+                run_demo.main(["--live", "--framework", "all"])
+        finally:
+            if saved is None:
+                os.environ.pop("OPENAI_API_KEY", None)
+            else:
+                os.environ["OPENAI_API_KEY"] = saved
+        self.assertIn("llama-index-llms-openai", str(ctx.exception))
+
     def test_handoff_contrast(self):
         m = choose_llms()
         result, rt = run_turnwise(TASKS["investigate"], m.heavy, m.light, model_label=m.label, policy=HandoffPolicy())
