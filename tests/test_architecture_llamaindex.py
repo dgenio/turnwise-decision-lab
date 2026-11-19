@@ -57,6 +57,9 @@ class LlamaIndexPairTests(unittest.TestCase):
         self.assertTrue(result.answer.startswith("Plausibly yes."))
 
     def test_turnwise_calls_the_agents_llm_once_per_step_with_structured_output(self):
+        # With the offline mock (a function-calling LLM), structured_predict uses LlamaIndex's function-calling
+        # program, hence the single StepOutcome tool. The provider LLM (OpenAIResponses) uses the Responses API's
+        # JSON-schema decoding instead; tests/test_architecture_provider_readiness.py covers that path.
         m = choose_llms()
         rec = Recorder(m.heavy)
         result, rt = run_turnwise(TASKS["investigate"], m.heavy, m.light, model_label=m.label)
@@ -108,12 +111,8 @@ class LlamaIndexPairTests(unittest.TestCase):
                 self.assertNotIn("no host receipt", row.host)
                 self.assertIn(expected[row.decision.split(" ")[2].split("(")[0]], row.observation)
 
-    def test_live_preflight_fails_before_any_run_when_a_framework_cannot_go_live(self):
-        try:
-            import llama_index.llms.openai  # noqa: F401
-            self.skipTest("llama-index-llms-openai is installed")
-        except ImportError:
-            pass
+    def test_run_demo_never_calls_a_provider_even_with_a_key(self):
+        # Real-provider runs go only through the bounded live_smoke harness; run_demo --live refuses up front.
         from examples.architecture import run_demo
         saved = os.environ.get("OPENAI_API_KEY")
         os.environ["OPENAI_API_KEY"] = "dummy-key-never-used"
@@ -125,7 +124,7 @@ class LlamaIndexPairTests(unittest.TestCase):
                 os.environ.pop("OPENAI_API_KEY", None)
             else:
                 os.environ["OPENAI_API_KEY"] = saved
-        self.assertIn("llama-index-llms-openai", str(ctx.exception))
+        self.assertIn("live_smoke", str(ctx.exception))
 
     def test_handoff_contrast(self):
         m = choose_llms()

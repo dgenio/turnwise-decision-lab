@@ -14,19 +14,20 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from agents import Agent, FunctionTool, RunConfig, RunContextWrapper, Runner, ToolCallOutputItem
+from agents import Agent, FunctionTool, ModelSettings, RunConfig, RunContextWrapper, Runner, ToolCallOutputItem
 
 from ..incident_env import AGENT_INSTRUCTIONS, TOOLS, HostSession, IncidentHost, ToolSpec
 from ..trace import NativeTurnItem, RunResult, conventional_rows, receipt_id_from_output
 
 
-def build_agent(model: Any) -> Agent[HostSession]:
-    """The agent both variants share: same instructions, same tools, same model."""
+def build_agent(model: Any, model_settings: ModelSettings | None = None) -> Agent[HostSession]:
+    """The agent both variants share: same instructions, same tools, same model and model settings."""
     return Agent[HostSession](
         name="Incident investigator",
         instructions=AGENT_INSTRUCTIONS,
         tools=[_function_tool(spec) for spec in TOOLS],
         model=model,
+        model_settings=model_settings or ModelSettings(),
     )
 
 
@@ -42,9 +43,11 @@ def _function_tool(spec: ToolSpec) -> FunctionTool:
                         params_json_schema=spec.json_schema(), on_invoke_tool=invoke)
 
 
-def run_conventional(task: str, model: Any, *, model_label: str, max_turns: int = 10) -> RunResult:
-    host = IncidentHost(task)
-    agent = build_agent(model)
+def run_conventional(task: str, model: Any, *, model_label: str, max_turns: int = 10,
+                     model_settings: ModelSettings | None = None, host: IncidentHost | None = None) -> RunResult:
+    """``host`` may be passed in so a caller can still read its receipts if the run raises (e.g. MaxTurnsExceeded)."""
+    host = host or IncidentHost(task)
+    agent = build_agent(model, model_settings)
     result = Runner.run_sync(agent, task, context=HostSession(host, actor="llm"), max_turns=max_turns,
                              run_config=RunConfig(tracing_disabled=True))
     # Each raw response is one model call, i.e. one model decision.

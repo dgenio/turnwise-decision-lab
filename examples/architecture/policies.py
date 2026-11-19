@@ -79,9 +79,10 @@ class TriagePolicy:
                 if adopted:
                     return adopted
                 if _proposed_before(s, last):
+                    # The proposal's tool name and arguments are model-written: never relayed as the run's message.
                     return Decision(Op.HOLD, note + "the model repeats a proposal the policy will not adopt",
-                                    message=f"Unresolved: the model keeps asking for {last.proposal.call()}, "
-                                            "which the policy will not run.")
+                                    message=f"Unresolved: the model keeps proposing a tool call ({last.id}) that "
+                                            "the policy will not run; see the trace.")
             elif last.kind == "needs_evidence":
                 # Model text is never relayed as the run's message: it could claim anything.
                 return Decision(Op.HOLD, f"{last.id} reports missing evidence that no permitted tool provides",

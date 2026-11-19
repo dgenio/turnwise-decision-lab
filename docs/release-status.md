@@ -1,6 +1,6 @@
 # Release status
 
-**Last reconciled with `main`: 2026-11-19** (after PR [#52](https://github.com/dgenio/turnwise-decision-lab/pull/52)). Public research exhibit. **No production, provider-performance, quality or cost claims.**
+**Last reconciled with `main`: 2026-11-19** (after PRs [#53](https://github.com/dgenio/turnwise-decision-lab/pull/53) and [#54](https://github.com/dgenio/turnwise-decision-lab/pull/54)). Public research exhibit. **No production, provider-performance, quality or cost claims.**
 
 Only what is merged into `main` is current. Open PRs, and PRs merged into stacked experimental branches, are not evidence of what `main` does.
 
@@ -17,7 +17,7 @@ Only what is merged into `main` is current. Open PRs, and PRs merged into stacke
 | v0.7 exit gate, locked synthetic study | [PR #38](https://github.com/dgenio/turnwise-decision-lab/pull/38), draft | **Held.** Reported SHRINK under a weak model; no capable baseline |
 | v0.8 request-bound approval authority | [PR #46](https://github.com/dgenio/turnwise-decision-lab/pull/46), draft; [#48](https://github.com/dgenio/turnwise-decision-lab/pull/48) merged **into #46's branch**, not `main` | **Held** |
 | Prompt budgets, remote spend reservations | [#31](https://github.com/dgenio/turnwise-decision-lab/pull/31), [#44](https://github.com/dgenio/turnwise-decision-lab/pull/44), open | **Held** |
-| Real-model provider readiness | [PR #54](https://github.com/dgenio/turnwise-decision-lab/pull/54), open (2026-11-19) | **Not merged.** By its own description it tests the real provider classes against an HTTP-level provider double only; no paid call has been made. Real-model behaviour stays **not tested** until a live run is merged and verified |
+| Real-model provider readiness | [PR #54](https://github.com/dgenio/turnwise-decision-lab/pull/54), 2026-11-19 | **Implemented and tested offline**: provider classes execute against an HTTP Responses API double; the gated live smoke test exists but **no paid call has been made**. Real-model behaviour remains **not tested** |
 | Capable heavy-only baseline, independent held-out data, measured cost and latency | Study gate [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9) | **Not tested** |
 
 Closed without merging (superseded): #7, #10, #26, #27, #32, #33, #36, #45, #50.
@@ -27,7 +27,7 @@ Closed without merging (superseded): #7, #10, #26, #27, #32, #33, #36, #45, #50.
 `.github/workflows/tests.yml`, on every push and PR:
 
 - **`test`** (Python 3.10, 3.12): the full unittest suite (framework tests skip), then regenerates every committed v0.4/v0.5 report and page and fails on any byte difference.
-- **`architecture-examples`** (Python 3.11, 3.12): installs the pinned `openai-agents==0.25.0` and `llama-index-core==0.14.26`, runs the architecture tests with skips counted as failures and network proxied to a dead port, then regenerates `examples/architecture/sample_output/` and requires it to be byte-identical.
+- **`architecture-examples`** (Python 3.11, 3.12): installs the pinned `openai-agents==0.25.0`, `llama-index-core==0.14.26` and `llama-index-llms-openai==0.9.0`, runs architecture tests with skips counted as failures and network proxied to a dead port, regenerates byte-identical `sample_output/`, and rehearses the four provider paths against a local simulated HTTP provider without any paid inference.
 
 CI proves reproducibility and control-flow properties. It does not test real inference, quality, cost or latency.
 

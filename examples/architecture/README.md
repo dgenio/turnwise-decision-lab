@@ -96,13 +96,13 @@ python -m examples.architecture.run_demo --framework all --scenario all --handof
 
 **By default nothing leaves your machine.** The frameworks run for real: the SDK `Runner`, function-tool dispatch, structured-output parsing and LlamaIndex's agent workflow. Only the model is replaced, by each framework's own offline test double: `agents.testing.ScriptedModel` and LlamaIndex's `MockFunctionCallingLLM`. Their replies come from [`simulated_model.py`](simulated_model.py), a small deterministic investigator. It reacts only to what the framework actually passes it: instructions, the task, tool results, or the Turnwise context packet. Every trace says `SIMULATED`, and no output claims inference happened.
 
-`--live` uses real OpenAI models. The defaults are `gpt-4.1` (heavy) and `gpt-4.1-mini` (light); override them with the environment variables. A preflight checks every selected framework before any paid call is made:
+`run_demo` is offline only; `--live` now refuses and points to the bounded smoke test below. **Real-provider runs go only through [`live_smoke.py`](live_smoke.py)**, which by default rehearses against a local provider double (free, offline):
 
 ```bash
-OPENAI_API_KEY=... TURNWISE_HEAVY_MODEL=... TURNWISE_LIGHT_MODEL=... python -m examples.architecture.run_demo --live
+python -m examples.architecture.live_smoke
 ```
 
-Live mode **costs money**. It needs `llama-index-llms-openai` for LlamaIndex, and it has **not been run or tested** by this repository or its CI.
+A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. It has **not been run**: see [Real-provider readiness](#real-provider-readiness) and the [decision packet](../../docs/live-smoke-decision-packet.md).
 
 ## Recorded output (offline: real SDK 0.25.0, simulated model)
 
@@ -190,7 +190,69 @@ In A the same request (`validate_config`) was simply executed: the model decided
 | Host validation and tool execution | **Real** Python: the existing `LocalHarness` and `world.py` handlers |
 | Synthetic incident data | Synthetic, from the existing v0.5 world |
 | Policy | **Real code**, deterministic rules ([`policies.py`](policies.py)); not learned, tuned or evaluated |
-| Model replies | **SIMULATED** offline; real only with `--live`, which is untested |
+| Provider classes: Agents SDK `OpenAIResponsesModel` + `openai.AsyncOpenAI`; LlamaIndex `OpenAIResponses` (pinned `llama-index-llms-openai==0.9.0`) | **Real**, tested offline against an HTTP-level provider double ([`provider_double.py`](provider_double.py)); **never run against the real provider** |
+| Model replies | **SIMULATED** in the demo, the tests and the smoke rehearsal; real only via `live_smoke --provider openai`, which has **not been run** |
+
+## Real-provider readiness
+
+**Status (2026-11-19): ready for a bounded live smoke test; no real inference has been performed.**
+
+The offline demo replaces each framework's *model object* with a test double (`ScriptedModel`, `MockFunctionCallingLLM`). That leaves the classes a live run actually uses untested, and for LlamaIndex those classes take a different internal path. So the live paths are now exercised one level lower:
+
+- [`provider_double.py`](provider_double.py) is a deterministic stand-in for the OpenAI **Responses API** (`POST /v1/responses`, non-streaming).
+- It is served by an `httpx2.MockTransport`.
+- The real provider classes build real requests and parse real wire-format responses: the Agents SDK's `OpenAIResponsesModel` over `openai.AsyncOpenAI`, and LlamaIndex's `OpenAIResponses`.
+- There is no network and no key, and socket connects are blocked in the tests.
+- Reply content comes from the same `SimulatedInvestigator`. Faults can be scripted per request: refusal, prose instead of JSON, schema violation, malformed or unknown tool calls, write calls and proposals, a function call in a tool-less step, `incomplete`, HTTP 400/401/429/500, timeout, and runaway tool loops.
+
+[`tests/test_architecture_provider_readiness.py`](../../tests/test_architecture_provider_readiness.py) checks the following, in both frameworks:
+
+1. **Native tool calling (A).** All 6 tools are sent as function tools. The model's call goes to the host, and the result is fed back paired by `call_id`.
+2. **What a Turnwise model call receives (B).** The step is sent with:
+   - the agent's instructions plus the step contract;
+   - the host-assembled packet: the policy-selected receipts, and the read tools the model may propose (never the write tool);
+   - a strict `StepOutcome` JSON schema;
+   - no tools at all;
+   - one provider request per `CALL_HEAVY`.
+3. **A provider-format tool proposal returns to the policy.** It becomes the next snapshot's latest observation with no new host receipt. The tool runs only after a policy decision that adopts it. A function call returned to a tool-less step executes nothing.
+4. **The policy decides; the host validates.** A model write proposal is declined by `TriagePolicy`. If a naive policy adopts it, the host rejects it.
+5. **Failures are visible.** Every fault becomes an `invalid` observation with a category (refusal, invalid structured output, incomplete response, provider error HTTP n, timeout) and is never accepted. In A, provider errors raise. Each failed call is exactly one request.
+6. **Model output never authorises a side effect.** `requested_writes` is parsed from the user's text only. A user-requested rollback is held in all four configurations.
+7. **Limits.** The native loops stop at `max_turns` / `max_iterations` = 10, and the host caps tool executions at 8. Turnwise stops at `Budget.max_model_calls`. The ledger refuses requests over its request or spend cap *before sending*, and that halts a Turnwise run (it is not fed back to the policy).
+8. **Parity.** All four configurations send the same model id, `max_output_tokens` and temperature or reasoning effort. The native tool schemas agree. The remaining framework differences are asserted (see [Provider path](#provider-path-differences-observed-on-the-wire)).
+
+**Safeguards on every provider request** ([`provider.py`](provider.py)):
+
+- The ledger is attached via `httpx2` event hooks on the clients handed to both frameworks, so it sees every HTTP attempt, including retries or hidden calls.
+- Retries are 0, at both the client and the SDK retry layer.
+- The timeout is explicit.
+- `max_output_tokens` is explicit.
+- A request is refused unsent if it does not carry that output bound.
+- There is a request cap per configuration (the framework's own limit).
+- A paid run has a spend guard. Before sending, each request is priced from its own size (body bytes as a conservative text-token estimate, plus one `max_output_tokens` for every reasoning item echoed back by id, plus its own `max_output_tokens`), and refused if its reservation could take spending past the authorisation. HTTP errors with missing usage keep their reservation; actual reported usage cannot lower it. This is **not a provider-enforced billing ceiling**: it relies on operator-supplied current prices, textual payloads and the API's token reporting.
+- In real mode the endpoint is pinned to `https://api.openai.com/v1/responses` for both frameworks. Environment base-URL overrides are ignored; the ledger refuses an off-target host, scheme or path **before** sending, and every request's destination is also checked in the trace.
+- Every request and response is recorded.
+
+**The smoke harness** ([`live_smoke.py`](live_smoke.py)):
+
+- It runs the four configurations on the `investigate` scenario.
+- It records provider requests, host tool calls, typed outcomes, controllers, termination and errors.
+- It grades each configuration PASS / FAIL / INCONCLUSIVE on mechanism checks.
+- CI rehearses it against the double.
+- `--provider openai` refuses to start without an explicit `--model`, positive prices, `OPENAI_API_KEY` and an `--authorize-usd` that covers the planned worst case.
+- In every mode it refuses model ids that a pinned framework does not know, and settings the two frameworks would send differently: a temperature for a model LlamaIndex treats as reasoning, a reasoning effort for one it does not, or a non-reasoning model without an explicit temperature.
+
+The proposed paid run is in the [decision packet](../../docs/live-smoke-decision-packet.md).
+
+Compatibility findings from building this. Each one is fixed or guarded, and covered by a test:
+
+- **Hidden retries and long timeouts.** The previous `--live` used SDK and client defaults: `openai` retries twice with a 600 s read timeout, and `llama-index-llms-openai` retries 3 times with a 60 s timeout. There was no request or spend cap. All live use is now bounded and routed through the harness.
+- **LlamaIndex took a different path live.** With `OpenAIResponses`, `structured_predict` uses the Responses API's constrained decoding (`responses.parse`, `tool_choice="none"`), not the function-calling program that the offline mock exercises.
+- **It also dropped the LLM's own bounds.** That `responses.parse` call omits the LLM's `max_output_tokens`, reasoning options and sampling parameters. The Turnwise port now passes them explicitly (`step_llm_kwargs`), so A and B send the same bounds.
+- **Chat Completions is not used for LlamaIndex.** The previous live path used `llama_index.llms.openai.OpenAI`. OpenAI's `gpt-6.1-sol` model page (read 2026-11-19) states *"Tool calling requires the Responses API"*, although `llama-index-llms-openai` 0.9.0 does not list that model as Responses-only. LlamaIndex now uses `OpenAIResponses`, the same API as the Agents SDK. The Chat Completions adapter also discards `refusal`.
+- **Refusals and truncation are hidden by LlamaIndex.** A refused or `incomplete` structured step surfaces only as a generic `ValueError`, and a refused or truncated `FunctionAgent` turn ends as an ordinary, empty completion. The Turnwise port and the harness read the wire record to name these.
+- **Model ids.** `llama-index-llms-openai==0.9.0` validates ids against its own table, which reaches `gpt-6.1-sol`. Newer ids such as `gpt-6.2-sol` fail, and the harness preflight refuses them before any request.
+- **Reasoning items.** On the next turn, the Agents SDK echoes `reasoning` items by id, which works with the API's default `store`. Setting `store=false` without encrypted reasoning content would break multi-turn runs on reasoning models (the double emulates the API's rejection). LlamaIndex sends `store=false` and drops reasoning items.
 
 ## Framework integration notes and limits
 
@@ -217,10 +279,24 @@ What is identical in A and B:
 What differs, by design of the two architectures:
 - **The conversation.** In B, each model step sees a host-assembled JSON packet (policy-selected receipts plus the tools it may *propose*) instead of the running conversation.
 - **The instructions.** B appends a step contract that overrides the "use the tools" instruction.
-- **The light model.** B's `CALL_LIGHT` uses a separate, cheaper model; A always uses the capable one. Offline both are the same simulated stand-in. Under `--live` the defaults differ (`gpt-4.1-mini` vs `gpt-4.1`).
+- **The light model.** In the offline demo, B's `CALL_LIGHT` uses a separate light model object, while A always uses the capable one; both are the same simulated stand-in. With a provider (the smoke test), `CALL_LIGHT` uses the same single selected model as `CALL_HEAVY`, and the smoke scenario uses only `CALL_HEAVY`.
 - **Malformed tool calls in A.** An unknown tool name never reaches the host in A. The OpenAI SDK aborts the run (`ModelBehaviorError`). LlamaIndex returns an error to the model, and the trace shows "no host receipt". Bad *arguments* do reach the host in both and are rejected there.
 - **Write tools.** B's model is never offered `rollback_deploy` to propose.
 - **Budgets.** The native agents have `max_turns` / `max_iterations` = 10, and Turnwise has the `Budget` in `turnwise_core.py`.
+
+#### Provider path: differences observed on the wire
+
+With the provider classes, A and B in one framework share the same model object and settings. Across frameworks, both use the Responses API and the same model id, `max_output_tokens` and temperature or reasoning effort. These framework defaults still differ; `ParityTests.test_disclosed_framework_differences_match_what_is_sent` keeps the list honest:
+
+| | OpenAI Agents SDK | LlamaIndex |
+|---|---|---|
+| Native tool schemas | `strict: true` | strict not set (the API's non-strict default) |
+| Response storage | `store` not sent (the API default; required for its reasoning-item echo) | `store: false` |
+| Instructions | the `instructions` field | a system/developer input message |
+| Turnwise step | `text.format` json_schema `final_output`, no `tool_choice` | `text.format` json_schema `StepOutcome`, `tool_choice: "none"` |
+| `top_p` (non-reasoning models) | not sent | `1.0` (the API default) |
+| Agent response mode | `Runner.run_sync` (non-streaming) | `FunctionAgent(streaming=False)` |
+| CALL_LIGHT | same model as CALL_HEAVY in provider mode (one selected model) | same |
 
 How A's traces are built:
 - Each model response is one row group.
@@ -232,7 +308,8 @@ No efficiency comparison is made.
 ## Limitations: what this does not establish
 
 - **No quality, cost or latency claim.** The printed counts are operation counts for one simulated run. They are not measurements. Turnwise adds policy decisions and host checks that a native agent does not have.
-- **The simulated model is not a model.** It is deterministic and was written by the same author as the policy. Offline traces prove *control flow*, not reasoning ability. Real-model behaviour, such as malformed typed outputs, ignored contracts or different tool choices, is untested.
+- **The simulated model is not a model.** It is deterministic and was written by the same author as the policy. Offline traces prove *control flow*, not reasoning ability.
+- **Real-model behaviour is still untested.** The provider classes are tested against a provider *double* that emulates the wire format and scripted faults (malformed outputs, refusals, errors). A real model may still make different tool choices or ignore the step contract, and the API may reject parameters that the double accepts. Nothing establishes this until the [bounded live smoke test](../../docs/live-smoke-decision-packet.md) is authorised and run.
 - **The policy is hand-written** for this synthetic domain. It is a stand-in for a learned or decision-service policy (Jev/System One is not used). Simple host rules may do as well, which is the open research question in [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9).
 - **`FINISH` checks provenance, not truth.** Evidence being present is not proof of causation.
 - The write-intent parser and the side-effect claim screen are keyword rules. They fail closed (they refuse more than necessary) but are not semantic checks.
@@ -254,11 +331,15 @@ No efficiency comparison is made.
 | `policies.py` | `TriagePolicy` (Turnwise Core) and `HandoffPolicy` (contrast only) |
 | `simulated_model.py` | Offline stand-in for model replies, the same in both architectures |
 | `step_schema.py` | `StepOutcome`, the typed result of one model step |
-| `openai_agents/`, `llamaindex/` | `conventional.py` (A), `turnwise.py` (B), `models.py` (simulated or live model choice) |
-| `trace.py`, `run_demo.py` | Per-step controller traces and the CLI |
+| `openai_agents/`, `llamaindex/` | `conventional.py` (A), `turnwise.py` (B), `models.py` (simulated model, or a bounded provider model) |
+| `trace.py`, `run_demo.py` | Per-step controller traces and the offline CLI |
+| `provider.py` | `ProviderLedger` (request and spend caps before sending, a record of every request and response) and the settings shared by both frameworks |
+| `provider_double.py` | Deterministic Responses API stand-in, with scriptable faults (SIMULATED) |
+| `live_smoke.py` | The bounded four-configuration smoke test: rehearsal by default, paid only with explicit authorisation |
 | `sample_output/`, `regenerate_samples.sh` | Committed offline output, checked by CI |
 
 Tests:
 
 - [`tests/test_architecture_core.py`](../../tests/test_architecture_core.py): stdlib only; runs in the main CI job.
-- [`tests/test_architecture_openai_agents.py`](../../tests/test_architecture_openai_agents.py) and [`tests/test_architecture_llamaindex.py`](../../tests/test_architecture_llamaindex.py): run in the `architecture-examples` CI job, where a skipped framework test counts as a failure.
+- [`tests/test_architecture_openai_agents.py`](../../tests/test_architecture_openai_agents.py) and [`tests/test_architecture_llamaindex.py`](../../tests/test_architecture_llamaindex.py): run in the `architecture-examples` CI job, where a missing framework fails the job instead of skipping.
+- [`tests/test_architecture_provider_readiness.py`](../../tests/test_architecture_provider_readiness.py): the provider classes against the provider double, and the smoke harness. It runs in the same job, which also rehearses `live_smoke --provider double`.

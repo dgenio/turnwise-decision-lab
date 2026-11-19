@@ -153,11 +153,14 @@ class TurnwiseOnTheSDKTests(unittest.TestCase):
         self.assertEqual(result.rows[-1].controller, "Turnwise policy")
         self.assertEqual(result.status, "finished")
 
-    def test_live_mode_is_explicit_and_refuses_without_a_key(self):
+    def test_real_provider_mode_is_explicit_and_refuses_without_a_key(self):
+        # Real inference only through a ProviderSetup with no transport (see live_smoke); it never falls back.
+        from examples.architecture.provider import REAL_SOURCE, ProviderLedger, ProviderSettings, ProviderSetup
+        setup = ProviderSetup(ProviderSettings("gpt-6.1-sol"), ProviderLedger(source=REAL_SOURCE, max_requests=0))
         saved = os.environ.pop("OPENAI_API_KEY", None)
         try:
             with self.assertRaises(SystemExit):
-                choose_models(live=True)
+                choose_models(provider=setup)
         finally:
             if saved is not None:
                 os.environ["OPENAI_API_KEY"] = saved

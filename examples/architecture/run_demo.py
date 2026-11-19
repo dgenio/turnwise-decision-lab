@@ -4,9 +4,10 @@
     python -m examples.architecture.run_demo --framework llamaindex
     python -m examples.architecture.run_demo --scenario all --handoff
 
-Offline by default: the frameworks run for real, the model is SIMULATED, and
-nothing is sent over the network. ``--live`` switches to real OpenAI models
-(needs OPENAI_API_KEY, costs money; never run or tested by the authors or CI).
+Offline: the frameworks run for real, the model is SIMULATED, and nothing is
+sent over the network. Real-provider runs go only through the bounded smoke
+test, ``python -m examples.architecture.live_smoke`` (request, tool, timeout and
+spend caps; an explicit spend authorisation; see the guide).
 """
 from __future__ import annotations
 
@@ -39,27 +40,33 @@ def _load(framework: str):
     return run_conventional, choose, run_turnwise
 
 
-def run_pair(framework: str, task: str, *, live: bool, handoff: bool) -> list[RunResult]:
-    """Fresh models and a fresh host for every run, so runs cannot influence each other."""
+LIVE_REDIRECT = ("run_demo is offline only. Real-provider runs go through the bounded smoke test, which caps "
+                 "model calls, tool calls, timeouts and spend and needs an explicit authorisation: "
+                 "python -m examples.architecture.live_smoke --help")
+
+
+def run_pair(framework: str, task: str, *, live: bool = False, handoff: bool) -> list[RunResult]:
+    """Fresh models and a fresh host for every run, so runs cannot influence each other. Simulated model only."""
+    if live:
+        raise SystemExit(LIVE_REDIRECT)
     run_conventional, choose, run_turnwise = _load(framework)
-    m = choose(live=live)
+    m = choose()
     results = [run_conventional(task, m.heavy, model_label=m.label)]
-    m = choose(live=live)
+    m = choose()
     results.append(run_turnwise(task, m.heavy, m.light, model_label=m.label)[0])
     if handoff:
-        m = choose(live=live)
+        m = choose()
         results.append(run_turnwise(task, m.heavy, m.light, model_label=m.label, policy=HandoffPolicy())[0])
     return results
 
 
-def header(framework: str, scenario: str, live: bool) -> str:
+def header(framework: str, scenario: str) -> str:
     name, dist = FRAMEWORKS[framework]
     try:
         ver = version(dist)
     except PackageNotFoundError:
         ver = "not installed"
-    mode = ("LIVE: real model calls (provider costs apply)." if live else
-            "OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).")
+    mode = "OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost)."
     return "\n".join([
         "#" * 100,
         f"# Turnwise architecture demo | framework: {name} {ver} | scenario: {scenario}",
@@ -77,19 +84,18 @@ def main(argv: list[str] | None = None) -> None:
                         help="also run the HANDOFF_AGENT contrast (a different architecture from Turnwise Core)")
     parser.add_argument("--brief", action="store_true", help="print only the side-by-side controller view")
     parser.add_argument("--live", action="store_true",
-                        help="use real OpenAI models (explicit opt-in; costs money; never run or tested)")
+                        help="not supported here: real-provider runs go through examples.architecture.live_smoke")
     args = parser.parse_args(argv)
+    if args.live:  # before anything is built or sent
+        raise SystemExit(LIVE_REDIRECT)
 
     frameworks = list(FRAMEWORKS) if args.framework == "all" else [args.framework]
     scenarios = list(TASKS) if args.scenario == "all" else [args.scenario]
-    if args.live:  # fail before any paid call if any selected framework cannot run live
-        for framework in frameworks:
-            _load(framework)[1](live=True)
     blocks: list[str] = []
     for framework in frameworks:
         for scenario in scenarios:
-            results = run_pair(framework, TASKS[scenario], live=args.live, handoff=args.handoff)
-            parts = [header(framework, scenario, args.live)]
+            results = run_pair(framework, TASKS[scenario], handoff=args.handoff)
+            parts = [header(framework, scenario)]
             if not args.brief:
                 parts += [render(r) for r in results]
             parts.append(render_side_by_side(results[0], results[1]))
