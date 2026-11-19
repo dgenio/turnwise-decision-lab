@@ -1,6 +1,6 @@
 # Architecture-fit audit — is Turnwise implementing the owner's idea?
 
-**Status: PROPOSED research decision (not approved, not merged)**  
+**Status: historical read-only audit (2026-11-18); research architecture selected 2026-11-19, scientific readiness remains HOLD**  
 **Audit date:** 2026-11-18  
 **Scope:** read-only examination of public GitHub source and PR descriptions; no model execution or prospective benchmark was performed.  
 **Decision owner / coordination:** [architecture gate #34](https://github.com/dgenio/turnwise-decision-lab/issues/34); hypothesis [#28](https://github.com/dgenio/turnwise-decision-lab/issues/28), pending framing [PR #29](https://github.com/dgenio/turnwise-decision-lab/pull/29).
@@ -146,3 +146,18 @@ Lock task/session mix, quality/safety grading, non-inferiority margin, critical-
 5. **Limit claims:** current repository shows interesting engineering and negative findings, not proven unique novelty, real-world cost savings or quality-preserving agent control.
 
 **This report changes no code or historical evidence.** It is a documented architectural gate, not a new benchmark run, a security attestation, or approval to merge.
+
+## 2026-11-19 owner decision — scope of architecture selection
+
+The **Turnwise Core (arm C)** controller-ownership hypothesis is selected as the **primary architecture to demonstrate and falsify**, not as a successful implementation or approved production architecture. The native heavy-agent handoff (arm D) stays a separate fallback/ablation. A simple host-rules controller, a capable native agent, and the agent with a short evidence-checklist prompt are mandatory null comparators. Tool availability, prompt contracts, evidence and budgets must be parity-audited before any efficiency comparison.
+
+This decision incorporates later implementation evidence that post-dates the 2026-11-18 audit:
+- [PR #37](https://github.com/dgenio/turnwise-decision-lab/pull/37) proposes one integrated host safety/approval, evidence sufficiency and tool-capable handoff path, still draft.
+- [PR #47](https://github.com/dgenio/turnwise-decision-lab/pull/47) has CI-green offline tests for typed heavy-model outcomes returning to the cheap controller; they prove **mechanism**, not quality or economics.
+- [PR #38](https://github.com/dgenio/turnwise-decision-lab/pull/38) reports a v0.7 locked synthetic study with a **SHRINK** conclusion: a simple contract planner outperformed more complex alternatives under a weak 0.8B model, but wrong-target approvals, incorrect reasoning and an absent capable baseline preclude release or generalization.
+- [PR #46](https://github.com/dgenio/turnwise-decision-lab/pull/46) investigates prospective native-tool-call-only approval authority and the important **A+P** checklist-prompt baseline. Its results are not frozen study evidence.
+- [PR #45](https://github.com/dgenio/turnwise-decision-lab/pull/45) supplies complementary request-target validation and direct-execution regressions; reconcile these into **one** host authority path rather than release duplicate host classes.
+
+The previously mentioned #29/#30 framing/parity PRs have been merged into `main`; #32/#33 were closed as superseded. References elsewhere in this document to them as pending are historical to the 18 November audit, not current PR status.
+
+**Merge of this documentation is only acceptance of the experimental question and its safety/evidence gates.** It does not authorize a merge of v0.6/v0.7 code, hosted spending, live user data, production deployment, upstream outreach or any claim of scientific benefit. Use [issue #9](https://github.com/dgenio/turnwise-decision-lab/issues/9) as the independent prospective gate and [issue #34](https://github.com/dgenio/turnwise-decision-lab/issues/34) for the architectural control-ownership invariant.
