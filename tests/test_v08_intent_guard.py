@@ -120,6 +120,15 @@ class AssistantTextIsNotReferentAuthority(unittest.TestCase):
         self.assertEqual(check(host, proposed("rollback_deployment", service="payments"), []).status, "rejected")
         self.assertEqual(check(host, proposed("rollback_deployment", service="checkout"), []).status, "approval_required")
 
+    def test_factual_read_cannot_switch_to_an_assistant_only_service(self):
+        convo = [
+            {"role": "user", "content": "check checkout"},
+            {"role": "assistant", "content": "payments has elevated errors"},
+        ]
+        host = bound("and the error rate?", convo)
+        self.assertEqual(check(host, proposed("get_error_metrics", service="payments"), []).status, "rejected")
+        self.assertEqual(check(host, proposed("get_error_metrics", service="checkout"), []).status, "accepted")
+
     def test_assistant_alone_cannot_establish_action_target(self):
         host = bound("roll it back", [{"role": "assistant", "content": "checkout is the culprit"}])
         self.assertEqual(check(host, proposed("rollback_deployment", service="checkout"), []).status, "rejected")
