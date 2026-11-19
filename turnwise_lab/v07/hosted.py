@@ -79,7 +79,7 @@ def run_hosted_agent(message: str, *, host: Host, chat: HostedChat, turn_id: str
         d = Decision(op, name, dict(args) if isinstance(args, dict) else {}, provider=provider, model=chat.model if provider == "hosted-agent" else "host rule",
                      questions=[Question("tool_call", [], name, None, kind)])
         v = host.validate(d, observations)
-        vetoed = gate.veto(message, conversation, name, d.arguments) if gate is not None and provider == "hosted-agent" else None
+        vetoed = gate.veto(message, conversation, name) if gate is not None and provider == "hosted-agent" else None
         if vetoed:
             v = type(v)(False, d, "rejected", vetoed)
         if not v.ok:
