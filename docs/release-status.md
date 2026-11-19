@@ -1,6 +1,6 @@
 # Release status
 
-**Last reconciled with `main`: 2026-11-19** (after PRs [#53](https://github.com/dgenio/turnwise-decision-lab/pull/53) and [#54](https://github.com/dgenio/turnwise-decision-lab/pull/54)). Public research exhibit. **No production, provider-performance, quality or cost claims.**
+**Last reconciled with `main`: 2026-11-19** (after PRs [#53](https://github.com/dgenio/turnwise-decision-lab/pull/53), [#54](https://github.com/dgenio/turnwise-decision-lab/pull/54) and [#56](https://github.com/dgenio/turnwise-decision-lab/pull/56)). Public research exhibit. **No production, provider-performance, quality or cost claims.**
 
 Only what is merged into `main` is current. Open PRs, and PRs merged into stacked experimental branches, are not evidence of what `main` does.
 
@@ -17,7 +17,7 @@ Only what is merged into `main` is current. Open PRs, and PRs merged into stacke
 | v0.7 exit gate, locked synthetic study | [PR #38](https://github.com/dgenio/turnwise-decision-lab/pull/38), draft | **Held.** Reported SHRINK under a weak model; no capable baseline |
 | v0.8 request-bound approval authority | [PR #46](https://github.com/dgenio/turnwise-decision-lab/pull/46), draft; [#48](https://github.com/dgenio/turnwise-decision-lab/pull/48) merged **into #46's branch**, not `main` | **Held** |
 | Prompt budgets, remote spend reservations | [#31](https://github.com/dgenio/turnwise-decision-lab/pull/31), [#44](https://github.com/dgenio/turnwise-decision-lab/pull/44), open | **Held** |
-| Real-model provider readiness | [PR #54](https://github.com/dgenio/turnwise-decision-lab/pull/54), 2026-11-19 | **Implemented and tested offline**: provider classes execute against an HTTP Responses API double; the gated live smoke test exists but **no paid call has been made**. Real-model behaviour remains **not tested** |
+| Real-model provider readiness | `main` (PRs [#54](https://github.com/dgenio/turnwise-decision-lab/pull/54), [#56](https://github.com/dgenio/turnwise-decision-lab/pull/56), merged 2026-11-19) | **Implemented and tested offline**: provider classes execute against an HTTP Responses API double; the gated live smoke test and a one-shot local launcher (#56) exist. The owner authorised one bounded run ([decision packet](live-smoke-decision-packet.md)), but **no paid call has been made** as of this update. Real-model behaviour remains **not tested** |
 | Capable heavy-only baseline, independent held-out data, measured cost and latency | Study gate [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9) | **Not tested** |
 
 Closed without merging (superseded): #7, #10, #26, #27, #32, #33, #36, #45, #50.

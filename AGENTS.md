@@ -22,9 +22,9 @@ These were set by the architecture gate in [#34](https://github.com/dgenio/turnw
 
 | Path | What it is |
 |---|---|
-| `examples/architecture/` | **Canonical Turnwise Core demonstration.** `turnwise_core.py` (typed `Op`, `Decision`, `Snapshot`, `Policy` and `ModelPort` protocols; the loop is `TurnwiseRuntime.run`, host checks are `host_validates`, model replies are parsed by `parse_outcome`), `policies.py` (`TriagePolicy`; `HandoffPolicy` = contrast), `incident_env.py` (`IncidentHost`), `openai_agents/` and `llamaindex/` (`conventional.py` = A, `turnwise.py` = B, `models.py` = simulated/live model choice), `simulated_model.py`, `sample_output/` |
+| `examples/architecture/` | **Canonical Turnwise Core demonstration.** `turnwise_core.py` (typed `Op`, `Decision`, `Snapshot`, `Policy` and `ModelPort` protocols; the loop is `TurnwiseRuntime.run`, host checks are `host_validates`, model replies are parsed by `parse_outcome`), `policies.py` (`TriagePolicy`; `HandoffPolicy` = contrast), `incident_env.py` (`IncidentHost`), `openai_agents/` and `llamaindex/` (`conventional.py` = A, `turnwise.py` = B, `models.py` = simulated/live model choice), `simulated_model.py`, `sample_output/`. Real-provider path: `provider.py` (`ProviderLedger`: request and spend caps enforced before sending), `provider_double.py` (simulated OpenAI Responses endpoint), `live_smoke.py` (bounded four-configuration smoke test; rehearsal by default), `secure_live_once.py` (owner-local one-shot paid launcher) |
 | `turnwise_lab/` | v0.4/v0.5 lab: `arena.py` (v0.5 experiment), `world.py` (synthetic world and handlers, shared by the demo), `runtime.py` (`LocalHarness`), `explorer.py`, `benchmark.py`, `provider.py` (opt-in OpenAI-compatible adapter, tested only against a local fake server), `parity.py` (benchmark-parity preflight) |
-| `tests/` | `test_architecture_*.py` for the demo; everything else for the lab |
+| `tests/` | `test_architecture_*.py` for the demo and its provider path; `test_secure_live_once.py` for the launcher (credential-free); everything else for the lab |
 | `fixtures/`, `reports/`, `demo/` | **Frozen evidence and generated artefacts** (see below) |
 | `docs/` | Design, protocols and history. Index with status labels: [docs/README.md](docs/README.md) |
 
@@ -52,6 +52,12 @@ TURNWISE_REQUIRE_FRAMEWORKS=1 python -m unittest discover -s tests -p 'test_arch
 python -m examples.architecture.run_demo --brief
 ```
 
+Free, offline rehearsal of the real-provider path against the simulated provider:
+
+```bash
+python -m examples.architecture.live_smoke --provider double
+```
+
 Without the pinned SDKs installed, the framework tests are **skipped** (not failed) and `run_demo` exits with an install hint. `TURNWISE_REQUIRE_FRAMEWORKS=1` turns skips into failures, as CI does.
 
 **Regeneration checks (run these whenever you touch code that feeds them):**
@@ -73,7 +79,7 @@ git diff --exit-code -- reports demo
 
 This is the same sequence as the `test` job in `.github/workflows/tests.yml`; if they ever differ, the workflow wins.
 
-CI (`.github/workflows/tests.yml`) runs the full suite on Python 3.10/3.12, regenerates every report and page as above and requires byte-identical output, and runs the architecture job on 3.11/3.12 with the network pointed at a dead proxy. A diff in `reports/`, `demo/` or `sample_output/` after your change means you changed evidence: stop and explain why in the PR, or revert.
+CI (`.github/workflows/tests.yml`) runs the full suite on Python 3.10/3.12, regenerates every report and page as above and requires byte-identical output, and runs the architecture job on 3.11/3.12 with the network pointed at a dead proxy, including the `live_smoke --provider double` rehearsal. A diff in `reports/`, `demo/` or `sample_output/` after your change means you changed evidence: stop and explain why in the PR, or revert.
 
 ## Frozen evidence: do not silently change
 
@@ -88,7 +94,7 @@ Never tune a router or policy on the 46 v0.5 turns and present the result as hel
 
 - **New or modified policy** (Turnwise Core, in `examples/architecture/policies.py`; the v0.5 routers in `arena.py` and the v0.4 deciders in `deciders.py` are frozen history): implement `Policy.decide(snapshot) -> Decision` (see `TriagePolicy`) and pass it to `TurnwiseRuntime`. Leave the default policy and `run_demo` unchanged unless you intend to regenerate the sample output. Decide and document what your policy does after declining a proposal (another read, `HOLD`, a model call). Do not move validation into the policy; the host must still refuse bad decisions. Add tests that drive it with varied model outcomes (proposal, immediate answer, write proposal, malformed output), as `tests/test_architecture_core.py` does.
 - **New tool or workflow:** the demo's registry is the subset of the `turnwise_lab/world.py` catalogue named in `_ROLES` in `examples/architecture/incident_env.py`; every call goes through `LocalHarness`, and both A and B get the same tools. **`world.py` also drives the frozen v0.5 experiment**: adding or changing a capability there can change `reports/arena.*`. Run the regeneration check; if v0.5 evidence moves, keep the new capability out of the v0.5 world instead. Writes must record the attempt and raise.
-- **Model adapter or provider:** extend the framework's `models.py` (`choose_models` / `choose_llms`). Live paths must be explicit opt-in, never run in CI, and labelled untested until a real run is recorded with model IDs and configuration.
+- **Model adapter or provider:** extend the framework's `models.py` (`choose_models` / `choose_llms`). Every real-provider request must go through `ProviderLedger` in `provider.py`, with no hidden retries and an explicit output bound, and be testable against `provider_double.py`. Live paths must be explicit opt-in, never run in CI, and labelled untested until a real run is recorded with model IDs and configuration. The double shows wire compatibility, not model behaviour.
 - **Experiment:** write the hypothesis, cases, metrics and margin first (see [docs/evaluation-plan.md](docs/evaluation-plan.md) and [docs/benchmark-parity-contract.md](docs/benchmark-parity-contract.md)). Use new, ideally independently authored, cases. Report every arm, including failures.
 - **Documentation:** update [docs/release-status.md](docs/release-status.md) when a status changes, and use the status labels below. Link to authoritative docs rather than duplicating them.
 
@@ -103,7 +109,7 @@ Status labels: **Implemented and tested** · **Demonstrated with simulated infer
 
 ## Paid providers, secrets and data
 
-- Default runs are offline. Never make a paid provider call (`run_demo --live`, `turnwise_lab.provider_cli --allow-remote`, or the paid mode of any live-smoke harness) without explicit human authorization of the model and spend: they cost money.
+- Default runs are offline. Never make a paid provider call (`live_smoke --provider openai`, `secure_live_once --execute`, `turnwise_lab.provider_cli --allow-remote`) without explicit human authorization of the model and spend: they cost money. An authorization covers one stated run, not reruns ([decision packet](docs/live-smoke-decision-packet.md)). A coding agent should not handle the owner's API key; `secure_live_once` is meant to be run by the owner locally.
 - Never commit keys, `.env` files, real company or customer data, or logs from real systems. All data here is invented and synthetic. See [docs/privacy-threat-model.md](docs/privacy-threat-model.md) and [docs/model-backend.md](docs/model-backend.md).
 - Do not make a claim about live-model behaviour based on an open PR.
 
