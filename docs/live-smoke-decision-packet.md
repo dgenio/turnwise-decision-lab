@@ -1,5 +1,7 @@
 # Live smoke test: decision packet (spending gate)
 
+> **Update (2026-11-19, later).** The authorisation was consumed by the owner-dispatched `paid-smoke.yml` workflow ([Actions run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372); tag `turnwise-paid-gpt-6-1-sol-001`). The paid matrix step exited with code 3 (**INCONCLUSIVE**). The sanitised results are only in that run's job summary and have not been recorded here. The status line below is kept as written before the run.
+
 **Status (2026-11-19): owner authorised ONE GPT-6.1 Sol run, up to US$2, in ChatGPT. No paid provider call has been made.** The key remains with the owner and is not stored in GitHub, ChatGPT or the repository. A rerun needs new authorisation.
 
 This packet asks for one bounded, paid run of the live smoke test in [`examples/architecture/live_smoke.py`](../examples/architecture/live_smoke.py). The purpose is **real-model compatibility** of the four configurations. It does not measure cost, latency or quality, and it is not a benchmark.

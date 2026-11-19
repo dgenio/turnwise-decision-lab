@@ -22,7 +22,7 @@ Start with the [README](../README.md). For what is current, held or historical, 
 | [framework-integration-roadmap.md](framework-integration-roadmap.md) | Proposed; SDK lines updated 2026-11-19 | Integration seams in LangGraph, OpenAI Agents SDK, LlamaIndex and Pipecat |
 | [reference-adapter-contract.md](reference-adapter-contract.md) | Proposed (design contract, no adapter) | Checklist for a provider-neutral adapter |
 | [model-backend.md](model-backend.md) | Implemented; tested only against a local fake server | Boundaries of the opt-in `turnwise_lab.provider_cli` |
-| [live-smoke-decision-packet.md](live-smoke-decision-packet.md) | Proposed paid test; provider path rehearsed against an HTTP double | Bounded four-configuration smoke plan, owner spend gate and remaining limitations |
+| [live-smoke-decision-packet.md](live-smoke-decision-packet.md) | Authorisation consumed; the one paid run was inconclusive (results not recorded here) | Bounded four-configuration smoke plan, owner spend gate and remaining limitations |
 | [privacy-threat-model.md](privacy-threat-model.md) | Current | What the public harness does and does not protect |
 
 ## Experiments and evidence

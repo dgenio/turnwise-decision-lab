@@ -126,13 +126,13 @@ Explore every turn under every design in the **[interactive explorer](https://dg
 | [v0.4 route-label benchmark](reports/trained-routing-synthetic.md) (on `main`) | **Historical**, superseded by v0.5 | Simple rules matched 38/40 labels; a tiny classifier 29/40. No gain over rules |
 | v0.6 local-inference loop ([PR #6](https://github.com/dgenio/turnwise-decision-lab/pull/6)) | **Held / inconclusive**, not merged | Used a small 0.8B local model as its "heavy" tier (not a capable baseline); 0/7 investigations for the decision-driven arm; silent misses |
 | v0.7/v0.8 safety and exit-gate work ([#37](https://github.com/dgenio/turnwise-decision-lab/pull/37), [#38](https://github.com/dgenio/turnwise-decision-lab/pull/38), [#46](https://github.com/dgenio/turnwise-decision-lab/pull/46)) | **Held**, draft, not merged | v0.7 concluded SHRINK (simpler wins) under a weak model. Not current truth on `main` |
-| Real-provider readiness for the demo ([PR #54](https://github.com/dgenio/turnwise-decision-lab/pull/54)) | **Implemented and tested offline** | Provider classes exercised against a simulated HTTP Responses endpoint with bounded calls; **no real model inference** |
+| Real-provider readiness for the demo (PRs [#54](https://github.com/dgenio/turnwise-decision-lab/pull/54), [#58](https://github.com/dgenio/turnwise-decision-lab/pull/58)) | **Implemented and tested offline**; one paid run **inconclusive** | Provider classes exercised against a simulated HTTP endpoint. The single authorised real-model run ([run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372)) exited INCONCLUSIVE; its results are not recorded here |
 | Capable heavy-only agent baseline, real model inference, cost | **Not tested** | The decisive experiment ([#9](https://github.com/dgenio/turnwise-decision-lab/issues/9)) has not been run |
 
 ## What is not yet proven
 
 - **No quality, cost or latency benefit** against a real, capable, tool-using agent. That comparison has not been run.
-- **No real model has driven the architecture demo.** Real models may return malformed typed outputs, ignore the step contract or choose differently.
+- **No real-model behaviour is established for the architecture demo.** The one authorised paid smoke run ended INCONCLUSIVE and its results are not recorded in the repository. Real models may return malformed typed outputs, ignore the step contract or choose differently.
 - **No learned or decision-service policy** (Jev or otherwise) has been evaluated; the demo policy is hand-written keyword rules.
 - **No independent data.** One author wrote the world, cases, labels, policies and simulated model.
 - **The host checks provenance, not truth.** `FINISH` verifies that cited receipts exist, not that the answer is causally right.
