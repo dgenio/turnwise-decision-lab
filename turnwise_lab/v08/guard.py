@@ -138,6 +138,8 @@ class IntentBoundHost(Host):
                 return _rejected(decision, "action cannot be isolated to one user-owned clause")
             if unknown_services(clauses[0]):
                 return _rejected(decision, "unknown service named in the action clause; ask for clarification")
+            if not services_in(clauses[0]) and services_in(message):
+                return _rejected(decision, "service in another clause cannot become the action target")
         claim = type_claim(clauses[0] if clauses else req.message, req.previous_users())
         if claim.type != "action" or claim.action != cap.id:
             return _rejected(decision, "action or referent is ambiguous; no inferred approval")
