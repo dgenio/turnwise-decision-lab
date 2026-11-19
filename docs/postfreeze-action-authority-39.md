@@ -28,7 +28,7 @@ assert trace["final"]["kind"] == "approval_required"
 assert host.world.write_ledger == []  # approval is not execution
 ```
 
-A service named in the **action clause** is accepted if registered. If the action clause names an unknown service, mixes targets, or has no unique user-authored antecedent, the host rejects the write proposal instead of substituting another target. For status updates, the proposed message must match the user's exact requested status text. Additional host schema, identity and approval constraints are retained.
+The request-bound host checks the same invariant at both `validate()` and the direct `execute()`/harness boundary; direct execution with a different user message is rejected as cross-turn reuse. A service named in the **action clause** is accepted if registered. If the action clause names an unknown service, mixes targets, or has no unique user-authored antecedent, the host rejects the write proposal instead of substituting another target. For status updates, the proposed message must match the user's exact requested status text. Additional host schema, identity and approval constraints are retained.
 
 `tests/test_v07_action_targets_39.py` probes L56, mixed target/read clauses, assistant/tool content, quoted antecedents, explicit valid targets, wrong model/controller arguments, negated/informational requests, status-message substitution and unchanged read access.
 
