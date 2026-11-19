@@ -21,6 +21,9 @@ provider in this repository (no credentials, no approved spend).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from math import isfinite
+from threading import Lock
+from typing import Any
 from urllib.parse import urlparse
 from urllib.request import Request as HTTPRequest, urlopen
 import json
@@ -45,22 +48,67 @@ def _endpoint_ok(url: str) -> bool:
 
 @dataclass
 class Spend:
-    cap_usd: float
-    spent_usd: float = 0.0
-    requests: int = 0
-    usage: list = field(default_factory=list)
+    """Thread-safe per-process budget ledger, not a provider-enforced billing limit.
 
-    def reserve(self, est_usd: float) -> None:
-        if self.spent_usd + est_usd > self.cap_usd:
-            raise PermissionError(f"spending cap {self.cap_usd} USD would be exceeded; no request sent")
+    A reservation is held until trustworthy metering arrives. Failed/uncertain
+    requests and providers without usage reporting keep their liability reserved:
+    a timeout does not prove a request was free. This intentionally fails closed.
+    """
+    cap_usd: float
+    spent_usd: float = 0.0  # reported, metered cost only
+    requests: int = 0       # attempted requests, including transport failures
+    usage: list = field(default_factory=list)
+    reserved_usd: float = 0.0  # in-flight or unknown-cost liability
+    _lock: Any = field(default_factory=Lock, repr=False, compare=False)
+    _pending: dict[int, float] = field(default_factory=dict, repr=False, compare=False)
+    _uncertain: set[int] = field(default_factory=set, repr=False, compare=False)
+    _next_id: int = field(default=0, repr=False, compare=False)
+
+    def reserve(self, est_usd: float) -> int:
+        if not isfinite(est_usd) or est_usd <= 0:
+            raise ValueError("reservation estimate must be positive and finite")
+        with self._lock:
+            if self.spent_usd + self.reserved_usd + est_usd > self.cap_usd:
+                raise PermissionError(f"spending cap {self.cap_usd} USD would be exceeded; no request sent")
+            ticket = self._next_id
+            self._next_id += 1
+            self._pending[ticket] = est_usd
+            self.reserved_usd += est_usd
+            self.requests += 1
+            return ticket
+
+    def reconcile(self, ticket: int, actual_usd: float, usage: dict) -> None:
+        """Replace a reservation with reported cost, even if larger than estimate.
+
+        A provider charging more than estimated may breach the cap; subsequent
+        reservations are blocked, but the charge cannot be undone by this client.
+        """
+        if not isfinite(actual_usd) or actual_usd < 0:
+            raise ValueError("reported cost must be nonnegative and finite")
+        with self._lock:
+            estimated = self._pending.pop(ticket)
+            self._uncertain.discard(ticket)
+            self.reserved_usd -= estimated
+            self.spent_usd += actual_usd
+            self.usage.append({"status": "metered", "reported_usage": dict(usage), "usd": actual_usd})
+
+    def mark_unknown(self, ticket: int, reason: str) -> None:
+        """Retain the reservation for possible charges; never refund on timeout."""
+        with self._lock:
+            if ticket not in self._pending:
+                raise ValueError("cannot mark a settled reservation as unknown")
+            if ticket not in self._uncertain:
+                self._uncertain.add(ticket)
+                self.usage.append({"status": "unknown", "reason": reason,
+                                   "reserved_usd": self._pending[ticket]})
 
 
 class _Remote:
     def __init__(self, *, endpoint: str, api_key_env: str, allow_remote: bool, spend_cap_usd: float | None, timeout_s: int = 20):
         if not allow_remote:
             raise PermissionError("allow_remote=True is required; nothing is sent by default")
-        if spend_cap_usd is None or spend_cap_usd <= 0:
-            raise PermissionError("a positive spending cap (USD) must be declared")
+        if spend_cap_usd is None or not isfinite(spend_cap_usd) or spend_cap_usd <= 0:
+            raise PermissionError("a positive finite spending cap (USD) must be declared")
         if not _endpoint_ok(endpoint):
             raise ValueError("HTTPS endpoint (or loopback for tests) required")
         key = os.getenv(api_key_env)
@@ -79,6 +127,17 @@ class _Remote:
         with urlopen(req, timeout=self.timeout) as r:
             payload = json.loads(r.read(2_000_001))
         return payload, round((time.perf_counter() - t0) * 1000, 1)
+
+    def _budgeted_post(self, body: dict, estimated_usd: float) -> tuple[int, dict, float]:
+        # Reservation occurs immediately before the network call, atomically
+        # across callers sharing this provider instance. No automatic retries.
+        ticket = self.spend.reserve(estimated_usd)
+        try:
+            payload, ms = self._post(body)
+        except Exception:
+            self.spend.mark_unknown(ticket, "transport_or_protocol_failure")
+            raise
+        return ticket, payload, ms
 
 
 class OpenAIDecisionsProvider(_Remote):
@@ -113,14 +172,17 @@ class OpenAIDecisionsProvider(_Remote):
 
     def decide(self, state, host) -> Decision:
         body = self.build_request(state)
-        est_tokens = len(json.dumps(body)) // 3 + 50  # conservative over-estimate
-        self.spend.reserve(est_tokens * OPENAI_PRICE_PER_INPUT_TOKEN)
-        payload, ms = self._post(body)
-        usage = payload.get("usage") or {}
-        cost = (usage.get("input_tokens") or est_tokens) * OPENAI_PRICE_PER_INPUT_TOKEN
-        self.spend.spent_usd += cost
-        self.spend.requests += 1
-        self.spend.usage.append(usage)
+        # Bytes are a deliberately cautious estimate of BPE input tokens, with
+        # headroom for server-side framing. Still NOT a hard bound on billing.
+        est_tokens = len(json.dumps(body).encode("utf-8")) + 512
+        ticket, payload, ms = self._budgeted_post(body, est_tokens * OPENAI_PRICE_PER_INPUT_TOKEN)
+        usage = payload.get("usage") if isinstance(payload, dict) else None
+        input_tokens = usage.get("input_tokens") if isinstance(usage, dict) else None
+        if isinstance(input_tokens, bool) or not isinstance(input_tokens, int) or input_tokens < 0:
+            self.spend.mark_unknown(ticket, "missing_or_invalid_usage")
+            raise ValueError("decision provider did not report valid input-token usage")
+        cost = input_tokens * OPENAI_PRICE_PER_INPUT_TOKEN
+        self.spend.reconcile(ticket, cost, usage)
         ans = next(a for a in payload["answers"] if a.get("name") == "next_operation")
         if ans.get("type") == "refusal":
             return Decision("abstain", provider=self.name, model=self.model, rationale="provider refusal",
@@ -139,8 +201,8 @@ class SystemOneProvider(_Remote):
                  spend_cap_usd: float | None = None, price_per_input_token: float | None = None,
                  args_builder: ArgumentBuilder | None = None):
         super().__init__(endpoint=endpoint, api_key_env=api_key_env, allow_remote=allow_remote, spend_cap_usd=spend_cap_usd)
-        if price_per_input_token is None:
-            raise PermissionError("declare the provider's price per input token so the cap can be enforced")
+        if price_per_input_token is None or not isfinite(price_per_input_token) or price_per_input_token <= 0:
+            raise PermissionError("declare a positive finite input-token price for the budget preflight")
         self.model, self.price = model, price_per_input_token
         self.args = args_builder or ArgumentBuilder()
 
@@ -155,11 +217,11 @@ class SystemOneProvider(_Remote):
 
     def decide(self, state, host) -> Decision:
         body = self.build_request(state)
-        est = len(json.dumps(body)) // 3 + 50
-        self.spend.reserve(est * self.price)
-        payload, ms = self._post(body)
-        self.spend.requests += 1
-        self.spend.spent_usd += est * self.price
+        est = len(json.dumps(body).encode("utf-8")) + 512
+        ticket, payload, ms = self._budgeted_post(body, est * self.price)
+        # This provider adapter has no verified usage field. The estimated
+        # liability stays reserved rather than being mislabeled actual spend.
+        self.spend.mark_unknown(ticket, "provider_does_not_report_usage")
         ans = payload["choices"]["next_operation"]
         q = Question("next_operation", OPS, ans["choice"], ans.get("probabilities"), SCORE_PROVIDER, ms, None,
                      note="cost estimated from request size at the declared price (provider usage not reported)")
