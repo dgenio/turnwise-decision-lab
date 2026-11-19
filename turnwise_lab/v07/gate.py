@@ -183,28 +183,16 @@ class ExitGate:
         return Verdict(ALLOW, reason="contract met" if k.requirements or k.hold else "no contract applies", contract=cj,
                        unavailable=[r.key for r in unavailable], source="request" if (k.requirements or k.hold) else "none")
 
-    def veto(self, message: str, conversation: list[dict], target: str | None,
-             arguments: dict | None = None) -> str | None:
-        """Refuse a proposed write unless this user turn requests its exact operation and target.
-
-        A previous utterance can resolve a pronoun, but cannot confer write
-        authority. Tool/assistant text cannot provide either authority or target.
-        This protects native model proposals as well as the cheap controller.
-        """
-        if not self.latch or target not in dict(ACTION_CUES):
-            return None  # normal read-only tools are never vetoed by write-intent logic
+    def veto(self, message: str, conversation: list[dict], target: str | None) -> str | None:
+        """A write the user explicitly declined in this turn may not even become an approval request."""
+        if not self.latch or target is None:
+            return None
         claim = type_claim(message, conversation)
         if claim.declined_action == target and claim.action != target:
             return f"the user explicitly declined {target} in this turn"
-        cue = dict(ACTION_CUES)[target]
-        if claim.action != target and re.search(cue, message.lower()) and not re.search(cue, strip_quoted(message).lower()):
+        cue = dict(ACTION_CUES).get(target)
+        if cue and claim.action != target and re.search(cue, message.lower()) and not re.search(cue, strip_quoted(message).lower()):
             return f"the only mention of {target} is inside quoted text, which cannot make a request"
-        if claim.type != "action" or claim.action != target:
-            return f"the current user request does not authorize {target} on a resolvable target"
-        if arguments is not None:
-            expected = compile_contract(claim, message).hold
-            if expected is None or expected[0] != target or dict(arguments) != expected[1]:
-                return f"proposed {target} arguments do not match the current user's exact request target"
         return None
 
     def findings(self, message: str, conversation: list[dict], observations, notice: str = "") -> str:
