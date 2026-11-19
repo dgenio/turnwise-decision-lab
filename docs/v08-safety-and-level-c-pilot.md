@@ -51,9 +51,9 @@ These are deliberately narrow overlays, not yet one integrated versioned contrac
 
 ### Short frozen A+P checklist candidate
 
-> For incident questions, use available tools to verify facts before concluding. For causal claims, compare at least one symptom and one candidate change for the same service and check time ordering; correlation does not prove causation. For requests involving actions, preserve the exact user target and status, ask when the referent is ambiguous, never imply a write ran without a host receipt. Cite what was observed and say what remains uncertain.
+> Before concluding an incident investigation, gather the relevant symptom and candidate-change evidence for the same service; check time ordering, and do not treat correlation as proof. Check the exact user intent and service before proposing a write. Never claim a write was executed without a host execution receipt. Explain uncertainties and cite observed facts.
 
-Use the **same** system/tool instructions and host action checks for every arm; A+P adds only this short checklist. Its tokens, caching and provider costs are counted.
+Use the **same** system/tool instructions and host action checks for every arm; A+P adds only this short checklist. Its tokens, caching and provider costs are counted. The exact candidate text is frozen as `turnwise_lab/v08/pilot.py::CHECKLIST`; `run_arm` now wires A/A+P/A+G/A+P+G through the same `run_hosted_agent` and host boundary with a scripted no-network test. This is runnable *plumbing*, not an executed capable-model comparison.
 
 ### Dataset and instrumentation requirements
 
