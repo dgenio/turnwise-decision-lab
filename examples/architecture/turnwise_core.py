@@ -25,10 +25,12 @@ This module is framework-neutral and stdlib-only. Frameworks plug in through
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
+from types import MappingProxyType
 from typing import Any, Mapping, Protocol, Union
 
 from .incident_env import INCIDENT_RECORD, IncidentHost, Receipt, ToolSpec
@@ -56,7 +58,8 @@ OUTCOME_KINDS = ("answer_candidate", "tool_proposal", "needs_evidence")
 
 STEP_CONTRACT = (
     "You are being called for ONE step of a run that a Turnwise decision policy controls. "
-    "You cannot call tools. Read the JSON packet and reply with exactly one StepOutcome: "
+    "In this step no tool is callable; this overrides any instruction above to use tools. "
+    "Read the JSON packet and reply with exactly one StepOutcome: "
     "kind='answer_candidate' with the answer in text and the receipt ids you relied on in cited_receipts; "
     "or kind='tool_proposal' with one tool from tools_you_may_propose and its arguments as a JSON object "
     "string in arguments_json; or kind='needs_evidence' explaining in text what is missing. "
@@ -141,8 +144,9 @@ class Snapshot:
     """Everything the policy may look at. Built by the runtime from host state.
 
     It holds the task, host-parsed referents and permissions, typed
-    observations and remaining budget. It never holds evaluation labels,
-    expected routes or fixture ids.
+    observations, the host's last rejection and the remaining budget. It never
+    holds evaluation labels, expected routes or fixture ids. It is a copy: a
+    policy that changes it changes nothing the host relies on.
     """
 
     task: str
@@ -155,6 +159,7 @@ class Snapshot:
     outcomes: tuple[ModelOutcome, ...]
     latest: Observation | None
     budget_left: Mapping[str, int]
+    last_rejection: str | None = None  # why the host refused the previous decision, if it did
 
     def tool(self, tool_id: str) -> ToolSpec | None:
         return next((t for t in self.tools if t.id == tool_id), None)
@@ -168,7 +173,6 @@ class Snapshot:
 
 class Policy(Protocol):
     name: str
-    architecture: str  # "Turnwise Core", or a clearly different label such as an agent handoff
 
     def decide(self, snapshot: Snapshot) -> Decision: ...
 
@@ -187,8 +191,8 @@ class ModelPort(Protocol):
 # ---------------------------------------------------------------- the runtime
 class TurnwiseRuntime:
     def __init__(self, host: IncidentHost, policy: Policy, model: ModelPort, *, budget: Budget = Budget(),
-                 title: str = "Turnwise Core"):
-        self.host, self.policy, self.model, self.budget, self.title = host, policy, model, budget, title
+                 framework: str = "no framework"):
+        self.host, self.policy, self.model, self.budget, self.framework = host, policy, model, budget, framework
         self.outcomes: list[ModelOutcome] = []
         self.snapshots: list[Snapshot] = []  # every snapshot the policy was given (for tests/inspection)
         self.rows: list[TraceRow] = []
@@ -196,20 +200,31 @@ class TurnwiseRuntime:
         self._rejections = 0
         self._model_calls = 0  # CALL_LIGHT / CALL_HEAVY: exactly one model call each
         self._handoffs = 0  # HANDOFF_AGENT: the agent makes its own model calls inside
+        self._last_rejection: str | None = None
+        self._adopted: dict[str, str] = {}  # model outcome id -> receipt id of the policy decision that adopted it
 
     # -- what the policy sees
-    def snapshot(self, step: int) -> Snapshot:
+    def remaining(self, step: int) -> dict[str, int]:
+        """Remaining budget, computed from the runtime's own counters (never from anything the policy holds)."""
         tool_calls = sum(1 for r in self.host.receipts if r.proposed_by != "native_agent")
+        return {"steps": self.budget.max_steps - step + 1,
+                "model_calls": self.budget.max_model_calls - self._model_calls - self._handoffs,
+                "tool_calls": self.budget.max_tool_calls - tool_calls}
+
+    def snapshot(self, step: int) -> Snapshot:
+        # Deep copies: the policy may read everything and change nothing the host relies on.
+        receipts = copy.deepcopy(tuple(self.host.receipts))
+        outcomes = copy.deepcopy(tuple(self.outcomes))
+        latest = None if self._latest is None else next(
+            o for o in (*receipts, *outcomes) if o.id == self._latest.id)
         return Snapshot(
             task=self.host.user_request, step=step,
             services=self.host.services_named_by_user(),
             requested_writes=tuple(sorted(self.host.requested_writes)),
             verified_fact_keys=tuple(sorted(INCIDENT_RECORD)),
-            tools=self.host.tools, receipts=tuple(self.host.receipts), outcomes=tuple(self.outcomes),
-            latest=self._latest,
-            budget_left={"steps": self.budget.max_steps - step + 1,
-                         "model_calls": self.budget.max_model_calls - self._model_calls - self._handoffs,
-                         "tool_calls": self.budget.max_tool_calls - tool_calls},
+            tools=self.host.tools, receipts=receipts, outcomes=outcomes, latest=latest,
+            budget_left=MappingProxyType(self.remaining(step)),
+            last_rejection=self._last_rejection,
         )
 
     def run(self) -> RunResult:
@@ -217,37 +232,41 @@ class TurnwiseRuntime:
             snap = self.snapshot(step)
             self.snapshots.append(snap)
             decision = self.policy.decide(snap)
-            ok, why = self.host_validates(decision, snap)
+            ok, why = self.host_validates(decision, step)
             if not ok:
                 self._reject(step, decision, why)
                 if self._rejections >= self.budget.max_rejections:
                     return self._result("stopped", "Stopped: too many decisions were rejected by the host.")
                 continue
+            self._last_rejection = None
             if decision.op in TERMINAL:
                 return self._terminal(step, decision)
             if decision.op in (Op.CALL_TOOL, Op.CALL_WORKFLOW):
                 self._execute_tool(step, decision)
+                if self._rejections >= self.budget.max_rejections:
+                    return self._result("stopped", "Stopped: too many requests were rejected by the host.")
             elif decision.op in MODEL_OPS:
                 self._call_model(step, decision, MODEL_OPS[decision.op])
             else:
                 self._handoff(step, decision)
         return self._result("stopped", "Stopped: step budget exhausted before a host-accepted result.")
 
-    # -- host validation of a policy decision (independent of the policy)
-    def host_validates(self, d: Any, snap: Snapshot) -> tuple[bool, str]:
+    # -- host validation of a policy decision (independent of the policy and of its snapshot)
+    def host_validates(self, d: Any, step: int) -> tuple[bool, str]:
+        left = self.remaining(step)
         if not isinstance(d, Decision) or not isinstance(d.op, Op):
             return False, "the policy did not return a typed Decision"
         if not d.reason.strip():
             return False, "a decision must state its reason"
         if d.op in (Op.CALL_TOOL, Op.CALL_WORKFLOW):
-            spec = snap.tool(d.target or "")
+            spec = next((t for t in self.host.tools if t.id == d.target), None)
             if spec is None:
                 return False, f"unregistered capability {d.target!r}"
             if (spec.kind == "workflow") != (d.op is Op.CALL_WORKFLOW):
                 return False, f"{d.target} is a {spec.kind}, not a {d.op.value} target"
             if not isinstance(d.arguments, Mapping):
                 return False, "tool arguments are missing"
-            if snap.budget_left["tool_calls"] <= 0:
+            if left["tool_calls"] <= 0:
                 return False, "tool budget exhausted"
             if d.adopted_from is not None:
                 src = next((o for o in self.outcomes if o.id == d.adopted_from), None)
@@ -256,12 +275,12 @@ class TurnwiseRuntime:
                     return False, f"claims to adopt {d.adopted_from}'s proposal but does not match it"
             return True, ""
         if d.op in MODEL_OPS or d.op is Op.HANDOFF_AGENT:
-            if snap.budget_left["model_calls"] <= 0:
+            if left["model_calls"] <= 0:
                 return False, "model budget exhausted"
             unknown = [c for c in d.context if not (self.host.receipt(c) and self.host.receipt(c).executed)]
             if unknown:
                 return False, f"context may only contain executed host receipts; not {unknown}"
-            if any(snap.tool(t) is None for t in d.may_propose):
+            if any(t not in {spec.id for spec in self.host.tools} for t in d.may_propose):
                 return False, "may_propose lists an unregistered tool"
             return True, ""
         if d.op is Op.DIRECT:
@@ -271,7 +290,15 @@ class TurnwiseRuntime:
             return self._check_finish(d)
         if not (d.message or "").strip():
             return False, f"{d.op.value} must say what is missing"
+        if self._claims_unexecuted_action(d.message):
+            return False, f"{d.op.value} message mentions a completed side effect that no host receipt shows"
         return True, ""
+
+    def _claims_unexecuted_action(self, text: str) -> bool:
+        """A conservative keyword screen, not a semantic check: any mention of a completed side effect is
+        refused unless a host receipt shows an executed write (negated mentions are refused too)."""
+        writes = {t.id for t in self.host.tools if t.side_effect}
+        return bool(_ACTION_CLAIM.search(text)) and not any(r.executed and r.tool in writes for r in self.host.receipts)
 
     def _check_finish(self, d: Decision) -> tuple[bool, str]:
         cand = next((o for o in self.outcomes if o.id == d.candidate), None)
@@ -283,15 +310,16 @@ class TurnwiseRuntime:
                if c not in cand.shown or not (self.host.receipt(c) and self.host.receipt(c).executed)]
         if bad:
             return False, f"{cand.id} cites {bad}, which are not executed receipts it was shown"
-        writes = {t.id for t in self.host.tools if t.side_effect}
-        if _ACTION_CLAIM.search(cand.text) and not any(r.executed and r.tool in writes for r in self.host.receipts):
-            return False, f"{cand.id} claims an action that no host receipt shows as executed"
+        if self._claims_unexecuted_action(cand.text):
+            return False, f"{cand.id} mentions a completed side effect that no host receipt shows as executed"
         return True, ""
 
     # -- execution
     def _execute_tool(self, step: int, d: Decision) -> None:
         r = self.host.execute(d.target, d.arguments, proposed_by="turnwise_policy")
         self._latest = r
+        if d.adopted_from:
+            self._adopted[d.adopted_from] = r.id
         self.rows.append(TraceRow(str(step), CONTROLLER, d.describe(), host_text(r),
                                   f"{r.summary()} -> back to the policy", why=d.reason,
                                   short=f"policy -> {d.op.value} {d.target}" + status_tag(r)
@@ -333,11 +361,12 @@ class TurnwiseRuntime:
         for i, r in enumerate(new, start=1):
             self.rows.append(TraceRow(f"{step}.{i}", NATIVE, f"tool call {r.call()}", host_text(r), r.summary(),
                                       short=f"native agent -> tool {r.tool}" + status_tag(r)))
-        # A native agent declares no citations: the runtime records every executed receipt it was given or produced.
+        # A native agent declares no citations. The runtime attaches every executed receipt the agent was given
+        # or produced, and says so: for a handoff, FINISH's citation check is therefore weak.
         cited = tuple(d.context) + tuple(r.id for r in new if r.executed)
         outcome = ModelOutcome(f"m{len(self.outcomes) + 1}", "native_agent",
                                "answer_candidate" if text.strip() else "invalid", text, cited=cited, shown=cited,
-                               note=failure or "citations assigned by the runtime: receipts the agent was given or produced")
+                               note=failure or "runtime-attached citations")
         self.outcomes.append(outcome)
         self._latest = outcome
         self.rows.append(TraceRow(f"{step}.{len(new) + 1}", NATIVE, "final answer -> control returns to the policy",
@@ -352,8 +381,13 @@ class TurnwiseRuntime:
         elif d.op is Op.FINISH:
             cand = next(o for o in self.outcomes if o.id == d.candidate)
             answer = cand.text
-            host = (f"accepted {cand.id}: its citations [{', '.join(cand.cited)}] are executed host receipts it was "
-                    "shown, and it claims no unexecuted action. Causal correctness is NOT verified.")
+            if cand.source == "native_agent":
+                cites = (f"citations [{', '.join(cand.cited)}] were attached by the runtime (the native agent "
+                         "declares none), so this provenance check is weak")
+            else:
+                cites = f"its citations [{', '.join(cand.cited)}] are executed host receipts it was shown"
+            host = (f"accepted {cand.id}: {cites}; the keyword screen found no claimed side effect. "
+                    "Causal correctness is NOT verified.")
             status = "finished"
         elif d.op is Op.HOLD:
             answer, host, status = d.message or "", "validated; run stops visibly, nothing pending is executed", "held"
@@ -365,6 +399,7 @@ class TurnwiseRuntime:
 
     def _reject(self, step: int, d: Any, why: str) -> None:
         self._rejections += 1
+        self._last_rejection = why
         desc = d.describe() if isinstance(d, Decision) else repr(d)
         reason = d.reason if isinstance(d, Decision) else ""
         self.rows.append(TraceRow(str(step), CONTROLLER, desc, f"REJECTED: {why}",
@@ -384,17 +419,20 @@ class TurnwiseRuntime:
 
     def _result(self, status: str, answer: str) -> RunResult:
         notes = []
-        proposals = [o for o in self.outcomes if o.proposal]
-        for o in proposals:
-            done = next((r for r in self.host.receipts if r.proposed_by == "turnwise_policy"
-                         and (r.tool, r.arguments) == (o.proposal.tool, o.proposal.arguments)), None)
+        for o in (o for o in self.outcomes if o.proposal):
+            rid = self._adopted.get(o.id)
             notes.append(f"model proposal {o.id} {o.proposal.call()}: " + (
-                f"adopted by the policy, host {done.status} ({done.id})" if done else "NOT adopted by the policy"))
+                f"adopted by the policy, host {self.host.receipt(rid).status} ({rid})" if rid
+                else "NOT adopted by the policy"))
+        notes.append(self.host.action_record())
+        # The label comes from what happened, not from what the policy calls itself.
+        architecture = "Agent handoff (contrast; NOT Turnwise Core)" if self._handoffs else "Turnwise Core"
+        title = f"{architecture} -- same agent, policy: {self.policy.name} ({self.framework})"
         counts = {"policy_decisions": len(self.snapshots), "model_calls_chosen_by_policy": self._model_calls}
         if self._handoffs:
             counts["handoffs (agent's own model calls not counted here)"] = self._handoffs
         counts.update({"host_tool_requests": len(self.host.receipts), "rejected": self._rejections})
-        return RunResult(self.title, self.model.label, self.host.user_request, status, answer, list(self.rows),
+        return RunResult(title, self.model.label, self.host.user_request, status, answer, list(self.rows),
                          notes, counts, writes_executed=len(self.host.write_ledger))
 
 
@@ -404,7 +442,12 @@ def handoff_message(host: IncidentHost, context: tuple[str, ...]) -> str:
     return "\n".join([host.user_request] + [host.receipt(rid).for_model() for rid in context])
 
 
-_ACTION_CLAIM = re.compile(r"\b(rolled back|has been reverted|have reverted|i reverted|paged)\b", re.IGNORECASE)
+# Any wording that reports a side effect as done. Deliberately broad (negations match too): a screen that
+# fails closed, while the authoritative status is ``action_record`` (host receipts).
+_ACTION_CLAIM = re.compile(
+    r"\b(?:rolled[\s-]?back|reverted|paged)\b"
+    r"|\b(?:rollback|revert)\b[^.!?]{0,40}?\b(?:complete|completed|done|executed|performed|finished|applied|"
+    r"succeeded)\b", re.IGNORECASE)
 
 
 def parse_outcome(raw: Any, *, oid: str, source: str, shown: tuple[str, ...]) -> ModelOutcome:

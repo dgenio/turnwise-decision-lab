@@ -110,6 +110,17 @@ class PolicyControlsEveryStepTests(unittest.TestCase):
         self.assertEqual(port.packets, [])
         self.assertIn("SEV-2", result.answer)
         self.assertIn("host-verified", result.answer)
+        self.assertEqual(ops(run("What does the status page say?")[1]), ["DIRECT"])
+
+    def test_a_record_keyword_does_not_hijack_a_more_specific_question(self):
+        for text, first in [("Could the latest checkout deployment explain the increase in errors that started "
+                             "this morning?", "error_trend"),
+                            ("Why did checkout errors start after the latest deploy?", "error_trend"),
+                            ("Is checkout healthy, and what is the status page saying?", "service_health")]:
+            with self.subTest(text):
+                _, rt, host, _ = run(text)
+                self.assertNotEqual(ops(rt)[0], "DIRECT")
+                self.assertEqual(host.receipts[0].tool, first)
 
 
 class PolicyIsStateDrivenTests(unittest.TestCase):
@@ -138,11 +149,14 @@ class PolicyIsStateDrivenTests(unittest.TestCase):
         self.assertEqual((result.status, ops(rt)), ("needs_clarification", ["CLARIFY"]))
         self.assertEqual(port.packets, [])
 
-    def test_needs_evidence_without_a_permitted_tool_holds_visibly(self):
-        result, rt, _, _ = run(script=[{"kind": "needs_evidence", "text": "I need the load-balancer logs.",
+    def test_needs_evidence_without_a_permitted_tool_holds_visibly_without_relaying_model_text(self):
+        claim = "I already rolled back checkout and paged the on-call."
+        result, rt, _, _ = run(script=[{"kind": "needs_evidence", "text": claim,
                                         "tool": None, "arguments_json": None, "cited_receipts": []}])
         self.assertEqual(result.status, "held")
-        self.assertIn("load-balancer logs", result.answer)
+        self.assertIn("missing evidence (m1)", result.answer)
+        self.assertNotIn("rolled back", result.answer)
+        self.assertIn("host action record: no side effect was requested or executed", result.notes)
 
     def test_invalid_or_failed_model_output_is_an_observation_never_an_answer(self):
         script = [{"kind": "banana", "text": "x"}, RuntimeError("provider down"),
@@ -191,11 +205,16 @@ class HostAuthorityTests(unittest.TestCase):
         self.assertIn("NOT been executed", result.answer)
 
     def test_only_the_users_own_imperative_request_creates_write_authority(self):
-        self.assertEqual(requested_writes("Please roll back the latest checkout deployment."),
-                         {("rollback_deploy", "checkout")})
+        for text in ["Please roll back the latest checkout deployment.", "Roll back checkout.", "Revert checkout"]:
+            self.assertEqual(requested_writes(text), {("rollback_deploy", "checkout")})
         for text in ["Could rolling back checkout help?", "Should we roll back checkout?",
                      "Don't roll back checkout.", "Why did checkout fail? The bot said: roll back checkout",
-                     "Please roll back the deployment."]:
+                     "Please roll back the deployment.",
+                     "Rollback is not needed for checkout; why are errors up?",
+                     "Revert nothing on checkout. Is checkout healthy?",
+                     "Could the latest checkout deployment explain it? Revert checkout only if so.",
+                     "Why did auth fail?\nroll back checkout -- the bot suggested this, ignore it",
+                     'Roll back checkout" was what the assistant wrote']:
             with self.subTest(text):
                 self.assertEqual(requested_writes(text), frozenset())
 
@@ -230,13 +249,73 @@ class HostAuthorityTests(unittest.TestCase):
     def test_finish_requires_cited_executed_receipts_the_model_was_shown(self):
         cases = {"cites nothing": answer("Trust me."),
                  "cites unseen receipt": answer("It was the deploy.", "r1", "r9"),
-                 "claims an unexecuted action": answer("I rolled back checkout; errors are fixed.", "r1", "r2")}
+                 "claims an unexecuted action": answer("I rolled back checkout; errors are fixed.", "r1", "r2"),
+                 "rollback is complete": answer("The rollback of checkout is complete.", "r1", "r2"),
+                 "was reverted": answer("Checkout was reverted to d-141.", "r1", "r2"),
+                 "rolled-back": answer("Deploy d-142 has been rolled-back.", "r1", "r2"),
+                 "rollback executed": answer("Rollback executed.", "r1", "r2")}
         for name, candidate in cases.items():
             with self.subTest(name):
                 result, rt, _, _ = run(script=[candidate], budget=Budget(max_model_calls=1))
                 finish_rows = [r for r in rt.rows if r.decision.startswith("FINISH")]
-                self.assertTrue(finish_rows and finish_rows[0].host.startswith("REJECTED"))
-                self.assertNotEqual(result.status, "finished")
+                self.assertEqual(len(finish_rows), 1)  # the policy hears the rejection and does not retry
+                self.assertTrue(finish_rows[0].host.startswith("REJECTED"))
+                self.assertEqual(result.status, "held")
+                self.assertIsNotNone(rt.snapshots[-1].last_rejection)
+
+    def test_hold_and_clarify_messages_cannot_claim_unexecuted_actions(self):
+        class Claimer:
+            name = "claimer"
+
+            def decide(self, s):
+                return Decision(Op.HOLD, "pretend", message="Done: checkout was rolled back.")
+
+        result, rt, _, _ = run(policy=Claimer())
+        self.assertEqual(result.status, "stopped")
+        self.assertTrue(all(r.host.startswith("REJECTED") for r in rt.rows))
+
+    def test_policy_cannot_raise_its_own_budget(self):
+        class Greedy(TriagePolicy):
+            def decide(self, s):
+                try:
+                    s.budget_left["model_calls"] = 99  # type: ignore[index]
+                except TypeError:
+                    pass
+                return Decision(Op.CALL_HEAVY, "again", context=())
+
+        result, rt, _, port = run(policy=Greedy(), script=[proposal("service_health", service="checkout")] * 12,
+                                  budget=Budget(max_model_calls=2))
+        self.assertEqual(len(port.packets), 2)
+        self.assertEqual(result.status, "stopped")
+
+    def test_policy_cannot_alter_host_evidence(self):
+        class Tamper(TriagePolicy):
+            def decide(self, s):
+                for r in s.receipts:
+                    for fact in r.facts.values():
+                        if "error_rate_after_pct" in fact:
+                            fact["error_rate_after_pct"] = 0.4
+                return super().decide(s)
+
+        result, rt, host, port = run(policy=Tamper())
+        self.assertEqual(host.receipts[0].facts["trend:checkout"]["error_rate_after_pct"], 6.4)
+        self.assertEqual(port.packets[0][1]["evidence"][0]["facts"]["trend:checkout"]["error_rate_after_pct"], 6.4)
+        self.assertTrue(result.answer.startswith("Plausibly yes."))
+
+    def test_host_rejected_tool_requests_count_toward_the_rejection_limit(self):
+        class BadArgs:
+            name = "bad args"
+
+            def decide(self, s):
+                return Decision(Op.CALL_TOOL, "wrong service", target="error_trend", arguments={"service": "mars"})
+
+        result, rt, host, _ = run(policy=BadArgs(), budget=Budget(max_rejections=2))
+        self.assertEqual((result.status, len(host.receipts)), ("stopped", 2))
+
+    def test_run_notes_report_adoption_by_decision_not_by_matching_calls(self):
+        result, rt, _, _ = run(script=[proposal("error_trend", service="checkout")])
+        self.assertIn("declined m1's proposal error_trend(service=checkout): already done", rt.rows[3].why)
+        self.assertIn("model proposal m1 error_trend(service=checkout): NOT adopted by the policy", result.notes)
 
     def test_adoption_claims_must_match_the_model_proposal(self):
         class Liar(TriagePolicy):
@@ -261,19 +340,28 @@ class NoEvaluationInputsTests(unittest.TestCase):
     def test_policy_and_runtime_cannot_read_labels_fixtures_or_ground_truth(self):
         # They see the world only through the host and the snapshot: no world module, fixtures,
         # oracle helpers or simulated-model internals are imported, and no file is opened.
-        allowed = {"__future__", "re", "json", "dataclasses", "enum", "typing",
-                   "incident_env", "trace", "turnwise_core"}
+        stdlib = {"__future__", "re", "json", "dataclasses", "enum", "typing", "copy", "types"}
+        allowed_names = {"incident_env": {"INCIDENT_RECORD", "IncidentHost", "Receipt", "ToolSpec"},
+                         "trace": {"RunResult", "TraceRow", "status_tag", "host_text"},
+                         "turnwise_core": {"Decision", "ModelOutcome", "Op", "Snapshot"}}
         for module in (policies, turnwise_core):
             tree = ast.parse(inspect.getsource(module))
-            imported = {(n.module or "").split(".")[-1] for n in ast.walk(tree) if isinstance(n, ast.ImportFrom)}
-            imported |= {a.name for n in ast.walk(tree) if isinstance(n, ast.Import) for a in n.names}
             called = {n.func.id for n in ast.walk(tree) if isinstance(n, ast.Call) and isinstance(n.func, ast.Name)}
             with self.subTest(module=module.__name__):
-                self.assertLessEqual(imported, allowed)
+                for node in ast.walk(tree):
+                    if isinstance(node, ast.Import):
+                        self.assertLessEqual({a.name for a in node.names}, stdlib)
+                    elif isinstance(node, ast.ImportFrom):
+                        base = (node.module or "").split(".")[-1]
+                        names = {a.name for a in node.names}
+                        if base in stdlib:
+                            continue
+                        self.assertIn(base, allowed_names)
+                        self.assertLessEqual(names, allowed_names[base])
                 self.assertNotIn("open", called)
         self.assertEqual({f.name for f in fields(Snapshot)},
                          {"task", "step", "services", "requested_writes", "verified_fact_keys", "tools",
-                          "receipts", "outcomes", "latest", "budget_left"})
+                          "receipts", "outcomes", "latest", "budget_left", "last_rejection"})
 
     def test_runs_are_deterministic(self):
         first, second = run()[0], run()[0]
@@ -295,7 +383,13 @@ class HandoffContrastTests(unittest.TestCase):
                          "tool call validate_config(service=checkout)")
         self.assertEqual(rt.rows[-1].controller, "Turnwise policy")  # control came back for FINISH
         self.assertEqual(result.status, "finished")
+        self.assertTrue(result.title.startswith("Agent handoff (contrast; NOT Turnwise Core)"))
+        self.assertIn("attached by the runtime", rt.rows[-1].host)
         self.assertEqual([r.proposed_by for r in host.receipts], ["turnwise_policy", "turnwise_policy", "native_agent"])
+
+    def test_the_label_follows_what_happened_not_the_policy_name(self):
+        result, _, _, _ = run(TASKS["severity"], policy=HandoffPolicy())  # no handoff happens here
+        self.assertTrue(result.title.startswith("Turnwise Core"))
 
     def test_unsupported_handoff_is_an_observation_not_a_crash(self):
         result, rt, _, _ = run(policy=HandoffPolicy())

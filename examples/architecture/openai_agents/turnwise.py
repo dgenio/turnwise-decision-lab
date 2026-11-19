@@ -7,9 +7,10 @@ What changes is who chooses the next operation:
   operation, and the host validates it;
 * the policy's tool and workflow choices are executed by the host;
 * the model is invoked as ONE bounded operation: the *same agent*, cloned with
-  no tools and a typed output (``StepOutcome``), run with ``max_turns=1``. If
-  the model wants a tool, that arrives as ``StepOutcome(kind="tool_proposal")``
-  and goes back to the policy. The SDK never runs a tool on the model's say-so.
+  no tools, handoffs or MCP servers (so the SDK has nothing it could execute)
+  and a typed output (``StepOutcome``), run with ``max_turns=1`` (one model
+  call). If the model wants a tool, that arrives as
+  ``StepOutcome(kind="tool_proposal")`` and goes back to the policy.
 
 ``HANDOFF_AGENT`` (contrast only) runs the unmodified agent with ``Runner.run``
 for a bounded number of turns: for that segment the model is the controller
@@ -40,7 +41,10 @@ class OpenAIAgentsModelPort:
 
     def __init__(self, agent: Agent[HostSession], host: IncidentHost, *, light_model: Any, label: str):
         self.agent, self.host, self.label = agent, host, label
-        step = dict(tools=[], output_type=StepOutcome, instructions=f"{agent.instructions}\n\n{STEP_CONTRACT}")
+        # Nothing executable is left on the clone: no tools, handoffs or MCP servers. max_turns=1 below bounds
+        # it to one model call; it is the empty capability lists, not max_turns, that stop any execution.
+        step = dict(tools=[], handoffs=[], mcp_servers=[], output_type=StepOutcome,
+                    instructions=f"{agent.instructions}\n\n{STEP_CONTRACT}")
         self.step_agents = {
             "heavy": agent.clone(name=f"{agent.name} (one Turnwise step)", **step),
             "light": agent.clone(name=f"{agent.name} (one Turnwise step, light)", model=light_model, **step),
@@ -65,6 +69,5 @@ def run_turnwise(task: str, heavy_model: Any, light_model: Any, *, model_label: 
     agent = build_agent(heavy_model)  # the very same agent definition as the conventional example
     port = OpenAIAgentsModelPort(agent, host, light_model=light_model, label=model_label)
     policy = policy or TriagePolicy()
-    runtime = TurnwiseRuntime(host, policy, port, budget=budget,
-                              title=f"{policy.architecture} -- same agent, policy: {policy.name} (OpenAI Agents SDK)")
+    runtime = TurnwiseRuntime(host, policy, port, budget=budget, framework="OpenAI Agents SDK")
     return runtime.run(), runtime

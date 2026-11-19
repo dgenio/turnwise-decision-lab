@@ -16,6 +16,7 @@ Nothing in this module calls a model or the network.
 """
 from __future__ import annotations
 
+import copy
 import json
 import re
 from dataclasses import dataclass, field
@@ -142,21 +143,30 @@ def summarize_facts(tool: str, facts: Mapping[str, Any]) -> str:
 
 
 # ---------------------------------------------------------------- the host
-_ROLLBACK_REQUEST = re.compile(r"^\s*(?:please\s+)?(?:roll\s*back|revert)\b", re.IGNORECASE)
+_ROLLBACK_REQUEST = re.compile(
+    r"^\s*(?:please\s+)?(?:roll\s+back|revert)\s+(?:the\s+)?(?:(?:latest|last|most\s+recent)\s+)?(\w+)\b",
+    re.IGNORECASE)
+# Anything that makes the request negated, conditional, hedged or quoted disqualifies it.
+_NOT_A_PLAIN_REQUEST = re.compile(
+    r"\b(not|no|nothing|never|don'?t|do\s+not|if|unless|only|ignore|should|could|would|whether|maybe|"
+    r"perhaps|suggest\w*|bot|assistant|said)\b|--|[\"\u201c\u201d]", re.IGNORECASE)
 
 
 def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
     """Writes the *user's own request* explicitly asks for, as (tool, service).
 
-    Deliberately conservative and lexical: only an imperative sentence that
-    starts with "roll back"/"revert" and names a service counts. Model text,
-    tool output and earlier assistant statements are never inputs here, so a
-    model can never create authority for a side effect by mentioning one.
+    Deliberately conservative and lexical. A sentence counts only if it is a
+    plain imperative -- it starts with "roll back"/"revert", the next word
+    (after an optional "the latest") is a known service -- and it contains no
+    negation, condition, hedge, quotation or attribution to someone else.
+    Anything else yields no authority (the write would be rejected, never run).
+    Model text, tool output and assistant statements are never inputs here.
     """
     found: set[tuple[str, str]] = set()
-    for sentence in re.split(r"[.!?\n]+", user_request):
-        if _ROLLBACK_REQUEST.search(sentence):
-            found.update(("rollback_deploy", svc) for svc in named_services(sentence))
+    for sentence in re.split(r"[.!?;\n]+", user_request):
+        match = _ROLLBACK_REQUEST.search(sentence)
+        if match and not _NOT_A_PLAIN_REQUEST.search(sentence):
+            found.update(("rollback_deploy", svc) for svc in named_services(match.group(1)))
     return frozenset(found)
 
 
@@ -199,6 +209,12 @@ class IncidentHost:
     def services_named_by_user(self) -> tuple[str, ...]:
         return named_services(self.user_request)
 
+    def action_record(self) -> str:
+        """The authoritative side-effect status of a run, from host receipts only (never from model text)."""
+        acts = [f"{r.call()} {r.status.upper()}" for r in self.receipts if r.tool in TOOLS_BY_ID
+                and TOOLS_BY_ID[r.tool].side_effect]
+        return "host action record: " + ("; ".join(acts) if acts else "no side effect was requested or executed")
+
     # -- the one execution path
     def execute(self, tool_id: str, arguments: Any, *, proposed_by: str) -> Receipt:
         spec = TOOLS_BY_ID.get(tool_id) if isinstance(tool_id, str) else None
@@ -225,8 +241,9 @@ class IncidentHost:
             else:
                 reason = ",".join(out.reason_codes)
         receipt = Receipt(f"r{len(self.receipts) + 1}", tool_id if isinstance(tool_id, str) else repr(tool_id),
-                          spec.kind if spec else "unknown", args if args is not None else {"_raw": repr(arguments)},
-                          status, proposed_by, reason, facts)
+                          spec.kind if spec else "unknown",
+                          copy.deepcopy(args) if args is not None else {"_raw": repr(arguments)},
+                          status, proposed_by, reason, copy.deepcopy(facts))
         self.receipts.append(receipt)
         return receipt
 

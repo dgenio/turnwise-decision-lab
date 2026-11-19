@@ -63,6 +63,7 @@ class LlamaIndexPairTests(unittest.TestCase):
         self.assertIsInstance(rt.model.agent, FunctionAgent)
         self.assertIs(rt.model.llms["heavy"], rt.model.agent.llm)
         self.assertEqual([c["tools"] for c in rec.calls], [["StepOutcome"], ["StepOutcome"]])
+        self.assertEqual({tuple(c["roles"]) for c in rec.calls}, {("system", "user")})  # like the agent's own messages
         latest = rt.snapshots[3].latest
         self.assertIsInstance(latest, ModelOutcome)
         self.assertEqual((latest.kind, latest.proposal.tool), ("tool_proposal", "validate_config"))

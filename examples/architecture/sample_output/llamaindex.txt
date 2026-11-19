@@ -1,7 +1,8 @@
 ####################################################################################################
 # Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: investigate
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Conventional agent -- LlamaIndex (FunctionAgent + FunctionTool) ===
@@ -40,6 +41,7 @@ RESULT  completed (FunctionAgent response)
         upstream_timeout_s 12 (baseline 8). The timing is consistent with the deploy causing the
         errors, but this is correlation, not proof.
   note: the workflow ends when the LLM answers without a tool call; no host check of the answer
+  note: host action record: no side effect was requested or executed
   counts: model_calls=4, host_tool_requests=3  (operation counts in this run only; not a cost, latency or quality measurement)
   writes executed: 0
 
@@ -66,7 +68,7 @@ STEP 3
                 search_docs]
   why         : the question needs reasoning over the evidence; use the capable model
   host        : validated; called the heavy model once via LlamaIndex:
-                llm.structured_predict(StepOutcome, prompt) on the agent's own LLM
+                llm.structured_predict(StepOutcome, ...) on the agent's own LLM
   observation : m1 tool_proposal validate_config(service=checkout): "I need validate_config evidence
                 before I can answer." -> back to the policy
 STEP 4
@@ -81,7 +83,7 @@ STEP 5
   decision    : CALL_HEAVY context=[r1, r2, r3] may_propose=[service_health, search_docs]
   why         : the question needs reasoning over the evidence; use the capable model
   host        : validated; called the heavy model once via LlamaIndex:
-                llm.structured_predict(StepOutcome, prompt) on the agent's own LLM
+                llm.structured_predict(StepOutcome, ...) on the agent's own LLM
   observation : m2 answer_candidate citing [r1, r2, r3]: "Plausibly yes. checkout's error rate rose
                 from 0.4% to 6.4% around deploy d-142 (2026-11-01T11:02:00Z: raise upstream timeout
                 8s->12s; sh..." -> back to the policy
@@ -89,8 +91,8 @@ STEP 6
   controller  : Turnwise policy
   decision    : FINISH with answer candidate m2
   why         : m2 is an answer candidate; ask the host to accept it
-  host        : accepted m2: its citations [r1, r2, r3] are executed host receipts it was shown, and
-                it claims no unexecuted action. Causal correctness is NOT verified.
+  host        : accepted m2: its citations [r1, r2, r3] are executed host receipts it was shown; the
+                keyword screen found no claimed side effect. Causal correctness is NOT verified.
   observation : run ends
 
 RESULT  finished
@@ -101,6 +103,7 @@ RESULT  finished
         errors, but this is correlation, not proof.
   note: model proposal m1 validate_config(service=checkout): adopted by the policy, host executed
         (r3)
+  note: host action record: no side effect was requested or executed
   counts: policy_decisions=6, model_calls_chosen_by_policy=2, host_tool_requests=3, rejected=0  (operation counts in this run only; not a cost, latency or quality measurement)
   writes executed: 0
 

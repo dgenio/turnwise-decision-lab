@@ -33,7 +33,9 @@ def run_pair(framework: str, task: str, *, live: bool, handoff: bool) -> list[Ru
             from .llamaindex.models import choose_llms as choose
             from .llamaindex.turnwise import run_turnwise
     except ImportError as exc:
-        raise SystemExit(f"{FRAMEWORKS[framework][0]} is not installed ({exc.name}). "
+        if (exc.name or "").split(".")[0] not in {"agents", "llama_index", "pydantic"}:
+            raise
+        raise SystemExit(f"{FRAMEWORKS[framework][0]} is missing or not the pinned version ({exc.name}). "
                          "Run: pip install -r examples/architecture/requirements.txt") from exc
     m = choose(live=live)
     results = [run_conventional(task, m.heavy, model_label=m.label)]
@@ -57,7 +59,8 @@ def header(framework: str, scenario: str, live: bool) -> str:
         "#" * 100,
         f"# Turnwise architecture demo | framework: {name} {ver} | scenario: {scenario}",
         f"# {mode}",
-        "# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.",
+        "# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who",
+        "# decides each next operation, and therefore what the model is shown (see the guide's parity notes).",
         "#" * 100])
 
 

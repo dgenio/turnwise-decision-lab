@@ -47,21 +47,28 @@ def run_conventional(task: str, model: Any, *, model_label: str, max_turns: int 
     agent = build_agent(model)
     result = Runner.run_sync(agent, task, context=HostSession(host, actor="llm"), max_turns=max_turns,
                              run_config=RunConfig(tracing_disabled=True))
-    # Each raw response is one model call; whatever it contains is the model's decision.
-    turns = [[_turn_item(item) for item in response.output] for response in result.raw_responses]
+    # Each raw response is one model call, i.e. one model decision.
+    turns = [_decision(response.output) for response in result.raw_responses]
     rows = conventional_rows(turns, host.receipts, controller="LLM (inside the SDK Runner loop)",
                              loop_name="the SDK Runner")
     return RunResult(
         title="Conventional agent -- OpenAI Agents SDK (Agent + Runner.run_sync + function tools)",
         model_label=model_label, task=task, status="completed (SDK final_output)",
         answer=str(result.final_output), rows=rows,
-        notes=["the SDK ends the run when the model answers without a tool call; no host check of the answer"],
+        notes=["the SDK ends the run when the model answers without a tool call; no host check of the answer", host.action_record()],
         counts={"model_calls": len(result.raw_responses), "host_tool_requests": len(host.receipts)},
         writes_executed=len(host.write_ledger))
 
 
-def _turn_item(item: Any) -> NativeTurnItem:
-    if getattr(item, "type", None) == "function_call":
-        return NativeTurnItem("tool_call", tool=item.name, arguments=item.arguments)
-    text = "".join(getattr(part, "text", "") for part in getattr(item, "content", []) or [])
-    return NativeTurnItem("answer", text=text)
+def _decision(output: list[Any]) -> list[NativeTurnItem]:
+    """Tool calls if the response has any (the loop continues); otherwise its message text (the run ends).
+
+    Reasoning items and text that accompanies tool calls are not decisions and are not shown.
+    """
+    calls = [NativeTurnItem("tool_call", tool=i.name, arguments=i.arguments)
+             for i in output if getattr(i, "type", None) == "function_call"]
+    if calls:
+        return calls
+    text = "".join(getattr(part, "text", "") for i in output if getattr(i, "type", None) == "message"
+                   for part in getattr(i, "content", []) or [])
+    return [NativeTurnItem("answer", text=text)]

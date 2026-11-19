@@ -79,6 +79,6 @@ def run_conventional(task: str, llm: Any, *, model_label: str, max_iterations: i
         title="Conventional agent -- LlamaIndex (FunctionAgent + FunctionTool)",
         model_label=model_label, task=task, status="completed (FunctionAgent response)",
         answer=final.response.content or "", rows=rows,
-        notes=["the workflow ends when the LLM answers without a tool call; no host check of the answer"],
+        notes=["the workflow ends when the LLM answers without a tool call; no host check of the answer", host.action_record()],
         counts={"model_calls": len(turns), "host_tool_requests": len(host.receipts)},
         writes_executed=len(host.write_ledger))

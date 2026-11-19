@@ -18,7 +18,7 @@ import json
 from typing import Any, Mapping
 
 from llama_index.core.agent.workflow import FunctionAgent
-from llama_index.core.prompts import PromptTemplate
+from llama_index.core.prompts import ChatPromptTemplate
 
 from ..incident_env import HostSession, IncidentHost
 from ..policies import TriagePolicy
@@ -32,18 +32,19 @@ from .models import PACKET_MARKER
 class LlamaIndexModelPort:
     """How Turnwise invokes the model through LlamaIndex: one structured call, no tools, no agent loop."""
 
-    describe = "LlamaIndex: llm.structured_predict(StepOutcome, prompt) on the agent's own LLM"
+    describe = "LlamaIndex: llm.structured_predict(StepOutcome, ...) on the agent's own LLM"
 
     def __init__(self, agent: FunctionAgent, host: IncidentHost, *, light_llm: Any, label: str):
         self.agent, self.host, self.label = agent, host, label
         self.llms = {"heavy": agent.llm, "light": light_llm}
-        # The whole prompt is one template variable, so JSON braces need no escaping.
-        self.template = PromptTemplate("{step_prompt}")
+        # System prompt + user packet, like the agent's own messages. Each message is one template variable,
+        # so the JSON braces inside them need no escaping.
+        self.template = ChatPromptTemplate.from_messages([("system", "{system}"), ("user", "{packet}")])
 
     def call(self, tier: str, packet: Mapping[str, Any]) -> Mapping[str, Any]:
-        prompt = (f"{self.agent.system_prompt}\n\n{STEP_CONTRACT}\n\n"
-                  f"{PACKET_MARKER}{json.dumps(packet, sort_keys=True)}")
-        outcome = self.llms[tier].structured_predict(StepOutcome, self.template, step_prompt=prompt)
+        outcome = self.llms[tier].structured_predict(
+            StepOutcome, self.template, system=f"{self.agent.system_prompt}\n\n{STEP_CONTRACT}",
+            packet=f"{PACKET_MARKER}{json.dumps(packet, sort_keys=True)}")
         return outcome.model_dump()
 
     def handoff(self, task_text: str, max_turns: int) -> str:
@@ -59,6 +60,5 @@ def run_turnwise(task: str, heavy_llm: Any, light_llm: Any, *, model_label: str,
     agent = build_agent(heavy_llm, HostSession(host, actor="llm"))  # the very same agent definition
     port = LlamaIndexModelPort(agent, host, light_llm=light_llm, label=model_label)
     policy = policy or TriagePolicy()
-    runtime = TurnwiseRuntime(host, policy, port, budget=budget,
-                              title=f"{policy.architecture} -- same agent, policy: {policy.name} (LlamaIndex)")
+    runtime = TurnwiseRuntime(host, policy, port, budget=budget, framework="LlamaIndex")
     return runtime.run(), runtime

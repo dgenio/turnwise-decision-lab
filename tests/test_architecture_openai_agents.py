@@ -61,6 +61,15 @@ class ConventionalAgentIsANativeSDKAgentTests(unittest.TestCase):
         self.assertTrue(result.answer.startswith("Plausibly yes."))
         self.assertEqual(result.writes_executed, 0)
 
+    def test_trace_treats_text_beside_a_tool_call_as_part_of_that_tool_decision(self):
+        from agents.testing import assistant_message, function_call
+
+        from examples.architecture.openai_agents.conventional import _decision
+        items = _decision([assistant_message("Let me check."), function_call("error_trend", {"service": "checkout"},
+                                                                              call_id="c1")])
+        self.assertEqual([(i.kind, i.tool) for i in items], [("tool_call", "error_trend")])
+        self.assertEqual(_decision([assistant_message("Done.")])[0].kind, "answer")
+
     def test_the_shared_host_still_rejects_an_unrequested_write_from_the_model(self):
         result, _ = _run_conventional(brain=SimulatedInvestigator(rogue_write=True))
         rollback = [r for r in result.rows if "rollback_deploy" in r.decision]
@@ -86,7 +95,7 @@ class TurnwiseOnTheSDKTests(unittest.TestCase):
         calls = m.heavy.calls
         self.assertEqual(len(calls), 2)  # exactly one SDK model call per CALL_HEAVY decision
         for call in calls:
-            self.assertEqual(call.tools, [])
+            self.assertEqual((call.tools, call.handoffs), ([], []))  # nothing the SDK could execute
             self.assertEqual(call.output_schema.name(), "StepOutcome")
             self.assertEqual(len(call.input), 1)  # just the context packet the host assembled
         first_packet = json.loads(calls[0].input[0]["content"])

@@ -1,7 +1,8 @@
 ####################################################################################################
 # Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: investigate
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Side by side: who chose each operation ===
@@ -18,7 +19,8 @@ A: Conventional agent                                      | B: Turnwise Core
 ####################################################################################################
 # Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: status
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Side by side: who chose each operation ===
@@ -32,7 +34,8 @@ A: Conventional agent                                      | B: Turnwise Core
 ####################################################################################################
 # Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: severity
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Side by side: who chose each operation ===
@@ -44,7 +47,8 @@ A: Conventional agent                                      | B: Turnwise Core
 ####################################################################################################
 # Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: rollback
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Side by side: who chose each operation ===
@@ -57,7 +61,8 @@ A: Conventional agent                                      | B: Turnwise Core
 ####################################################################################################
 # Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: investigate
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Side by side: who chose each operation ===
@@ -74,7 +79,8 @@ A: Conventional agent                                      | B: Turnwise Core
 ####################################################################################################
 # Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: status
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Side by side: who chose each operation ===
@@ -88,7 +94,8 @@ A: Conventional agent                                      | B: Turnwise Core
 ####################################################################################################
 # Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: severity
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Side by side: who chose each operation ===
@@ -100,7 +107,8 @@ A: Conventional agent                                      | B: Turnwise Core
 ####################################################################################################
 # Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: rollback
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
+# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Side by side: who chose each operation ===

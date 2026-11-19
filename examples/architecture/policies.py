@@ -36,12 +36,16 @@ class TriagePolicy:
     """Cheap evidence first, the capable model for reasoning, the host for authority."""
 
     name = "TriagePolicy (deterministic rules)"
-    architecture = "Turnwise Core"
     # Evidence roles worth reading before asking a model, per kind of question.
     PLAYBOOK = {"diagnostic": ("symptom", "change"), "status": ("current_state",)}
 
     def decide(self, s: Snapshot) -> Decision:
         last = s.latest
+
+        # 0. The host refused the previous decision: do not repeat it; stop visibly.
+        if s.last_rejection:
+            return Decision(Op.HOLD, f"the host rejected the previous decision ({s.last_rejection})",
+                            message="Unresolved: the host did not accept the policy's last decision; see the trace.")
 
         # 1. A held write ends the run visibly. A hold is not an executed action.
         if isinstance(last, Receipt) and last.status == "held_for_approval":
@@ -58,8 +62,9 @@ class TriagePolicy:
             return Decision(Op.HOLD, "the requested action was not accepted by the host",
                             message="The requested action could not be carried out; see the host receipts.")
 
-        # 3. Some questions are answered by a host-verified record: no model, no tool.
-        fact = _fact_key(s.task, s.verified_fact_keys)
+        # 3. A pure record question (no service, no diagnosis) is answered by a host-verified record:
+        #    no model, no tool. Anything more specific is not hijacked by a keyword.
+        fact = None if s.services or _intent(s.task) != "other" else _fact_key(s.task, s.verified_fact_keys)
         if fact:
             return Decision(Op.DIRECT, "a host-verified record answers this question", target=fact)
 
@@ -78,8 +83,9 @@ class TriagePolicy:
                                     message=f"Unresolved: the model keeps asking for {last.proposal.call()}, "
                                             "which the policy will not run.")
             elif last.kind == "needs_evidence":
+                # Model text is never relayed as the run's message: it could claim anything.
                 return Decision(Op.HOLD, f"{last.id} reports missing evidence that no permitted tool provides",
-                                message=f"Unresolved: {last.text}")
+                                message=f"Unresolved: the model reported missing evidence ({last.id}); see the trace.")
             else:
                 note = f"{last.id} was {last.kind}; "
         elif isinstance(last, Receipt) and last.status == "rejected":
@@ -136,7 +142,6 @@ class HandoffPolicy(TriagePolicy):
     """
 
     name = "HandoffPolicy"
-    architecture = "Agent handoff (contrast; NOT Turnwise Core)"
 
     def decide(self, s: Snapshot) -> Decision:
         d = super().decide(s)
@@ -152,7 +157,7 @@ class HandoffPolicy(TriagePolicy):
 def _intent(task: str) -> str:
     if _DIAGNOSTIC.search(task):
         return "diagnostic"
-    if _STATUS.search(task):
+    if _STATUS.search(re.sub(r"status page", "", task, flags=re.IGNORECASE)):
         return "status"
     return "other"
 

@@ -43,7 +43,7 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Install the pinned framework versions
         run: pip install -r examples/architecture/requirements.txt
-      - name: Architecture tests (a skipped framework test is a failure here; network deliberately unreachable)
+      - name: Architecture tests (a skipped framework test is a failure here; proxy-routed network pointed at a dead port)
         env:
           TURNWISE_REQUIRE_FRAMEWORKS: '1'
           OPENAI_API_KEY: ''
