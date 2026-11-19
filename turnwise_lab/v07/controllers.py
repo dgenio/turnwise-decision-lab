@@ -64,7 +64,7 @@ class GatedDecider:
             terminal = "answer"
         if d.operation in ("call_tool", "call_workflow") and d.target in CATALOG_BY_ID and CATALOG_BY_ID[d.target].side_effect:
             terminal = "write"
-            reason = self.gate.veto(state.user_message, state.conversation, d.target, d.arguments)
+            reason = self.gate.veto(state.user_message, state.conversation, d.target)
             if reason:
                 # The controller insists on a write the user declined or never made. The gate does not hand that back to it
                 # (a deterministic controller would only repeat it): it ends the turn on what the contract supports.
@@ -303,7 +303,7 @@ def run_gated_loop(message: str, *, host: Host, decider, context, generator, tur
     validate = host.validate
 
     def validate_with_veto(d, executed):
-        reason = gate.veto(message, conversation, d.target, d.arguments) if d.operation in ("call_tool", "call_workflow") else None
+        reason = gate.veto(message, conversation, d.target) if d.operation in ("call_tool", "call_workflow") else None
         return Validation(False, d, "rejected", reason) if reason else validate(d, executed)
     host.validate = validate_with_veto
     try:
