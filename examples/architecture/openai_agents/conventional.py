@@ -14,10 +14,10 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from agents import Agent, FunctionTool, RunConfig, RunContextWrapper, Runner
+from agents import Agent, FunctionTool, RunConfig, RunContextWrapper, Runner, ToolCallOutputItem
 
 from ..incident_env import AGENT_INSTRUCTIONS, TOOLS, HostSession, IncidentHost, ToolSpec
-from ..trace import NativeTurnItem, RunResult, conventional_rows
+from ..trace import NativeTurnItem, RunResult, conventional_rows, receipt_id_from_output
 
 
 def build_agent(model: Any) -> Agent[HostSession]:
@@ -49,8 +49,16 @@ def run_conventional(task: str, model: Any, *, model_label: str, max_turns: int 
                              run_config=RunConfig(tracing_disabled=True))
     # Each raw response is one model call, i.e. one model decision.
     turns = [_decision(response.output) for response in result.raw_responses]
-    rows = conventional_rows(turns, host.receipts, controller="LLM (inside the SDK Runner loop)",
-                             loop_name="the SDK Runner")
+    receipt_for_call = {}
+    for item in result.new_items:  # the SDK's record of each tool output, keyed by the model's call id
+        if isinstance(item, ToolCallOutputItem):
+            raw = item.raw_item
+            call_id = raw.get("call_id") if isinstance(raw, dict) else getattr(raw, "call_id", None)
+            rid = receipt_id_from_output(item.output)
+            if call_id and rid:
+                receipt_for_call[call_id] = rid
+    rows = conventional_rows(turns, host.receipts, receipt_for_call=receipt_for_call,
+                             controller="LLM (inside the SDK Runner loop)", loop_name="the SDK Runner")
     return RunResult(
         title="Conventional agent -- OpenAI Agents SDK (Agent + Runner.run_sync + function tools)",
         model_label=model_label, task=task, status="completed (SDK final_output)",
@@ -63,12 +71,12 @@ def run_conventional(task: str, model: Any, *, model_label: str, max_turns: int 
 def _decision(output: list[Any]) -> list[NativeTurnItem]:
     """Tool calls if the response has any (the loop continues); otherwise its message text (the run ends).
 
-    Reasoning items and text that accompanies tool calls are not decisions and are not shown.
+    Text sent alongside tool calls is shown as such (it is not a decision). Reasoning items are not shown.
     """
-    calls = [NativeTurnItem("tool_call", tool=i.name, arguments=i.arguments)
+    calls = [NativeTurnItem("tool_call", tool=i.name, arguments=i.arguments, call_id=i.call_id)
              for i in output if getattr(i, "type", None) == "function_call"]
-    if calls:
-        return calls
     text = "".join(getattr(part, "text", "") for i in output if getattr(i, "type", None) == "message"
                    for part in getattr(i, "content", []) or [])
+    if calls:
+        return ([NativeTurnItem("text", text=text)] if text.strip() else []) + calls
     return [NativeTurnItem("answer", text=text)]

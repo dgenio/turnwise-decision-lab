@@ -7,8 +7,8 @@ output schema). The Runner, tool dispatch and structured-output parsing are
 the real SDK; only the generated text is simulated (see simulated_model.py).
 
 Live: a model name resolved by the SDK's default OpenAI provider. This needs
-OPENAI_API_KEY, costs money, and is never used unless ``live=True``. It is not
-exercised by this repository's tests or CI.
+OPENAI_API_KEY, costs money, and is never used unless ``live=True``. It has never
+been run or tested by the authors or this repository's CI.
 """
 from __future__ import annotations
 
@@ -38,7 +38,7 @@ def choose_models(*, live: bool = False, brain: SimulatedInvestigator | None = N
         heavy = os.environ.get("TURNWISE_HEAVY_MODEL", "gpt-4.1")
         light = os.environ.get("TURNWISE_LIGHT_MODEL", "gpt-4.1-mini")
         return ModelChoice(heavy, light, f"LIVE OpenAI models heavy={heavy} light={light} "
-                                         "via the SDK default provider (not exercised by CI)", False)
+                                         "via the SDK default provider (never run or tested by the authors or CI)", False)
     brain = brain or SimulatedInvestigator()
     return ModelChoice(simulated_model(brain, "heavy", max_calls), simulated_model(brain, "light", max_calls),
                        f"{SIMULATED_LABEL}; plugged in via agents.testing.ScriptedModel", True)

@@ -61,14 +61,30 @@ class ConventionalAgentIsANativeSDKAgentTests(unittest.TestCase):
         self.assertTrue(result.answer.startswith("Plausibly yes."))
         self.assertEqual(result.writes_executed, 0)
 
-    def test_trace_treats_text_beside_a_tool_call_as_part_of_that_tool_decision(self):
+    def test_trace_shows_text_beside_a_tool_call_without_calling_it_a_final_answer(self):
         from agents.testing import assistant_message, function_call
 
         from examples.architecture.openai_agents.conventional import _decision
         items = _decision([assistant_message("Let me check."), function_call("error_trend", {"service": "checkout"},
                                                                               call_id="c1")])
-        self.assertEqual([(i.kind, i.tool) for i in items], [("tool_call", "error_trend")])
+        self.assertEqual([(i.kind, i.tool, i.text) for i in items],
+                         [("text", "", "Let me check."), ("tool_call", "error_trend", "")])
         self.assertEqual(_decision([assistant_message("Done.")])[0].kind, "answer")
+
+    def test_parallel_tool_calls_and_accompanying_text_are_traced_by_call_id(self):
+        from agents.testing import ScriptedModel, assistant_message, function_call
+
+        calls = [function_call(t, {"service": "checkout"}, call_id=f"c{i}")
+                 for i, t in enumerate(["validate_config", "error_trend", "recent_deploys"])]
+        model = ScriptedModel([[assistant_message("Checking three things."), *calls],
+                               [assistant_message("Done.")]])
+        result = run_conventional(TASKS["investigate"], model, model_label="SIMULATED (test script)")
+        self.assertEqual([r.decision.split("(")[0] for r in result.rows],
+                         ["text alongside the tool call", "tool call validate_config", "tool call error_trend",
+                          "tool call recent_deploys", "final answer "])
+        expected = {"validate_config": "drift:", "error_trend": "error rate", "recent_deploys": "d-142"}
+        for row in result.rows[1:4]:
+            self.assertIn(expected[row.decision.split(" ")[2].split("(")[0]], row.observation)
 
     def test_the_shared_host_still_rejects_an_unrequested_write_from_the_model(self):
         result, _ = _run_conventional(brain=SimulatedInvestigator(rogue_write=True))

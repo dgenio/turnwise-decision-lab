@@ -9,7 +9,7 @@ prediction are the real framework; only the generated text is simulated
 
 Live: ``llama_index.llms.openai.OpenAI`` (separate package
 ``llama-index-llms-openai``) with OPENAI_API_KEY. Never used unless
-``live=True``; not exercised by this repository's tests or CI.
+``live=True``; never run or tested by the authors or this repository's CI.
 """
 from __future__ import annotations
 
@@ -47,7 +47,7 @@ def choose_llms(*, live: bool = False, brain: SimulatedInvestigator | None = Non
         light = os.environ.get("TURNWISE_LIGHT_MODEL", "gpt-4.1-mini")
         return LLMChoice(OpenAI(model=heavy), OpenAI(model=light),
                          f"LIVE OpenAI models heavy={heavy} light={light} via llama-index-llms-openai "
-                         "(not exercised by CI)", False)
+                         "(never run or tested by the authors or CI)", False)
     brain = brain or SimulatedInvestigator()
     return LLMChoice(simulated_llm(brain, "heavy"), simulated_llm(brain, "light"),
                      f"{SIMULATED_LABEL}; plugged in via llama_index MockFunctionCallingLLM", True)

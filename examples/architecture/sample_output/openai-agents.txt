@@ -1,8 +1,8 @@
 ####################################################################################################
 # Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: investigate
 # OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
-# A and B share the task, tools, data, host, permissions, base instructions and model. What differs is who
-# decides each next operation, and therefore what the model is shown (see the guide's parity notes).
+# A and B share the task, tools, data, host, permissions, base instructions and capable model.
+# What differs is who decides each next operation, and so what the model is shown (see the guide's parity notes).
 ####################################################################################################
 
 === Conventional agent -- OpenAI Agents SDK (Agent + Runner.run_sync + function tools) ===
