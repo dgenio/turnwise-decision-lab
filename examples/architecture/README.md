@@ -102,7 +102,7 @@ python -m examples.architecture.run_demo --framework all --scenario all --handof
 python -m examples.architecture.live_smoke
 ```
 
-A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. It has **not been run**: see [Real-provider readiness](#real-provider-readiness) and the [decision packet](../../docs/live-smoke-decision-packet.md).
+A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. **The owner approved exactly one local attempt with GPT-6.1 Sol and an estimated US$2 guard, but no real inference has been run.** For credential-safe execution, run `python -m examples.architecture.secure_live_once` (free rehearsal), then `python -m examples.architecture.secure_live_once --execute` on your own computer. The launcher prompts for a project key without echo, disables SDK trace export and writes results outside the repo. See the [decision packet](../../docs/live-smoke-decision-packet.md).
 
 ## Recorded output (offline: real SDK 0.25.0, simulated model)
 
