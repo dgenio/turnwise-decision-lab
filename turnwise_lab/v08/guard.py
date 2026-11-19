@@ -34,7 +34,7 @@ def user_history(conversation: list[dict] | None) -> list[dict]:
 
 def action_clauses(message: str, action: str) -> list[str]:
     """Action-bearing clauses; a service in another clause cannot become its target."""
-    parts = re.split(r"[.;!?\\n,]|\\b(?:and then|and|then)\\b", strip_quoted(message), flags=re.I)
+    parts = re.split(r"[.;!?\n,]|\b(?:and then|and|then)\b", strip_quoted(message), flags=re.I)
     return [p.strip() for p in parts if detect_action(p)[0] == action]
 
 
