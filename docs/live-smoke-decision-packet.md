@@ -173,3 +173,11 @@ It would **not** establish:
 - anything about the research questions in [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9).
 
 Real-model non-determinism means one run is one sample.
+
+### Owner-dispatched Actions execution (same single authorization)
+
+The dedicated `paid-smoke.yml` workflow is an alternative to the local launcher. This authorization covers one matrix across both launch paths. Once either path reserves it, retire the other path for this authorization. The tag and local marker live in different places. The observed local preparation ended before reservation.
+
+Only the owner's first attempt at a manual dispatch on the default branch can proceed. The workflow checks runner connectivity without a key, runs the offline tests and rehearsal, checks the repository secret by name, and creates the fixed tag `turnwise-paid-gpt-6-1-sol-001` using GitHub's create-ref API. The tag consumes the authorization even if the runner is cancelled or the provider rejects the first request. Keep the tag permanently. A new authorization requires a separately reviewed change.
+
+The private report exists only on the runner. The job summary retains a fixed-field projection of the ledger, including response statuses, tool receipts, typed outcomes, policy observations and per-arm spend. Missing arms are inconclusive. Admitted requests can include transport failures. Reported token counts cover only replies carrying usage. A mechanism result makes no comparative performance claim.
