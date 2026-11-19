@@ -14,6 +14,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 import re
 
+from ..agent.contracts import Observation
 from ..agent.host import CATALOG_BY_ID, Host, Validation
 from ..v07.evidence import (
     detect_action, services_in, strip_quoted, type_claim, unknown_services,
@@ -88,6 +89,8 @@ class IntentBoundHost(Host):
             self._native_scope -= 1
 
     def bind_request(self, message: str, conversation: list[dict] | None = None) -> None:
+        if self._user_request is not None:
+            raise RuntimeError("IntentBoundHost must be constructed once per user turn; no rebinding")
         self._user_request = UserRequest.bind(message, conversation)
 
     def validate(self, decision, executed) -> Validation:
@@ -117,10 +120,8 @@ class IntentBoundHost(Host):
             return _rejected(decision, "the host/lexical router cannot synthesize an approval request")
 
         message = strip_quoted(req.message)
-        # Unknown explicit entities must never be replaced by some other
-        # recognized entity later in the same sentence (frozen L56 regression).
-        if unknown_services(message):
-            return _rejected(decision, "unknown service named in the request; ask for clarification")
+        # Target authority is scoped to the action clause (below), not all
+        # service mentions in a compound read + write request.
         if re.search(r"^\s*(?:can|could|should|would)\s+we\b", message, re.I):
             return _rejected(decision, "question about whether to act is not action authorization")
         if re.search(r"\b(?:actually\s+no|cancel\s+(?:that|it)|never\s+mind|do\s+not|don't|abort\s+that)\b", message, re.I):
@@ -128,9 +129,16 @@ class IntentBoundHost(Host):
         requested, declined = detect_action(req.message)
         if requested != cap.id or declined == cap.id:
             return _rejected(decision, "the current user did not positively request this action")
-        # v0.7 claim typing is only used as an additional *veto*, never as
-        # authority to construct a new write. It sees user-owned turns only.
-        claim = type_claim(req.message, req.previous_users())
+        # A service in a separate read clause is not the action target.
+        # Type the action clause alone, so an otherwise valid compound request
+        # does not become ambiguous merely by mentioning another service.
+        clauses = action_clauses(req.message, cap.id) if cap.id != "post_status_update" else []
+        if cap.id != "post_status_update":
+            if len(clauses) != 1:
+                return _rejected(decision, "action cannot be isolated to one user-owned clause")
+            if unknown_services(clauses[0]):
+                return _rejected(decision, "unknown service named in the action clause; ask for clarification")
+        claim = type_claim(clauses[0] if clauses else req.message, req.previous_users())
         if claim.type != "action" or claim.action != cap.id:
             return _rejected(decision, "action or referent is ambiguous; no inferred approval")
         if cap.id == "post_status_update":
@@ -140,9 +148,6 @@ class IntentBoundHost(Host):
             # The current explicit mention wins, otherwise the latest
             # unambiguous USER mention. Assistant prose never becomes authority.
             named = services_in(message)
-            clauses = action_clauses(req.message, cap.id)
-            if len(clauses) != 1:
-                return _rejected(decision, "action cannot be isolated to one user-owned clause")
             clause_targets = services_in(clauses[0])
             if len(clause_targets) > 1:
                 return _rejected(decision, "action clause names multiple services")
@@ -150,13 +155,38 @@ class IntentBoundHost(Host):
                 return _rejected(decision, "service in the action clause differs from proposed target")
             if not clause_targets and (named or not re.search(r"\b(?:it|that|this|them|those|on[- ]?call)\b", clauses[0], re.I)):
                 return _rejected(decision, "service in another clause cannot become the action target")
-            if len(named) > 1 or len(claim.entities) != 1 or claim.entity_source not in ("message", "conversation"):
+            if len(claim.entities) != 1 or claim.entity_source not in ("message", "conversation"):
                 return _rejected(decision, "multiple or unauthenticated service referents")
-            if named and claim.entities[0] != named[0]:
-                return _rejected(decision, "target is inconsistent with the current user message")
+            if clause_targets and claim.entities[0] != clause_targets[0]:
+                return _rejected(decision, "target is inconsistent with the user's action clause")
             if decision.arguments.get("service") != claim.entities[0]:
                 return _rejected(decision, "proposed target does not match the user's referent")
         return base
+
+    def execute(self, decision, *, step_index: int, call_id: str, user_text: str) -> Observation:
+        """Re-check side-effect authority at the harness boundary.
+
+        The ordinary agent path calls validate() first. Direct callers must
+        not bypass the intent/provenance guard or re-use this bound host for
+        another turn. This is an in-process invariant, not authentication.
+        """
+        req = self._user_request
+        if req is None or user_text != req.message:
+            return Observation(
+                step_index, call_id, decision.operation, decision.target,
+                dict(decision.arguments), "rejected",
+                reason="v0.8 intent guard: unbound host or cross-turn execution",
+            )
+        cap = CATALOG_BY_ID.get(decision.target or "")
+        if cap is not None and cap.side_effect:
+            verified = self.validate(decision, [])
+            if not verified.ok or verified.status != "approval_required":
+                return Observation(
+                    step_index, call_id, decision.operation, decision.target,
+                    dict(decision.arguments), "rejected", reason=verified.reason,
+                )
+        return super().execute(decision, step_index=step_index,
+                               call_id=call_id, user_text=user_text)
 
 
 class NoSyntheticHoldGate(ExitGate):
