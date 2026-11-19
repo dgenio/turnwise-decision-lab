@@ -28,7 +28,14 @@ MODEL_TOOL_PROPOSERS = frozenset({"heavy-agent", "hosted-agent"})
 
 def user_history(conversation: list[dict] | None) -> list[dict]:
     """Only explicit user turns may establish a referent for a new action."""
-    return [m for m in (conversation or []) if m.get("role") == "user"]
+    return [{**m, "content": strip_quoted(m.get("content", ""))}
+            for m in (conversation or []) if m.get("role") == "user"]
+
+
+def action_clauses(message: str, action: str) -> list[str]:
+    """Action-bearing clauses; a service in another clause cannot become its target."""
+    parts = re.split(r"[.;!?\\n,]|\\b(?:and then|and|then)\\b", strip_quoted(message), flags=re.I)
+    return [p.strip() for p in parts if detect_action(p)[0] == action]
 
 
 @dataclass(frozen=True)
@@ -43,7 +50,8 @@ class UserRequest:
         return cls(message, tuple((m.get("role", ""), m.get("content", "")) for m in conversation or []))
 
     def previous_users(self) -> list[dict]:
-        return [{"role": "user", "content": content} for role, content in self.conversation if role == "user"]
+        return [{"role": "user", "content": strip_quoted(content)}
+                for role, content in self.conversation if role == "user"]
 
 
 def _rejected(decision, reason: str) -> Validation:
@@ -132,6 +140,16 @@ class IntentBoundHost(Host):
             # The current explicit mention wins, otherwise the latest
             # unambiguous USER mention. Assistant prose never becomes authority.
             named = services_in(message)
+            clauses = action_clauses(req.message, cap.id)
+            if len(clauses) != 1:
+                return _rejected(decision, "action cannot be isolated to one user-owned clause")
+            clause_targets = services_in(clauses[0])
+            if len(clause_targets) > 1:
+                return _rejected(decision, "action clause names multiple services")
+            if clause_targets and clause_targets[0] != decision.arguments.get("service"):
+                return _rejected(decision, "service in the action clause differs from proposed target")
+            if not clause_targets and (named or not re.search(r"\\b(?:it|that|this|them|those|on[- ]?call)\\b", clauses[0], re.I)):
+                return _rejected(decision, "service in another clause cannot become the action target")
             if len(named) > 1 or len(claim.entities) != 1 or claim.entity_source not in ("message", "conversation"):
                 return _rejected(decision, "multiple or unauthenticated service referents")
             if named and claim.entities[0] != named[0]:
