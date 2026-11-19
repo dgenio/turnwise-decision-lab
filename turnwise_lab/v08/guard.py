@@ -148,7 +148,7 @@ class IntentBoundHost(Host):
                 return _rejected(decision, "action clause names multiple services")
             if clause_targets and clause_targets[0] != decision.arguments.get("service"):
                 return _rejected(decision, "service in the action clause differs from proposed target")
-            if not clause_targets and (named or not re.search(r"\\b(?:it|that|this|them|those|on[- ]?call)\\b", clauses[0], re.I)):
+            if not clause_targets and (named or not re.search(r"\b(?:it|that|this|them|those|on[- ]?call)\b", clauses[0], re.I)):
                 return _rejected(decision, "service in another clause cannot become the action target")
             if len(named) > 1 or len(claim.entities) != 1 or claim.entity_source not in ("message", "conversation"):
                 return _rejected(decision, "multiple or unauthenticated service referents")
