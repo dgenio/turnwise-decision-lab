@@ -26,13 +26,18 @@ from ..trace import NativeTurnItem, RunResult, conventional_rows, receipt_id_fro
 
 
 def build_agent(llm: Any, session: HostSession) -> FunctionAgent:
-    """The agent both variants share: same system prompt, same tools, same LLM."""
+    """The agent both variants share: same system prompt, same tools, same LLM.
+
+    ``streaming=False``: one complete LLM response per step, like the Agents SDK's ``Runner.run_sync``. This
+    is a transport choice (the default streams the same response); it does not change who decides.
+    """
     return FunctionAgent(
         name="incident_investigator",
         description="Investigates incidents with read tools.",
         system_prompt=AGENT_INSTRUCTIONS,
         tools=[_function_tool(spec, session) for spec in TOOLS],
         llm=llm,
+        streaming=False,
     )
 
 
@@ -80,8 +85,10 @@ async def run_agent(agent: FunctionAgent, user_msg: str,
     return await handler, decisions, receipt_for_call
 
 
-def run_conventional(task: str, llm: Any, *, model_label: str, max_iterations: int = 10) -> RunResult:
-    host = IncidentHost(task)
+def run_conventional(task: str, llm: Any, *, model_label: str, max_iterations: int = 10,
+                     host: IncidentHost | None = None) -> RunResult:
+    """``host`` may be passed in so a caller can still read its receipts if the run raises."""
+    host = host or IncidentHost(task)
     agent = build_agent(llm, HostSession(host, actor="llm"))
     final, turns, receipt_for_call = asyncio.run(run_agent(agent, task, max_iterations))
     rows = conventional_rows(turns, host.receipts, receipt_for_call=receipt_for_call,

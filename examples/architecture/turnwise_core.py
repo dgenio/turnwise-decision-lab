@@ -177,6 +177,22 @@ class Policy(Protocol):
     def decide(self, snapshot: Snapshot) -> Decision: ...
 
 
+class RunHalt(Exception):
+    """Stop the run at once, e.g. a provider spending cap. Not an observation for the policy.
+
+    Frameworks may wrap it (the ``openai`` client turns a hook exception into
+    ``APIConnectionError``), so the runtime looks for it along the exception chain.
+    """
+
+
+class ModelCallFailed(Exception):
+    """A port's classified model-call failure: ``category`` is e.g. refusal, timeout, invalid structured output."""
+
+    def __init__(self, category: str, detail: str):
+        super().__init__(f"{category}: {detail}")
+        self.category, self.detail = category, detail
+
+
 class ModelPort(Protocol):
     """How a framework invokes a model for exactly one Turnwise operation."""
 
@@ -241,14 +257,20 @@ class TurnwiseRuntime:
             self._last_rejection = None
             if decision.op in TERMINAL:
                 return self._terminal(step, decision)
-            if decision.op in (Op.CALL_TOOL, Op.CALL_WORKFLOW):
-                self._execute_tool(step, decision)
-                if self._rejections >= self.budget.max_rejections:
-                    return self._result("stopped", "Stopped: too many requests were rejected by the host.")
-            elif decision.op in MODEL_OPS:
-                self._call_model(step, decision, MODEL_OPS[decision.op])
-            else:
-                self._handoff(step, decision)
+            try:
+                if decision.op in (Op.CALL_TOOL, Op.CALL_WORKFLOW):
+                    self._execute_tool(step, decision)
+                    if self._rejections >= self.budget.max_rejections:
+                        return self._result("stopped", "Stopped: too many requests were rejected by the host.")
+                elif decision.op in MODEL_OPS:
+                    self._call_model(step, decision, MODEL_OPS[decision.op])
+                else:
+                    self._handoff(step, decision)
+            except _Halted as halt:
+                self.rows.append(TraceRow(str(step), CONTROLLER, decision.describe(), f"HALTED: {halt}",
+                                          "run stops; nothing goes back to the policy", why=decision.reason,
+                                          short=f"policy -> {decision.op.value} [halted]"))
+                return self._result("stopped", f"Stopped: {halt}.")
         return self._result("stopped", "Stopped: step budget exhausted before a host-accepted result.")
 
     # -- host validation of a policy decision (independent of the policy and of its snapshot)
@@ -332,8 +354,9 @@ class TurnwiseRuntime:
         self._model_calls += 1
         try:
             raw = self.model.call(tier, packet)
-        except Exception as exc:  # a failed model call is an observation, not a crash or an answer
-            raw = {"kind": "invalid", "text": f"model call failed: {type(exc).__name__}"}
+        except Exception as exc:  # a failed model call is an observation, not a crash or an answer...
+            _raise_if_halt(exc)  # ...unless it is a halt (e.g. the provider spending cap): then the run stops
+            raw = {"kind": "invalid", "text": f"model call failed: {describe_failure(exc)}"}
         outcome = parse_outcome(raw, oid=f"m{len(self.outcomes) + 1}", source=f"{tier}_model", shown=d.context)
         self.outcomes.append(outcome)
         self._latest = outcome
@@ -350,7 +373,8 @@ class TurnwiseRuntime:
         try:
             text = self.model.handoff(handoff_message(self.host, d.context), self.budget.handoff_max_turns)
         except Exception as exc:  # e.g. not supported, or the agent hit its turn limit: an observation, not a crash
-            text, failure = "", f"handoff ended without an answer: {type(exc).__name__}"
+            _raise_if_halt(exc)
+            text, failure = "", f"handoff ended without an answer: {describe_failure(exc)}"
         else:
             failure = ""
         new = self.host.receipts[before:]
@@ -437,6 +461,57 @@ class TurnwiseRuntime:
 
 
 # ---------------------------------------------------------------- helpers
+class _Halted(Exception):
+    """Internal: a RunHalt was found while executing a decision."""
+
+
+def _exception_chain(exc: BaseException) -> list[BaseException]:
+    chain, seen = [], set()
+    while exc is not None and id(exc) not in seen:
+        chain.append(exc)
+        seen.add(id(exc))
+        exc = exc.__cause__ or exc.__context__
+    return chain
+
+
+def _raise_if_halt(exc: BaseException) -> None:
+    halt = next((e for e in _exception_chain(exc) if isinstance(e, RunHalt)), None)
+    if halt is not None:
+        raise _Halted(str(halt)) from exc
+
+
+def describe_failure(exc: BaseException) -> str:
+    """Classify a failed model call for the trace. Framework-neutral: a port may raise ``ModelCallFailed`` with
+    its own category; otherwise the exception chain's class names and HTTP status decide. Never an answer."""
+    chain = _exception_chain(exc)
+    classified = next((e for e in chain if isinstance(e, ModelCallFailed)), None)
+    if classified is not None:
+        return str(classified)[:240]
+    names = {cls.__name__ for e in chain for cls in type(e).__mro__}
+    status = next((s for s in (getattr(e, "status_code", None) for e in chain) if isinstance(s, int)), None)
+    message = " ".join(str(exc).split())
+    if "ModelRefusalError" in names:
+        category = "refusal"
+    elif names & {"APITimeoutError", "ModelTimeoutError", "TimeoutException", "TimeoutError"}:
+        category = "timeout"
+    elif status is not None:
+        category = f"provider error HTTP {status}"
+    elif "incomplete" in message.lower():
+        category = "incomplete response"
+    elif names & {"ValidationError", "JSONDecodeError"} or (
+            "ModelBehaviorError" in names and ("JSON" in message or "validat" in message.lower())):
+        category = "invalid structured output"
+    elif "ModelBehaviorError" in names:
+        category = "model behavior error"
+    elif names & {"MaxTurnsExceeded", "WorkflowRuntimeError"} and "max" in message.lower():
+        category = "framework step limit reached"
+    elif "APIConnectionError" in names:
+        category = "connection error"
+    else:
+        category = "unclassified failure"
+    return f"{category} ({type(exc).__name__}: {message[:160]})"
+
+
 def handoff_message(host: IncidentHost, context: tuple[str, ...]) -> str:
     """What a native agent receives on HANDOFF_AGENT: the task, then one host receipt per line."""
     return "\n".join([host.user_request] + [host.receipt(rid).for_model() for rid in context])

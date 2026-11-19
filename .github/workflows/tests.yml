@@ -58,3 +58,9 @@ jobs:
         run: |
           examples/architecture/regenerate_samples.sh
           git diff --exit-code -- examples/architecture/sample_output
+      - name: Rehearse the bounded live smoke test against the local provider double (no inference, no key)
+        env:
+          OPENAI_API_KEY: ''
+          HTTP_PROXY: http://127.0.0.1:9
+          HTTPS_PROXY: http://127.0.0.1:9
+        run: python -m examples.architecture.live_smoke --provider double

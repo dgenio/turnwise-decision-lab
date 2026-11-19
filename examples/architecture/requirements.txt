@@ -1,5 +1,8 @@
 # Exact versions the architecture examples and their CI job are tested with (Python 3.11+;
 # llama-index-core 0.14 requires it). The core loop, host and policy need only the stdlib.
-# Optional, for --live with LlamaIndex only (not tested): llama-index-llms-openai
+# openai-agents brings openai (3.x) and httpx2, which the provider ledger and double use.
+# llama-index-llms-openai provides OpenAIResponses, the LlamaIndex provider class; CI tests it
+# offline against the provider double (tests/test_architecture_provider_readiness.py).
 openai-agents==0.25.0
 llama-index-core==0.14.26
+llama-index-llms-openai==0.9.0
