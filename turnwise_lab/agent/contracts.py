@@ -6,6 +6,9 @@ from typing import Any
 
 OPERATIONS = ("call_tool", "call_workflow", "call_model", "handoff_heavy", "finish", "clarify", "abstain")
 TIERS = ("light", "heavy")
+# Optional typed generation outcomes. Untyped v0.6 generations retain historical semantics.
+MODEL_OUTCOMES = ("answer_candidate", "tool_proposal", "needs_evidence", "error")
+PROPOSABLE = ("call_tool", "call_workflow")
 
 # What a provider's number means. Never present one kind as another.
 SCORE_RULE = "none: deterministic rule"
@@ -70,6 +73,17 @@ class ContextDecision:
         return asdict(self)
 
 
+@dataclass(frozen=True)
+class ModelOutcome:
+    """A generator's proposal is data, never authorisation to execute a capability."""
+    kind: str
+    reason: str
+    proposed_call: dict[str, Any] | None = None
+
+    def as_json(self) -> dict:
+        return asdict(self)
+
+
 @dataclass
 class Observation:
     step_index: int
@@ -81,6 +95,7 @@ class Observation:
     facts: dict[str, Any] = field(default_factory=dict)
     text: str = ""
     reason: str = ""
+    proposal: dict[str, Any] | None = None  # only from a typed model outcome
 
     def summary(self, limit: int = 420) -> str:
         """Compact, bounded rendering for the decision model's state."""
@@ -90,6 +105,10 @@ class Observation:
             compact = {k: ({kk: vv for kk, vv in v.items() if kk != "series"} if isinstance(v, dict) else v)
                        for k, v in self.facts.items()}
             body = json.dumps(compact, separators=(",", ":"), sort_keys=True)
+        elif self.proposal:
+            p = self.proposal
+            body = f"proposes {p['target']}({', '.join(f'{k}={v}' for k, v in p['arguments'].items())})"
+            body += f": {self.text}" if self.text else ""
         elif self.text:
             body = self.text
         else:

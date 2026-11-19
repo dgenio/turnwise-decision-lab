@@ -52,6 +52,7 @@ class ContextSelector(Protocol):
 
 
 class Generator(Protocol):
+    # May return a typed outcome. Untyped output retains frozen v0.6 semantics.
     def generate(self, prompt, tier: str, max_new_tokens: int) -> dict: ...
 
 
@@ -73,8 +74,27 @@ class TurnTrace:
 
 
 def _obs_json(o: Observation) -> dict:
-    return {"step_index": o.step_index, "call_id": o.call_id, "operation": o.operation, "target": o.target,
+    data = {"step_index": o.step_index, "call_id": o.call_id, "operation": o.operation, "target": o.target,
             "arguments": o.arguments, "status": o.status, "facts": o.facts, "text": o.text, "reason": o.reason}
+    if o.proposal is not None:  # optional: never alter frozen untyped trace fields
+        data["proposal"] = o.proposal
+    return data
+
+
+def _proposal_disposition(p: Observation, later: list[Observation]) -> dict:
+    """Audit a model proposal against subsequent policy-selected, host-validated operations.
+
+    Matching identical calls is evidence of subsequent execution, not proof of
+    causation or that the policy followed the model's recommendation.
+    """
+    call = p.proposal
+    key = (call["operation"], call["target"], call["arguments"])
+    match = next((o for o in later if (o.operation, o.target, o.arguments) == key), None)
+    outcomes = {"ok": "executed", "error": "executed_with_error", "approval_required": "held_for_approval"}
+    disposition = "not_adopted" if match is None else outcomes.get(match.status, "rejected_by_host")
+    return {"proposed_by": p.target, "proposed_at": p.call_id, "proposed_call": call,
+            "disposition": disposition, "resolved_at": match.call_id if match else None,
+            "reason": match.reason if match else "no matching policy-selected operation occurred"}
 
 
 def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, context: ContextSelector,
@@ -220,7 +240,19 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
                 finish("generation_pending", gen.get("text", ""), f"{tier} model (not executed)", step,
                        "no generation backend configured; prompt recorded")
                 break
-            text = (gen.get("text") or "").strip()
+            raw_text = gen.get("text")
+            text = raw_text.strip() if isinstance(raw_text, str) else ""
+            outcome = host.review_model_outcome(gen)
+            if outcome is not None:
+                step["model_outcome"] = outcome.as_json()
+                if outcome.kind != "answer_candidate":
+                    status = "model_error" if outcome.kind == "error" else outcome.kind
+                    obs = Observation(step_index, call_id, op, f"{tier}_model", {}, status, text=text[:300],
+                                      reason=outcome.reason, proposal=outcome.proposed_call)
+                    state.observations.append(obs)
+                    step["observation"] = _obs_json(obs)
+                    step["continue_reason"] = "typed model result is nonterminal; policy regains control"
+                    continue
             if verification and text.upper().startswith("NEED_MORE_EVIDENCE") and verification_requests < max_verification_requests:
                 verification_requests += 1
                 obs = Observation(step_index, call_id, op, f"{tier}_model", {}, "needs_evidence", text=text[:300])
@@ -239,7 +271,9 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
                 finish("abstain", host.withheld_message(claims), "host", step, "unsupported_action_claim")
                 trace.final.update(model_text=gen.get("text", ""), unsupported_action_claims=claims)
                 break
-            finish("answer", gen.get("text", ""), f"{tier} model: {gen.get('model', '')}", step, "final answer generated")
+            finish("answer", gen.get("text", ""), f"{tier} model: {gen.get('model', '')}", step,
+                   "final answer generated" if outcome is None else
+                   "typed answer candidate accepted after host action-claim check (factual correctness unverified)")
             break
 
         if op == "finish":
@@ -259,6 +293,12 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
 
     trace.final = host.compose_final(trace.final, state.action_intents, denied_writes)
     trace.observations = [_obs_json(o) for o in state.observations]
+    proposal_indices = [i for i, obs in enumerate(state.observations) if obs.proposal is not None]
+    if proposal_indices:
+        trace.final["model_proposals"] = [
+            _proposal_disposition(state.observations[i], state.observations[i + 1:])
+            for i in proposal_indices
+        ]
     decisions = [s for s in trace.steps if s.get("decision") and s.get("decision_source") != "native_heavy_fallback"]
     ctx_q = [q for s in trace.steps if s.get("context") for q in s["context"]["decision"]["questions"]]
     gens = [s["generation"] for s in trace.steps if s.get("generation")]
