@@ -1,6 +1,6 @@
 # Live smoke test: decision packet (spending gate)
 
-**Status (2026-11-19): awaiting the owner's decision. No paid provider call has been made.** Nothing in this repository has performed real inference. An API key being available is not treated as authorisation.
+**Status (2026-11-19): owner authorised ONE GPT-6.1 Sol run, up to US$2, in ChatGPT. No paid provider call has been made.** The key remains with the owner and is not stored in GitHub, ChatGPT or the repository. A rerun needs new authorisation.
 
 This packet asks for one bounded, paid run of the live smoke test in [`examples/architecture/live_smoke.py`](../examples/architecture/live_smoke.py). The purpose is **real-model compatibility** of the four configurations. It does not measure cost, latency or quality, and it is not a benchmark.
 
@@ -70,7 +70,27 @@ The **hard bound** is separate. Before each request is sent, the ledger prices t
 
 **Maximum spend: USD 2.00**, for one run of the four-configuration matrix with `gpt-6.1-sol` (or `gpt-4.1` if preferred), under the caps above. A re-run would need a new decision.
 
-## Commands
+## Secure local execution (recommended)
+
+Run on a trusted personal computer (Windows, macOS or Linux), not a shared or corporate-managed host unless its policies explicitly permit personal API keys. Create a dedicated OpenAI API project and a **restricted, revocable key** permitted to write to `/v1/responses`. Check that API billing is active; a ChatGPT subscription does not pay for API usage. Never paste the key into chat, issues, GitHub Actions, terminal commands, screenshots or a file.
+
+From a checkout of the reviewed `main`, create a fresh Python 3.11+ virtual environment and install `examples/architecture/requirements.txt`. Run:
+
+```bash
+python -m examples.architecture.secure_live_once
+```
+
+This performs the free provider-double rehearsal and a zero-cost price/limits plan. **No API key is requested.** Only after it passes, run:
+
+```bash
+python -m examples.architecture.secure_live_once --execute
+```
+
+The launcher disables the Agents SDK's *separate default tracing exporter* before loading any SDK, asks for a project key with no echo (Python `getpass`), demands an explicit `RUN`, and invokes exactly one `live_smoke --provider openai` matrix with fixed model, price inputs and the US$2 application guard. It never writes the key to disk or command history. The process environment contains it only while making provider calls.
+
+The launcher keeps its rehearsal JSON, paid JSON and one-attempt marker in `~/.turnwise-decision-lab/` (outside Git; private directory on POSIX). If a paid attempt is interrupted, refused, fails or completes, **do not rerun it**: the marker intentionally prevents a second attempt without new owner authorisation. The JSON includes model outputs and should not be published without inspection and redaction. Revoking the temporary project key after use is recommended. The guard is an estimate, **not a guarantee that the provider's invoice cannot exceed US$2**.
+
+**Direct CLI (manual alternative, for advanced operators only).** Keep Agents SDK tracing disabled with `OPENAI_AGENTS_DISABLE_TRACING=1` before loading it, and introduce `OPENAI_API_KEY` only in your local process environment (not as a command-line argument).
 
 First, the free rehearsal against the local provider double. It runs the same code path with no network and no key:
 
