@@ -52,12 +52,17 @@ class DirectExecutionBoundaryTests(unittest.TestCase):
         self.assertEqual((wrong.status, forged.status), ("rejected", "rejected"))
         self.assertEqual(host.world.write_ledger, [])
 
-    def test_matching_native_proposal_is_only_an_approval(self):
+    def test_valid_proposal_requires_approval_but_direct_harness_call_is_blocked(self):
         host = request_host("page checkout")
         with host.native_proposal_scope():
+            v = host.validate(propose("page_oncall", service="checkout"), [])
             obs = host.execute(propose("page_oncall", service="checkout"),
                                step_index=0, call_id="right", user_text="page checkout")
-        self.assertEqual(obs.status, "approval_required")
+        # The native agent makes an *approval request* after validation.
+        # Direct execution instead reaches LocalHarness with demo-reader
+        # permissions and is blocked. Neither path performs a write.
+        self.assertEqual(v.status, "approval_required")
+        self.assertEqual(obs.status, "blocked")
         self.assertEqual(host.world.write_ledger, [])
 
     def test_host_cannot_be_rebound_or_reused_for_another_turn(self):
