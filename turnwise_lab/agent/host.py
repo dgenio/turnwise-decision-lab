@@ -22,7 +22,7 @@ import json
 
 from ..core import Capability as HarnessCapability, Plan, Request
 from ..runtime import HostIdentity, LocalHarness, RegisteredAction
-from .contracts import OPERATIONS, TIERS, Decision, Observation
+from .contracts import MODEL_OUTCOMES, OPERATIONS, PROPOSABLE, TIERS, Decision, ModelOutcome, Observation
 from .evidence import assess_evidence
 from .intent import analyse as analyse_intent, completion_claims, resolve_write
 from .world import HOST_FACTS, SERVICES, IncidentWorld
@@ -155,6 +155,40 @@ class Host:
                               intent={**verdict, "ok": False, "code": "duplicate_hold"})
         return Validation(True, d, "approval_required", "side-effecting capability: requires independent human approval",
                           intent=verdict)
+
+    def review_model_outcome(self, generation: dict) -> ModelOutcome | None:
+        """Validate an optional typed model outcome, without granting any authority.
+
+        None preserves the frozen untyped v0.6 behaviour. A malformed typed
+        outcome is an error observation, never an answer or executable tool call.
+        This contract is structural; generated answer correctness is still
+        subject to separate evidence/outcome evaluation.
+        """
+        raw = generation.get("outcome")
+        if raw is None:
+            return None
+        if generation.get("status") != "ok":
+            return ModelOutcome("error", "typed generator did not report successful generation")
+        if not isinstance(raw, dict) or raw.get("kind") not in MODEL_OUTCOMES:
+            return ModelOutcome("error", "unknown model outcome")
+        kind, call = raw["kind"], raw.get("proposed_call")
+        if kind == "tool_proposal":
+            if not (isinstance(call, dict) and call.get("operation") in PROPOSABLE
+                    and isinstance(call.get("target"), str) and bool(call["target"])
+                    and isinstance(call.get("arguments"), dict)
+                    and all(isinstance(k, str) for k in call["arguments"])):
+                return ModelOutcome("error", "malformed tool proposal")
+            return ModelOutcome(kind, "model proposed a call; policy must decide and host must validate",
+                                {"operation": call["operation"], "target": call["target"],
+                                 "arguments": dict(call["arguments"])})
+        if call is not None:
+            return ModelOutcome("error", f"{kind} cannot carry a proposed call")
+        if kind == "answer_candidate":
+            if not isinstance(generation.get("text"), str) or not generation["text"].strip():
+                return ModelOutcome("error", "empty or malformed answer candidate")
+        return ModelOutcome(kind, {"answer_candidate": "typed answer candidate (not verified)",
+                                   "needs_evidence": "model reports missing evidence",
+                                   "error": "model reported an error"}[kind])
 
     # ------------------------------------------------------------ user intent
     def action_intents(self, user_message: str, conversation=()) -> dict:
