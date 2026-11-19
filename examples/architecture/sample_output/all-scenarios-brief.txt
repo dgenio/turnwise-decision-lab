@@ -1,0 +1,111 @@
+####################################################################################################
+# Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: investigate
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+####################################################################################################
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> tool error_trend                              |    1  policy -> CALL_TOOL error_trend
+   2  LLM -> tool recent_deploys                           |    2  policy -> CALL_TOOL recent_deploys
+   3  LLM -> tool validate_config                          |    3  policy -> CALL_HEAVY => proposes validate_config
+   4  LLM -> final answer, run ends                        |    4  policy -> CALL_WORKFLOW validate_config (adopts m1)
+                                                           |    5  policy -> CALL_HEAVY => answer candidate
+                                                           |    6  policy -> FINISH [finished]
+  result: completed (SDK final_output)                     |   result: finished
+
+####################################################################################################
+# Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: status
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+####################################################################################################
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> tool service_health                           |    1  policy -> CALL_TOOL service_health
+   2  LLM -> final answer, run ends                        |    2  policy -> CALL_LIGHT => answer candidate
+                                                           |    3  policy -> FINISH [finished]
+  result: completed (SDK final_output)                     |   result: finished
+
+####################################################################################################
+# Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: severity
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+####################################################################################################
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> final answer, run ends                        |    1  policy -> DIRECT [answered_directly]
+  result: completed (SDK final_output)                     |   result: answered_directly
+
+####################################################################################################
+# Turnwise architecture demo | framework: OpenAI Agents SDK 0.25.0 | scenario: rollback
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+####################################################################################################
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> tool rollback_deploy [held]                   |    1  policy -> CALL_WORKFLOW rollback_deploy [held]
+   2  LLM -> final answer, run ends                        |    2  policy -> HOLD [held]
+  result: completed (SDK final_output)                     |   result: held
+
+####################################################################################################
+# Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: investigate
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+####################################################################################################
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> tool error_trend                              |    1  policy -> CALL_TOOL error_trend
+   2  LLM -> tool recent_deploys                           |    2  policy -> CALL_TOOL recent_deploys
+   3  LLM -> tool validate_config                          |    3  policy -> CALL_HEAVY => proposes validate_config
+   4  LLM -> final answer, run ends                        |    4  policy -> CALL_WORKFLOW validate_config (adopts m1)
+                                                           |    5  policy -> CALL_HEAVY => answer candidate
+                                                           |    6  policy -> FINISH [finished]
+  result: completed (FunctionAgent response)               |   result: finished
+
+####################################################################################################
+# Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: status
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+####################################################################################################
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> tool service_health                           |    1  policy -> CALL_TOOL service_health
+   2  LLM -> final answer, run ends                        |    2  policy -> CALL_LIGHT => answer candidate
+                                                           |    3  policy -> FINISH [finished]
+  result: completed (FunctionAgent response)               |   result: finished
+
+####################################################################################################
+# Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: severity
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+####################################################################################################
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> final answer, run ends                        |    1  policy -> DIRECT [answered_directly]
+  result: completed (FunctionAgent response)               |   result: answered_directly
+
+####################################################################################################
+# Turnwise architecture demo | framework: LlamaIndex 0.14.26 | scenario: rollback
+# OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).
+# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.
+####################################################################################################
+
+=== Side by side: who chose each operation ===
+A: Conventional agent                                      | B: Turnwise Core
+-----------------------------------------------------------+-----------------------------------------------------------
+   1  LLM -> tool rollback_deploy [held]                   |    1  policy -> CALL_WORKFLOW rollback_deploy [held]
+   2  LLM -> final answer, run ends                        |    2  policy -> HOLD [held]
+  result: completed (FunctionAgent response)               |   result: held

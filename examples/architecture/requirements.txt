@@ -1,0 +1,5 @@
+# Exact versions the architecture examples and their CI job are tested with (Python 3.11+;
+# llama-index-core 0.14 requires it). The core loop, host and policy need only the stdlib.
+# Optional, for --live with LlamaIndex only (not tested): llama-index-llms-openai
+openai-agents==0.25.0
+llama-index-core==0.14.26

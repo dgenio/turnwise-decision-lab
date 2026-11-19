@@ -1,0 +1,85 @@
+"""Run the same agent twice -- conventional, then under Turnwise Core -- and print who controlled each step.
+
+    python -m examples.architecture.run_demo                         # OpenAI Agents SDK, main scenario
+    python -m examples.architecture.run_demo --framework llamaindex
+    python -m examples.architecture.run_demo --scenario all --handoff
+
+Offline by default: the frameworks run for real, the model is SIMULATED, and
+nothing is sent over the network. ``--live`` switches to real OpenAI models
+(needs OPENAI_API_KEY, costs money, not exercised by CI).
+"""
+from __future__ import annotations
+
+import argparse
+from importlib.metadata import PackageNotFoundError, version
+
+from .incident_env import TASKS
+from .policies import HandoffPolicy
+from .trace import RunResult, render, render_side_by_side
+
+FRAMEWORKS = {"openai-agents": ("OpenAI Agents SDK", "openai-agents"),
+              "llamaindex": ("LlamaIndex", "llama-index-core")}
+
+
+def run_pair(framework: str, task: str, *, live: bool, handoff: bool) -> list[RunResult]:
+    """Fresh models and a fresh host for every run, so runs cannot influence each other."""
+    if framework == "openai-agents":
+        from .openai_agents.conventional import run_conventional
+        from .openai_agents.models import choose_models as choose
+        from .openai_agents.turnwise import run_turnwise
+    else:
+        from .llamaindex.conventional import run_conventional
+        from .llamaindex.models import choose_llms as choose
+        from .llamaindex.turnwise import run_turnwise
+    m = choose(live=live)
+    results = [run_conventional(task, m.heavy, model_label=m.label)]
+    m = choose(live=live)
+    results.append(run_turnwise(task, m.heavy, m.light, model_label=m.label)[0])
+    if handoff:
+        m = choose(live=live)
+        results.append(run_turnwise(task, m.heavy, m.light, model_label=m.label, policy=HandoffPolicy())[0])
+    return results
+
+
+def header(framework: str, scenario: str, live: bool) -> str:
+    name, dist = FRAMEWORKS[framework]
+    try:
+        ver = version(dist)
+    except PackageNotFoundError:
+        ver = "not installed"
+    mode = ("LIVE: real model calls (provider costs apply)." if live else
+            "OFFLINE: the framework code is real; the model is SIMULATED (no inference, no network, no cost).")
+    return "\n".join([
+        "#" * 100,
+        f"# Turnwise architecture demo | framework: {name} {ver} | scenario: {scenario}",
+        f"# {mode}",
+        "# Same task, tools, data, host, permissions and model in A and B. Only the controller differs.",
+        "#" * 100])
+
+
+def main(argv: list[str] | None = None) -> None:
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+    parser.add_argument("--framework", choices=[*FRAMEWORKS, "all"], default="openai-agents")
+    parser.add_argument("--scenario", choices=[*TASKS, "all"], default="investigate")
+    parser.add_argument("--handoff", action="store_true",
+                        help="also run the HANDOFF_AGENT contrast (a different architecture from Turnwise Core)")
+    parser.add_argument("--brief", action="store_true", help="print only the side-by-side controller view")
+    parser.add_argument("--live", action="store_true", help="use real OpenAI models (explicit opt-in; costs money)")
+    args = parser.parse_args(argv)
+
+    frameworks = list(FRAMEWORKS) if args.framework == "all" else [args.framework]
+    scenarios = list(TASKS) if args.scenario == "all" else [args.scenario]
+    blocks: list[str] = []
+    for framework in frameworks:
+        for scenario in scenarios:
+            results = run_pair(framework, TASKS[scenario], live=args.live, handoff=args.handoff)
+            parts = [header(framework, scenario, args.live)]
+            if not args.brief:
+                parts += [render(r) for r in results]
+            parts.append(render_side_by_side(results[0], results[1]))
+            blocks.append("\n\n".join(parts))
+    print("\n\n".join(blocks))
+
+
+if __name__ == "__main__":
+    main()

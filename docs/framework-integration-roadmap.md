@@ -5,7 +5,9 @@
 ## Integration sequence
 1. **LangGraph / LangChain (first candidate).** **First implement with existing APIs, not an upstream hook proposal.** Start with an opt-in `StateGraph` composition: a policy node, explicit host gate nodes, light/heavy model nodes and an observation loop. Compare with `create_agent` middleware where possible. Do not confuse tool filtering/model swapping with validated direct-tool execution or bypassing an LLM step. Ask upstream only if a minimal implementation proves a specific, unreproducible capability gap.
 2. **OpenAI Agents SDK.** Explore compatibility with existing agent loop, handoffs, tool approvals, model settings and tracing; preserve SDK host authorization. Identify extension seam or demonstrate why a wrapper would be insufficient.
+   *Status 2026-11-19:* runnable offline composition in [`examples/architecture/`](../examples/architecture/README.md) (pinned `openai-agents==0.25.0`). It uses public APIs only (`Agent.clone`, `output_type`, `Runner.run_sync(max_turns=1)`, `FunctionTool`); no missing hook was needed. Live-provider behaviour is untested.
 3. **LlamaIndex.** Map workflow/agent execution and tool selection hooks; evaluate a typed policy at each observation boundary without duplicating workflow capabilities.
+   *Status 2026-11-19:* same example with `FunctionAgent` and `structured_predict` (pinned `llama-index-core==0.14.26`); offline only. No upstream outreach.
 4. **Pipecat.** Treat as a separate real-time voice/pipeline use case. Examine streaming, interruptions, turn boundaries and strict latency budgets before claiming applicability.
 
 ## Initial upstream API fit (Python, checked 2026-11-18)

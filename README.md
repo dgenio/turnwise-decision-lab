@@ -4,6 +4,8 @@ Model routers choose *which* model answers a turn. That may be one decision too 
 
 **Turnwise is a small, reproducible experiment that tests that idea and keeps the parts where it fails.** It is not a framework or a router product.
 
+> **See the architectural idea in code:** [the same agent, with and without Turnwise Core](examples/architecture/README.md). A native **OpenAI Agents SDK** agent and a **LlamaIndex** `FunctionAgent` run next to the same agent under a typed per-step policy, with a trace showing who chose every operation. It runs offline (the frameworks are real, the model is simulated) and demonstrates the mechanism only; it is not a performance result.
+
 ### The architectural hypothesis: who decides the next step?
 
 A conventional model router chooses **which LLM** should answer a request. Turnwise instead investigates **who decides the next operation after every observation within the agent's execution loop**. A cheap typed decision policy can propose a verified direct answer, read tool, deterministic workflow, light or strong model with selected context, clarification, or explicit hold. The host independently validates and executes each proposal; the policy observes the result and decides again.
@@ -137,6 +139,7 @@ A literature search found model-only routing evaluations (RouteLLM, FrugalGPT, A
 | `turnwise_lab/benchmark.py`, `learning.py` | v0.4 route-label benchmark and stdlib Naive Bayes |
 | `turnwise_lab/provider.py` | Opt-in OpenAI-compatible generation adapter (only tested against a local fake server) |
 | `docs/` | Pre-registration, threat model, comparators, evaluation plan |
+| `examples/architecture/` | Runnable side-by-side: native OpenAI Agents SDK / LlamaIndex agent vs the same agent under Turnwise Core (offline; simulated model) |
 
 ## Earlier versions (kept, still reproducible)
 
