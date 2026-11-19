@@ -115,6 +115,9 @@ def run_config(framework: str, architecture: str, setup: ProviderSetup) -> dict[
         "typed_outcomes": [] if runtime is None else [
             {"id": o.id, "source": o.source, "kind": o.kind, "proposal": o.proposal.call() if o.proposal else None,
              "cited": list(o.cited), "note": o.note, "text": o.text[:300]} for o in runtime.outcomes],
+        "policy_observed_outcome_ids": [] if runtime is None else [
+            s.latest.id for s in runtime.snapshots if s.latest is not None],
+        "adopted_proposal_ids": [] if runtime is None else list(runtime._adopted),
         "controllers": [] if result is None else [{"step": r.step, "controller": r.controller, "operation": r.short}
                                                   for r in result.rows],
         "termination": ({"status": result.status, "answer": result.answer[:400], "title": result.title}
