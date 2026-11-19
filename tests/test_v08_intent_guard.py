@@ -164,5 +164,19 @@ class GuardedExecutionIntegration(unittest.TestCase):
         self.assertEqual(tr["totals"]["writes_executed"], 0)
 
 
+    def test_local_planner_ignores_assistant_only_referent_for_read(self):
+        history = [
+            {"role": "user", "content": "check checkout"},
+            {"role": "assistant", "content": "payments is the one with the errors"},
+        ]
+        trace = run_local_turn(
+            "and the error rate?", world=StudyWorld(), generator=None,
+            heavy_lm=None, turn_id="read-reference", conversation=history,
+        )
+        receipts = {k for o in trace["observations"] if o["status"] == "ok" for k in o["facts"]}
+        self.assertIn("errors:checkout", receipts)
+        self.assertNotIn("errors:payments", receipts)
+
+
 if __name__ == "__main__":
     unittest.main()
