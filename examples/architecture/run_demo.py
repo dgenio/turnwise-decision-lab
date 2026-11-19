@@ -23,14 +23,18 @@ FRAMEWORKS = {"openai-agents": ("OpenAI Agents SDK", "openai-agents"),
 
 def run_pair(framework: str, task: str, *, live: bool, handoff: bool) -> list[RunResult]:
     """Fresh models and a fresh host for every run, so runs cannot influence each other."""
-    if framework == "openai-agents":
-        from .openai_agents.conventional import run_conventional
-        from .openai_agents.models import choose_models as choose
-        from .openai_agents.turnwise import run_turnwise
-    else:
-        from .llamaindex.conventional import run_conventional
-        from .llamaindex.models import choose_llms as choose
-        from .llamaindex.turnwise import run_turnwise
+    try:
+        if framework == "openai-agents":
+            from .openai_agents.conventional import run_conventional
+            from .openai_agents.models import choose_models as choose
+            from .openai_agents.turnwise import run_turnwise
+        else:
+            from .llamaindex.conventional import run_conventional
+            from .llamaindex.models import choose_llms as choose
+            from .llamaindex.turnwise import run_turnwise
+    except ImportError as exc:
+        raise SystemExit(f"{FRAMEWORKS[framework][0]} is not installed ({exc.name}). "
+                         "Run: pip install -r examples/architecture/requirements.txt") from exc
     m = choose(live=live)
     results = [run_conventional(task, m.heavy, model_label=m.label)]
     m = choose(live=live)
