@@ -10,6 +10,7 @@ has independently validated the capability. The exit gate cannot invent it.
 """
 from __future__ import annotations
 
+from contextlib import contextmanager
 from dataclasses import dataclass
 import re
 
@@ -62,6 +63,21 @@ class IntentBoundHost(Host):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
         self._user_request: UserRequest | None = None
+        self._native_scope = 0
+
+    @contextmanager
+    def native_proposal_scope(self):
+        """Only a trusted native-agent adapter should enter this scope.
+
+        Decision.provider is descriptive metadata, not authentication. A
+        controller may forge 'hosted-agent'; without this independent adapter
+        boundary the guard must still deny the request.
+        """
+        self._native_scope += 1
+        try:
+            yield self
+        finally:
+            self._native_scope -= 1
 
     def bind_request(self, message: str, conversation: list[dict] | None = None) -> None:
         self._user_request = UserRequest.bind(message, conversation)
@@ -74,6 +90,8 @@ class IntentBoundHost(Host):
         req = self._user_request
         if req is None:
             return _rejected(decision, "no current user turn is bound")
+        if not self._native_scope:
+            return _rejected(decision, "no trusted native-model call scope; provider labels are not authority")
         if decision.provider not in MODEL_TOOL_PROPOSERS:
             return _rejected(decision, "the host/lexical router cannot synthesize an approval request")
 
