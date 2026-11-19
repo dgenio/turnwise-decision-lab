@@ -85,6 +85,19 @@ class IntentBoundHost(Host):
     def validate(self, decision, executed) -> Validation:
         base = super().validate(decision, executed)
         cap = CATALOG_BY_ID.get(decision.target or "")
+        req = self._user_request
+        # A factual single-service lookup cannot silently switch to a
+        # different service that only the assistant happened to mention.
+        # Multi-entity and causal investigations remain unrestricted and
+        # must be assessed on their end-to-end evidence, not this guard.
+        if (req and cap and not cap.side_effect and base.ok
+                and "service" in decision.arguments):
+            claim = type_claim(req.message, req.previous_users())
+            if (claim.type in ("lookup", "verification")
+                    and len(claim.entities) == 1
+                    and claim.entity_source in ("message", "conversation")
+                    and decision.arguments["service"] != claim.entities[0]):
+                return _rejected(decision, "read target disagrees with the user's service referent")
         if not cap or not cap.side_effect or base.status != "approval_required":
             return base
         req = self._user_request
