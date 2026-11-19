@@ -114,6 +114,7 @@ class RequestBoundHost(Host):
     def __init__(self, world: IncidentWorld, *, message: str,
                  conversation: list[dict] | None = None, **host_kwargs):
         super().__init__(world, **host_kwargs)
+        self.request_message = message
         self.write_authority = authorize_write(message, conversation)
 
     def validate(self, decision: Decision, executed: list[Observation]) -> Validation:
@@ -129,3 +130,18 @@ class RequestBoundHost(Host):
                 "current-user action authority mismatch: " + self.write_authority.reason,
             )
         return super().validate(decision, executed)
+
+    def execute(self, decision: Decision, *, step_index: int, call_id: str,
+                user_text: str) -> Observation:
+        """Defend the execution/harness boundary even if a caller skips validate()."""
+        cap = CATALOG_BY_ID.get(decision.target or "")
+        if user_text != self.request_message or (
+            cap is not None and cap.side_effect and not self.write_authority.matches(decision)
+        ):
+            reason = ("request-bound host reused for a different turn"
+                      if user_text != self.request_message
+                      else "current-user action authority mismatch at execution boundary")
+            return Observation(step_index, call_id, decision.operation, decision.target,
+                               dict(decision.arguments), "rejected", reason=reason)
+        return super().execute(decision, step_index=step_index, call_id=call_id,
+                               user_text=user_text)
