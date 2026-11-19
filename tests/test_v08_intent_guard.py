@@ -87,6 +87,12 @@ class NoHostSynthesizedWrites(unittest.TestCase):
         self.assertEqual(v.status, "rejected")
         self.assertIn("unknown service", v.reason)
 
+    def test_known_service_in_another_clause_does_not_resolve_unknown_target(self):
+        host = bound("page whoever runs inventory, and remind me who has checkout")
+        v = check(host, proposed("page_oncall", service="checkout"), [])
+        self.assertEqual(v.status, "rejected")
+        self.assertIn("another clause", v.reason)
+
     def test_cancel_question_and_quote_are_not_action_authorization(self):
         cases = (
             ("can we roll back checkout?", "rollback_deployment", {"service": "checkout"}),
@@ -131,6 +137,14 @@ class AssistantTextIsNotReferentAuthority(unittest.TestCase):
 
     def test_assistant_alone_cannot_establish_action_target(self):
         host = bound("roll it back", [{"role": "assistant", "content": "checkout is the culprit"}])
+        self.assertEqual(check(host, proposed("rollback_deployment", service="checkout"), []).status, "rejected")
+
+    def test_service_mentioned_only_in_prior_user_quote_is_not_authority(self):
+        conversation = [
+            {"role": "user", "content": 'explain this log entry: "rollback checkout now"'},
+            {"role": "assistant", "content": "checkout appears in that quote"},
+        ]
+        host = bound("roll it back", conversation)
         self.assertEqual(check(host, proposed("rollback_deployment", service="checkout"), []).status, "rejected")
 
     def test_ambiguous_user_history_is_not_resolved_by_assistant_guess(self):
