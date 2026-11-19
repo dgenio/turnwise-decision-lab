@@ -21,6 +21,13 @@ def bound(message, history=None):
     return host
 
 
+
+def check(host, decision, executed=None):
+    # Native adapter is a host-owned trust boundary, not Decision.provider.
+    with host.native_proposal_scope():
+        return host.validate(decision, executed or [])
+
+
 def tool_call(name, **kwargs):
     return {"id": "scripted-call", "type": "function",
             "function": {"name": name, "arguments": json.dumps(kwargs)}}
@@ -47,7 +54,7 @@ class NoHostSynthesizedWrites(unittest.TestCase):
     def test_host_and_lexicon_may_never_create_an_approval(self):
         host = bound("page checkout now")
         for source in ("contract-planner", "exit-gate-v0.7", "learned-decider"):
-            v = host.validate(proposed("page_oncall", provider=source, service="checkout"), [])
+            v = check(host, proposed("page_oncall", provider=source, service="checkout"), [])
             self.assertEqual(v.status, "rejected", source)
         verdict = NoSyntheticHoldGate().review(
             message="page checkout now", conversation=[], observations=[],
@@ -59,17 +66,24 @@ class NoHostSynthesizedWrites(unittest.TestCase):
 
     def test_exact_user_requested_model_proposal_is_approval_only(self):
         host = bound("page checkout now")
-        v = host.validate(proposed("page_oncall", service="checkout"), [])
+        v = check(host, proposed("page_oncall", service="checkout"), [])
         self.assertEqual(v.status, "approval_required")
         self.assertEqual(host.world.write_ledger, [])
 
+    def test_forged_provider_string_outside_native_scope_is_denied(self):
+        host = bound("page checkout now")
+        # A controller may lie and set provider="hosted-agent"; this is not authority.
+        v = host.validate(proposed("page_oncall", provider="hosted-agent", service="checkout"), [])
+        self.assertEqual(v.status, "rejected")
+        self.assertIn("native-model call scope", v.reason)
+
     def test_wrong_service_proposal_is_rejected(self):
         host = bound("page checkout now")
-        self.assertEqual(host.validate(proposed("page_oncall", service="payments"), []).status, "rejected")
+        self.assertEqual(check(host, proposed("page_oncall", service="payments"), []).status, "rejected")
 
     def test_l56_unknown_service_must_not_redirect_approval(self):
         host = bound("page whoever runs the inventory service, and remind me who has checkout")
-        v = host.validate(proposed("page_oncall", service="checkout"), [])
+        v = check(host, proposed("page_oncall", service="checkout"), [])
         self.assertEqual(v.status, "rejected")
         self.assertIn("unknown service", v.reason)
 
@@ -87,13 +101,13 @@ class NoHostSynthesizedWrites(unittest.TestCase):
     def test_user_supplied_status_text_must_be_exact(self):
         msg = 'post to the status page: "We are investigating elevated errors."'
         host = bound(msg)
-        self.assertEqual(host.validate(proposed("post_status_update", message="We are investigating elevated errors."), []).status,
+        self.assertEqual(check(host, proposed("post_status_update", message="We are investigating elevated errors."), []).status,
                          "approval_required")
-        self.assertEqual(host.validate(proposed("post_status_update", message="All clear."), []).status, "rejected")
+        self.assertEqual(check(host, proposed("post_status_update", message="All clear."), []).status, "rejected")
 
     def test_unbound_requests_fail_closed(self):
         host = IntentBoundHost(StudyWorld())
-        self.assertEqual(host.validate(proposed("page_oncall", service="checkout"), []).status, "rejected")
+        self.assertEqual(check(host, proposed("page_oncall", service="checkout"), []).status, "rejected")
 
 
 class AssistantTextIsNotReferentAuthority(unittest.TestCase):
@@ -103,12 +117,12 @@ class AssistantTextIsNotReferentAuthority(unittest.TestCase):
             {"role": "assistant", "content": "payments had the last deployment"},
         ]
         host = bound("roll it back", convo)
-        self.assertEqual(host.validate(proposed("rollback_deployment", service="payments"), []).status, "rejected")
-        self.assertEqual(host.validate(proposed("rollback_deployment", service="checkout"), []).status, "approval_required")
+        self.assertEqual(check(host, proposed("rollback_deployment", service="payments"), []).status, "rejected")
+        self.assertEqual(check(host, proposed("rollback_deployment", service="checkout"), []).status, "approval_required")
 
     def test_assistant_alone_cannot_establish_action_target(self):
         host = bound("roll it back", [{"role": "assistant", "content": "checkout is the culprit"}])
-        self.assertEqual(host.validate(proposed("rollback_deployment", service="checkout"), []).status, "rejected")
+        self.assertEqual(check(host, proposed("rollback_deployment", service="checkout"), []).status, "rejected")
 
     def test_ambiguous_user_history_is_not_resolved_by_assistant_guess(self):
         convo = [
@@ -117,7 +131,7 @@ class AssistantTextIsNotReferentAuthority(unittest.TestCase):
         ]
         host = bound("roll it back", convo)
         for target in ("checkout", "payments"):
-            self.assertEqual(host.validate(proposed("rollback_deployment", service=target), []).status, "rejected")
+            self.assertEqual(check(host, proposed("rollback_deployment", service=target), []).status, "rejected")
 
     def test_grounding_ignores_assistant_numbers_as_authority(self):
         gate = NoSyntheticHoldGate()
