@@ -83,3 +83,10 @@ The study remains `not_run`; there is no owner-approved model, budget, margin or
 - **KEEP** the host action/evidence invariants only if their own false-hold and wrong-target rates are acceptably low; a gate that invents approvals is strictly worse.
 - **GO** for Turnwise Core only if its *per-step control ownership* is demonstrated end-to-end and an independent powered study establishes quality-constrained net savings **against A and B/A+P**, including controller inference overhead.
 - Never present historical replay/CI, a static mock, a frozen 0.8B result or unknown provider usage as a real capable-agent evaluation.
+
+
+## Post-freeze integration amendment — exact action target and execution boundary (#45/#46)
+
+A proposal for a side effect must be bound to the **action clause**, not to another service in an unrelated read clause. Thus a native typed proposal to `page_oncall(checkout)` is eligible for human approval for "page checkout and check search health", but `page_oncall(search)` is not; an unknown target in the action clause still causes a conservative denial. This repairs a false refusal in the initial v0.8 guard, without touching the frozen v0.7 study.
+
+`IntentBoundHost.execute()` now enforces the action authority a second time at the direct harness boundary, and denies direct calls without a bound current user turn or with a different message, even if a caller bypasses `validate()`. `bind_request()` is once-per-turn and refuses reuse. A valid native proposal still produces an **approval request only**, never a write. The implementation keeps its documented limitation: in-process native scope is trusted application plumbing, **not authentication** against arbitrary Python callers, and parsing remains a conservative lexicon. These post-freeze tests are not held-out quality evidence.
