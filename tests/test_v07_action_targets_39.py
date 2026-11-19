@@ -131,6 +131,19 @@ class RequestBoundAuthorityTests(unittest.TestCase):
         self.assertEqual(host.validate(decision("page_oncall", service="checkout"), []).status, "approval_required")
         self.assertEqual(host.validate(decision("page_oncall", service="inventory"), []).status, "rejected")
 
+    def test_direct_execute_cannot_bypass_the_intent_guard(self):
+        host = RequestBoundHost(StudyWorld(), message="page checkout")
+        wrong = host.execute(decision("page_oncall", service="auth"),
+                             step_index=0, call_id="wrong", user_text="page checkout")
+        self.assertEqual(wrong.status, "rejected")
+        self.assertEqual(host.world.write_ledger, [])
+        stale = host.execute(decision("get_error_metrics", service="checkout"),
+                             step_index=1, call_id="stale", user_text="new user turn")
+        self.assertEqual(stale.status, "rejected")
+        accepted_read = host.execute(decision("get_error_metrics", service="checkout"),
+                                     step_index=2, call_id="read", user_text="page checkout")
+        self.assertEqual(accepted_read.status, "ok")
+
 
 if __name__ == "__main__":
     unittest.main()
