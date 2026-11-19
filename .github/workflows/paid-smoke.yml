@@ -1,0 +1,99 @@
+name: One authorized GPT-6.1 Sol smoke
+on: workflow_dispatch
+permissions: {}
+concurrency:
+  group: turnwise-paid-gpt-6-1-sol-001
+  cancel-in-progress: false
+
+env:
+  OPENAI_AGENTS_DISABLE_TRACING: '1'
+  TURNWISE_REQUIRE_FRAMEWORKS: '1'
+
+jobs:
+  validate:
+    if: >-
+      github.repository == 'dgenio/turnwise-decision-lab' &&
+      github.actor == 'dgenio' && github.triggering_actor == 'dgenio' &&
+      github.ref == 'refs/heads/main' && github.event.repository.default_branch == 'main' &&
+      github.run_attempt == '1'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify the runner can reach OpenAI without sending credentials
+        run: |
+          status=$(curl --silent --show-error --max-time 15 --output /dev/null --write-out '%{http_code}' https://api.openai.com/v1/models)
+          test "$status" = 401
+      - name: Install pinned dependencies
+        run: |
+          python3.12 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --require-hashes --only-binary=:all: -r examples/architecture/requirements-actions-py312.txt
+      - name: Validate the complete architecture and free four-way rehearsal
+        env:
+          HTTPS_PROXY: http://127.0.0.1:9
+          HTTP_PROXY: http://127.0.0.1:9
+        run: |
+          "$RUNNER_TEMP/venv/bin/python" -m unittest discover -s tests -p 'test_architecture*.py'
+          "$RUNNER_TEMP/venv/bin/python" -m examples.architecture.secure_live_once
+
+  reserve:
+    needs: validate
+    if: github.run_attempt == '1'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Check secret availability
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: test -n "$OPENAI_API_KEY"
+      - name: Atomically consume the authorization on the reviewed revision
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          api="repos/$GITHUB_REPOSITORY/git"
+          test "$(gh api "$api/ref/heads/main" --jq .object.sha)" = "$GITHUB_SHA"
+          ref=refs/tags/turnwise-paid-gpt-6-1-sol-001
+          response=$(gh api --method POST "$api/refs" -f ref="$ref" -f sha="$GITHUB_SHA")
+          jq -e --arg ref "$ref" --arg sha "$GITHUB_SHA" '.ref == $ref and .object.sha == $sha' <<< "$response" >/dev/null
+
+  execute:
+    needs: reserve
+    if: github.run_attempt == '1'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Prepare isolated Python
+        run: |
+          python3.12 -m venv "$RUNNER_TEMP/venv"
+          "$RUNNER_TEMP/venv/bin/pip" install --require-hashes --only-binary=:all: -r examples/architecture/requirements-actions-py312.txt
+      - name: Run one bounded matrix
+        env:
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
+        run: |
+          umask 077
+          "$RUNNER_TEMP/venv/bin/python" -m examples.architecture.live_smoke --provider openai --model gpt-6.1-sol \
+            --reasoning-effort low --max-output-tokens 2000 --timeout 60 \
+            --input-usd-per-mtok 2.50 --output-usd-per-mtok 10.00 --authorize-usd 2.00 \
+            --out "$RUNNER_TEMP/paid.json" > /dev/null 2>&1
+      - name: Emit only sanitized evidence
+        if: always()
+        run: |
+          umask 077
+          if test -f "$RUNNER_TEMP/paid.json"; then
+            "$RUNNER_TEMP/venv/bin/python" -m examples.architecture.actions_summary "$RUNNER_TEMP/paid.json" >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo 'No evidence file was produced. Real inference is unverified.' >> "$GITHUB_STEP_SUMMARY"
+          fi
+      - name: Remove private trace
+        if: always()
+        run: rm -f "$RUNNER_TEMP/paid.json"
