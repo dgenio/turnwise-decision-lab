@@ -103,7 +103,7 @@ Status labels: **Implemented and tested** · **Demonstrated with simulated infer
 
 ## Paid providers, secrets and data
 
-- Default runs are offline. Never run `--live` or `turnwise_lab.provider_cli --allow-remote` without explicit human authorization: they cost money.
+- Default runs are offline. Never make a paid provider call (`run_demo --live`, `turnwise_lab.provider_cli --allow-remote`, or the paid mode of any live-smoke harness) without explicit human authorization of the model and spend: they cost money.
 - Never commit keys, `.env` files, real company or customer data, or logs from real systems. All data here is invented and synthetic. See [docs/privacy-threat-model.md](docs/privacy-threat-model.md) and [docs/model-backend.md](docs/model-backend.md).
 - Do not make a claim about live-model behaviour based on an open PR.
 

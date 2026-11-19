@@ -17,7 +17,7 @@ Only what is merged into `main` is current. Open PRs, and PRs merged into stacke
 | v0.7 exit gate, locked synthetic study | [PR #38](https://github.com/dgenio/turnwise-decision-lab/pull/38), draft | **Held.** Reported SHRINK under a weak model; no capable baseline |
 | v0.8 request-bound approval authority | [PR #46](https://github.com/dgenio/turnwise-decision-lab/pull/46), draft; [#48](https://github.com/dgenio/turnwise-decision-lab/pull/48) merged **into #46's branch**, not `main` | **Held** |
 | Prompt budgets, remote spend reservations | [#31](https://github.com/dgenio/turnwise-decision-lab/pull/31), [#44](https://github.com/dgenio/turnwise-decision-lab/pull/44), open | **Held** |
-| Real-model provider readiness | Separate work in progress; nothing merged | **Not tested** until merged and verified |
+| Real-model provider readiness | [PR #54](https://github.com/dgenio/turnwise-decision-lab/pull/54), open (2026-11-19) | **Not merged.** By its own description it tests the real provider classes against an HTTP-level provider double only; no paid call has been made. Real-model behaviour stays **not tested** until a live run is merged and verified |
 | Capable heavy-only baseline, independent held-out data, measured cost and latency | Study gate [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9) | **Not tested** |
 
 Closed without merging (superseded): #7, #10, #26, #27, #32, #33, #36, #45, #50.
