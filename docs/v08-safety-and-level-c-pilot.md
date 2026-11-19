@@ -10,6 +10,8 @@ A fresh *opt-in* `turnwise_lab.v08.guard` wraps the frozen v0.7 modules:
 
 - `IntentBoundHost` refuses any side-effect proposal unless the host has bound the **current** user message, an existing native tool-calling model proposed the exact typed operation, and the target/message exactly matches an unambiguous **user-owned** intent. An approval hold remains pending; no write executes. It conservatively rejects questions about actions, retractions, unknown services, multi-target ambiguity, altered status text and proposals invented by deterministic routers or the gate.
 - `NoSyntheticHoldGate` keeps evidence checks/grounding while converting the v0.7 lexicon's synthetic `HOLD` to `CLARIFY`. It cannot manufacture a tool call, including when the intervention budget expires. It also ignores old assistant prose when resolving referents or grounding source values.
+- A **trusted native-adapter invocation scope**, separate from the forgeable `Decision.provider` label, is required before the host can consider an agent-proposed write. This scope is established by the opt-in entrypoints, not by controller output.
+- `v08.finalize` replaces generated action-status prose with a host-produced status from `approval_required` / rejected receipts (or explicit `requested_but_not_approved`); a model saying it already contacted the team cannot claim execution.
 - `v08.run_local_turn` sends potential actions/ambiguous/untyped requests to the existing tool-capable native agent; typed informational lookups keep the existing deterministic planner with *user-owned history only*. `v08.run_hosted_turn` accepts an explicitly constructed existing `HostedChat` (same opt-in and cap safeguards); it does not enable the network or select a paid provider. Neither runner is used in the historical v0.7 benchmark.
 
 These are deliberately narrow overlays, not yet one integrated versioned contract for v0.6 + v0.7 + Turnwise Core.
@@ -21,6 +23,7 @@ These are deliberately narrow overlays, not yet one integrated versioned contrac
 - The current single-turn API does not retain tool receipts or model outcomes across *executed* user turns. Do not describe synthetic prior-message history as a live multi-turn benchmark.
 - Other v0.7 grounding weaknesses (semantic contradiction, numbers copied from a user's request, relation errors) remain. These are owned by #18 and prospective adjudication.
 - A model is not guaranteed to propose a requested action. Gate/host refusal avoids a false approval but can yield a user-visible clarification or a dropped intent; measure each separately.
+- `native_proposal_scope()` is a trust boundary supplied by **trusted adapter code**, not an authentication mechanism against untrusted code already running inside the host process. The synthetic host remains a teaching harness; a real deployment must have independently protected authorization and receipts.
 - v0.7/v0.8's synthetic in-memory host cannot authorize real-world writes. Permissions, user identity, policy checks and durable approvals must remain controlled by the integrating framework/host.
 
 ## 2. Reconciliation with the other active PRs
