@@ -29,9 +29,13 @@ flowchart LR
 
 In **A**, when the model asks for a tool, the framework runs it. In **B**, the model's tool request is only an *observation*: the policy decides whether to adopt it, and the host validates whatever the policy chooses. A capable model is one operation the policy may select, not the controller of every operation. The host, not the policy or the model, owns permissions, argument checks, side effects and whether a run may finish.
 
+The operations: `DIRECT` answers from a host-verified record with no model or tool. `CALL_TOOL` and `CALL_WORKFLOW` ask the host to run one registered read or deterministic workflow, which returns a **receipt** (the host's record of what was executed). `CALL_LIGHT` and `CALL_HEAVY` make one call to a cheaper or a capable model. `FINISH` asks the host to accept a model's answer candidate after checking its cited receipts. `HOLD` and `CLARIFY` stop visibly, for example when a write needs human approval.
+
 ### Why consider this?
 
 Many agent steps need no reasoning: a verified fact, a read tool, a workflow that already exists. If a generative model chooses every step, every step pays for generative control and exposes the full tool catalogue and conversation. A cheap policy might avoid some of that while keeping the capable model for the steps that need it. Whether that saves anything once the policy's own cost and failures are counted is **the open question this lab exists to answer**.
+
+The policy is a pluggable interface (`Policy.decide(snapshot) -> Decision`). Today's implementation is hand-written rules, which makes it close to the "host rules" null below. The research question is whether a learned model, a cheap LLM or a decision service such as Jev behind that interface does better than plain rules, or whether rules are enough.
 
 ### What Turnwise is not
 
@@ -47,9 +51,9 @@ More on prior art and fair comparisons: [comparators](docs/comparators.md), and 
 
 ## See it working (offline, about one minute)
 
-The same incident-investigation agent, built on the **OpenAI Agents SDK** and on **LlamaIndex**, runs once conventionally and once under Turnwise Core. Same task, tools, synthetic data, host, permissions and model.
+The same incident-investigation agent, built on the **OpenAI Agents SDK** and on **LlamaIndex**, runs once conventionally and once under Turnwise Core. Same task, tools, synthetic data, host, permissions and (simulated) model.
 
-Python 3.11+ (needed by `llama-index-core` 0.14):
+The demo needs Python 3.11+ (required by `llama-index-core` 0.14); the rest of the lab runs on 3.10+.
 
 ```bash
 pip install -r examples/architecture/requirements.txt
@@ -74,7 +78,7 @@ A: Conventional agent                                      | B: Turnwise Core
   result: completed (SDK final_output)                     |   result: finished
 ```
 
-At A3 the model's request for `validate_config` simply runs. At B3 the same request comes back to the policy as data, and at B4 the policy adopts it because it is a registered read not yet done. An unrequested `rollback_deploy` proposal is declined by the policy, and refused by the host even under a policy that adopts everything; both are tested.
+At A3 the model's request for `validate_config` simply runs. At B3 the same request comes back to the policy as data, and at B4 the policy adopts it (`m1` is that first model outcome) because it is a registered read not yet done. An unrequested `rollback_deploy` proposal is declined by the policy, and refused by the host even under a policy that adopts everything; both are covered in [`tests/test_architecture_core.py`](tests/test_architecture_core.py).
 
 **How to read this.** The SDK code paths are real (`Runner.run_sync`, `FunctionTool`, `FunctionAgent`, `structured_predict`). **The model is simulated**: a deterministic stand-in written by the same author as the policy, and this showcase step was authored to produce a proposal. The trace demonstrates *control flow*, not reasoning quality, cost or latency. A `--live` mode exists but **has never been run or tested**.
 
@@ -82,27 +86,20 @@ Full walkthrough, per-step traces, parity notes and limitations: [`examples/arch
 
 ## What the evidence says so far
 
-| Evidence | Status | What it shows |
-|---|---|---|
-| [Architecture demo](examples/architecture/README.md) (on `main`, PRs #51, #52) | **Demonstrated with simulated inference** | The control pattern composes with two real SDKs through public APIs, with no monkey-patching. No quality, cost or latency claim |
-| [v0.5 outcome-scored routing](reports/arena.md) (on `main`) | **Experimentally measured**, authored synthetic data, **no model called** | Large no-model headroom, but state-aware routing fails silently. Details below |
-| [v0.4 route-label benchmark](reports/trained-routing-synthetic.md) (on `main`) | **Historical**, superseded by v0.5 | Simple rules matched 38/40 labels; a tiny classifier 29/40. No gain over rules |
-| v0.6 local-inference loop ([PR #6](https://github.com/dgenio/turnwise-decision-lab/pull/6)) | **Held / inconclusive**, not merged | 0.8B "heavy" model, 0/7 investigations for the decision-driven arm, silent misses |
-| v0.7/v0.8 safety and exit-gate work ([#37](https://github.com/dgenio/turnwise-decision-lab/pull/37), [#38](https://github.com/dgenio/turnwise-decision-lab/pull/38), [#46](https://github.com/dgenio/turnwise-decision-lab/pull/46)) | **Held**, draft, not merged | v0.7 concluded SHRINK under a weak model. Not current truth on `main` |
-| Capable heavy-only agent baseline, real model inference, cost | **Not tested** | The decisive experiment ([#9](https://github.com/dgenio/turnwise-decision-lab/issues/9)) has not been run |
+There are two kinds of evidence on `main`: the architecture demo above, which shows a control pattern (not a performance result), and the v0.5 routing experiment, which measured outcomes on synthetic data.
 
-**v0.5 in brief.** 46 synthetic incident turns in 10 sessions were replayed through seven routing designs. Every tool and workflow really ran; no model was called, and a model path was scored correct if the needed evidence was available (an assumption that favours model calls).
+**v0.5 in brief.** v0.5 predates the per-step design: it tested *per-turn* routers, each deciding once per user message whether a turn needs a model, a tool or a workflow. 46 synthetic incident turns in 10 sessions were replayed through seven routing designs. Every tool and workflow really ran; no model was called, and a model path was scored correct if the needed evidence was available (an assumption that favours model calls). The "joint router" combines the path decision with session state (memory of earlier turns, for follow-ups) and route-aware context selection.
 
 | Design | Correct* | Model calls | Silent wrong answers | Visible failures |
 |---|---:|---:|---:|---:|
-| Tool-calling agent on every turn | 46/46 | 78 | 0 | 0 |
+| Tool-calling agent on every turn (correct by assumption) | 46/46 | 78 | 0 | 0 |
 | Joint router: session state + route-aware context | 38/46 | 20 | 6 | 2 |
 | Joint router without session state | 43/46 | 43 | 1 | 2 |
 | Oracle: cheapest correct path (upper bound) | 46/46 | 9 | 0 | 0 |
 
 \*Upper bound for every design that calls a model. Three more designs are in the [full report](reports/arena.md).
 
-- **Headroom is real on this workload**: the oracle answers 37/46 turns with no model call. The workload was authored to be lookup-heavy.
+- **There is headroom on this authored, lookup-heavy workload**: the oracle answers 37/46 turns with no model call. Real traffic may differ.
 - **"Completed" is not "correct"**: all 6 silent wrong answers carried a `completed` receipt. Session state solved follow-ups and also caused most silent errors.
 - **Route-aware context selection was falsified** (pre-registered H3).
 - **The host held every forged write** (18/18), but the router also **dropped two action requests** before any approval step. Zero unauthorized writes is not the same as handling every action correctly.
@@ -119,6 +116,17 @@ Explore every turn under every design in the **[interactive explorer](https://dg
 - **Weaknesses.** One author wrote everything, and the sessions have now been seen. Matching and retrieval are deliberately lexical. 46 turns show mechanisms, not rates with confidence intervals. Model-tier routing was not evaluated.
 
 </details>
+
+**All evidence layers at a glance** (details in [release status](docs/release-status.md)):
+
+| Evidence | Status | What it shows |
+|---|---|---|
+| [Architecture demo](examples/architecture/README.md) (on `main`, PRs #51, #52) | **Demonstrated with simulated inference** | The control pattern composes with two real SDKs through public APIs, with no monkey-patching. No quality, cost or latency claim |
+| [v0.5 outcome-scored routing](reports/arena.md) (on `main`) | **Experimentally measured**, authored synthetic data, **no model called** | Large no-model headroom, but state-aware routing fails silently. Details below |
+| [v0.4 route-label benchmark](reports/trained-routing-synthetic.md) (on `main`) | **Historical**, superseded by v0.5 | Simple rules matched 38/40 labels; a tiny classifier 29/40. No gain over rules |
+| v0.6 local-inference loop ([PR #6](https://github.com/dgenio/turnwise-decision-lab/pull/6)) | **Held / inconclusive**, not merged | Used a small 0.8B local model as its "heavy" tier (not a capable baseline); 0/7 investigations for the decision-driven arm; silent misses |
+| v0.7/v0.8 safety and exit-gate work ([#37](https://github.com/dgenio/turnwise-decision-lab/pull/37), [#38](https://github.com/dgenio/turnwise-decision-lab/pull/38), [#46](https://github.com/dgenio/turnwise-decision-lab/pull/46)) | **Held**, draft, not merged | v0.7 concluded SHRINK (simpler wins) under a weak model. Not current truth on `main` |
+| Capable heavy-only agent baseline, real model inference, cost | **Not tested** | The decisive experiment ([#9](https://github.com/dgenio/turnwise-decision-lab/issues/9)) has not been run |
 
 ## What is not yet proven
 
@@ -140,7 +148,7 @@ Explore every turn under every design in the **[interactive explorer](https://dg
 
 **Why not a better prompt, or fewer tools?** Both are legitimate baselines. A checklist-prompted native agent ([#43](https://github.com/dgenio/turnwise-decision-lab/issues/43)) and native tool search are required comparators, not straw men.
 
-**Why not simple host rules?** They may be enough. Rules plus the same capable agent are the **mandatory null arm**; if they win, the right outcome is SHRINK or STOP.
+**Why not simple host rules?** They may be enough. Rules plus the same capable agent are the **mandatory null arm**; if they win, the right outcome is SHRINK (keep only the parts that earn their place) or STOP.
 
 **Does a decision call at every step actually save anything?** Unknown. Every policy call, retry and fallback must be counted. A negative answer, rigorously obtained, is a useful result.
 
@@ -177,7 +185,7 @@ The most valuable contributions are **evidence, not features**: independently au
 
 ## Related work by the same author
 
-[ContextWeaver](https://github.com/dgenio/contextweaver) (capability snapshots), [ChainWeaver](https://github.com/dgenio/ChainWeaver) (deterministic flow promotion), [agent-routing-eval-lab](https://github.com/dgenio/agent-routing-eval-lab) (off-policy evaluation of logged decisions) and [agent-kernel](https://github.com/dgenio/agent-kernel) (runtime authorization). This repository does not modify them; `LocalHarness` here is an educational stand-in, not a security boundary.
+[ContextWeaver](https://github.com/dgenio/contextweaver) (capability snapshots), [ChainWeaver](https://github.com/dgenio/ChainWeaver) (deterministic flow promotion), [agent-routing-eval-lab](https://github.com/dgenio/agent-routing-eval-lab) (off-policy evaluation of logged decisions) and [agent-kernel](https://github.com/dgenio/agent-kernel) (runtime authorization). This repository does not modify them; its host harness (`LocalHarness`) is an educational stand-in, not a security boundary.
 
 **Name.** "Turnwise" is also used by an unrelated [arXiv paper](https://arxiv.org/abs/2603.16759) and PyPI packages for conversation evaluation ([details](docs/comparators.md#nameprior-art-collision-important-before-promotion)). This repository is not affiliated with them and is not published to PyPI.
 

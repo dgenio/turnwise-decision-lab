@@ -22,7 +22,7 @@ These were set by the architecture gate in [#34](https://github.com/dgenio/turnw
 
 | Path | What it is |
 |---|---|
-| `examples/architecture/` | **Canonical Turnwise Core demonstration.** `turnwise_core.py` (typed `Op`, `Decision`, `Snapshot`, `Policy` and `ModelPort` protocols, host validation, bounded loop), `policies.py` (`TriagePolicy`; `HandoffPolicy` = contrast), `incident_env.py` (`IncidentHost`), `openai_agents/` and `llamaindex/` (`conventional.py` = A, `turnwise.py` = B, `models.py` = simulated/live model choice), `simulated_model.py`, `sample_output/` |
+| `examples/architecture/` | **Canonical Turnwise Core demonstration.** `turnwise_core.py` (typed `Op`, `Decision`, `Snapshot`, `Policy` and `ModelPort` protocols; the loop is `TurnwiseRuntime.run`, host checks are `host_validates`, model replies are parsed by `parse_outcome`), `policies.py` (`TriagePolicy`; `HandoffPolicy` = contrast), `incident_env.py` (`IncidentHost`), `openai_agents/` and `llamaindex/` (`conventional.py` = A, `turnwise.py` = B, `models.py` = simulated/live model choice), `simulated_model.py`, `sample_output/` |
 | `turnwise_lab/` | v0.4/v0.5 lab: `arena.py` (v0.5 experiment), `world.py` (synthetic world and handlers, shared by the demo), `runtime.py` (`LocalHarness`), `explorer.py`, `benchmark.py`, `provider.py` (opt-in OpenAI-compatible adapter, tested only against a local fake server), `parity.py` (benchmark-parity preflight) |
 | `tests/` | `test_architecture_*.py` for the demo; everything else for the lab |
 | `fixtures/`, `reports/`, `demo/` | **Frozen evidence and generated artefacts** (see below) |
@@ -32,7 +32,7 @@ These were set by the architecture gate in [#34](https://github.com/dgenio/turnw
 
 ## Setup and commands
 
-Main lab: Python 3.10+, stdlib only.
+Main lab: Python 3.10+, stdlib only. Use `python3` where `python` is not on your path.
 
 ```bash
 python -m unittest discover -s tests
@@ -61,10 +61,19 @@ examples/architecture/regenerate_samples.sh && git diff --exit-code -- examples/
 ```
 
 ```bash
-python -m turnwise_lab.arena && python -m turnwise_lab.explorer && git diff --exit-code -- reports demo
+python -m turnwise_lab.arena
+python -m turnwise_lab.explorer
+python -m turnwise_lab.live_demo --output reports/live-local-run.json
+python -m turnwise_lab.benchmark --output /tmp/trained.json --markdown reports/trained-routing-synthetic.md
+python -m turnwise_lab.showcase --json-out demo/showcase.json --html-out demo/planning-contract.html
+python -m scripts.render_local_demo
+python -m turnwise_lab.evaluate --output reports/synthetic-contract-replay.json
+git diff --exit-code -- reports demo
 ```
 
-CI (`.github/workflows/tests.yml`) runs the full suite on Python 3.10/3.12, regenerates every report and page (see the workflow for the full list) and requires byte-identical output, and runs the architecture job on 3.11/3.12 with the network pointed at a dead proxy. A diff in `reports/`, `demo/` or `sample_output/` after your change means you changed evidence: stop and explain why in the PR, or revert.
+This is the same sequence as the `test` job in `.github/workflows/tests.yml`; if they ever differ, the workflow wins.
+
+CI (`.github/workflows/tests.yml`) runs the full suite on Python 3.10/3.12, regenerates every report and page as above and requires byte-identical output, and runs the architecture job on 3.11/3.12 with the network pointed at a dead proxy. A diff in `reports/`, `demo/` or `sample_output/` after your change means you changed evidence: stop and explain why in the PR, or revert.
 
 ## Frozen evidence: do not silently change
 
@@ -77,7 +86,7 @@ Never tune a router or policy on the 46 v0.5 turns and present the result as hel
 
 ## How to make common changes
 
-- **New or modified policy:** implement `Policy.decide(snapshot) -> Decision` (see `TriagePolicy`). Pass it to `TurnwiseRuntime`. Do not move validation into the policy; the host must still refuse bad decisions. Add tests that drive it with varied model outcomes (proposal, immediate answer, write proposal, malformed output), as `tests/test_architecture_core.py` does.
+- **New or modified policy** (Turnwise Core, in `examples/architecture/policies.py`; the v0.5 routers in `arena.py` and the v0.4 deciders in `deciders.py` are frozen history): implement `Policy.decide(snapshot) -> Decision` (see `TriagePolicy`) and pass it to `TurnwiseRuntime`. Leave the default policy and `run_demo` unchanged unless you intend to regenerate the sample output. Decide and document what your policy does after declining a proposal (another read, `HOLD`, a model call). Do not move validation into the policy; the host must still refuse bad decisions. Add tests that drive it with varied model outcomes (proposal, immediate answer, write proposal, malformed output), as `tests/test_architecture_core.py` does.
 - **New tool or workflow:** the demo's registry is the subset of the `turnwise_lab/world.py` catalogue named in `_ROLES` in `examples/architecture/incident_env.py`; every call goes through `LocalHarness`, and both A and B get the same tools. **`world.py` also drives the frozen v0.5 experiment**: adding or changing a capability there can change `reports/arena.*`. Run the regeneration check; if v0.5 evidence moves, keep the new capability out of the v0.5 world instead. Writes must record the attempt and raise.
 - **Model adapter or provider:** extend the framework's `models.py` (`choose_models` / `choose_llms`). Live paths must be explicit opt-in, never run in CI, and labelled untested until a real run is recorded with model IDs and configuration.
 - **Experiment:** write the hypothesis, cases, metrics and margin first (see [docs/evaluation-plan.md](docs/evaluation-plan.md) and [docs/benchmark-parity-contract.md](docs/benchmark-parity-contract.md)). Use new, ideally independently authored, cases. Report every arm, including failures.
