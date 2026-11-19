@@ -11,6 +11,7 @@ from ..v07.controllers import run_contract_turn
 from ..v07.evidence import type_claim
 from ..v07.hosted import run_hosted_agent
 from .guard import IntentBoundHost, NoSyntheticHoldGate, user_history
+from .final import finalize
 
 
 def run_local_turn(message: str, *, world, generator, heavy_lm, turn_id: str,
@@ -29,11 +30,13 @@ def run_local_turn(message: str, *, world, generator, heavy_lm, turn_id: str,
     claim = type_claim(message, user_history(history))
     if claim.type in ("action", "ambiguous", "untyped") or claim.declined_action:
         with host.native_proposal_scope():
-            return run_heavy_agent(message, host=host, lm=heavy_lm, turn_id=turn_id,
-                                   conversation=history, gate=gate, arm=arm).as_json()
-    return run_contract_turn(message, host=host, generator=generator, heavy_lm=heavy_lm,
-                             turn_id=turn_id, conversation=user_history(history),
-                             gate=gate, arm=arm)
+            trace = run_heavy_agent(message, host=host, lm=heavy_lm, turn_id=turn_id,
+                                    conversation=history, gate=gate, arm=arm).as_json()
+        return finalize(trace, message, history)
+    trace = run_contract_turn(message, host=host, generator=generator, heavy_lm=heavy_lm,
+                              turn_id=turn_id, conversation=user_history(history),
+                              gate=gate, arm=arm)
+    return finalize(trace, message, history)
 
 
 def run_hosted_turn(message: str, *, world, chat, turn_id: str,
@@ -47,5 +50,6 @@ def run_hosted_turn(message: str, *, world, chat, turn_id: str,
     host = IntentBoundHost(world)
     host.bind_request(message, history)
     with host.native_proposal_scope():
-        return run_hosted_agent(message, host=host, chat=chat, turn_id=turn_id,
-                                conversation=history, gate=NoSyntheticHoldGate(), arm=arm)
+        trace = run_hosted_agent(message, host=host, chat=chat, turn_id=turn_id,
+                                 conversation=history, gate=NoSyntheticHoldGate(), arm=arm)
+    return finalize(trace, message, history)
