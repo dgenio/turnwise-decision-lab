@@ -158,17 +158,15 @@ def focus_entity(message: str, conversation: list[dict]) -> tuple[list[str], str
     named = services_in(message)
     if named:
         return named, "message"
+    # Only an earlier *user* utterance can provide an implicit referent.
+    # Assistant/tool text (and quoted user-supplied content) is evidence/context,
+    # never authority to retarget a side-effecting request.
     for m in reversed(conversation or []):
-        found = services_in(m.get("content", ""))
-        if not found:
+        if m.get("role") != "user":
             continue
-        if len(found) == 1:
-            return found, "conversation"
-        for u in reversed(conversation):
-            mine = services_in(u.get("content", "")) if u.get("role") == "user" else []
-            if mine:
-                return (mine, "conversation") if len(mine) == 1 else (found, "conversation")
-        return found, "conversation"
+        found = services_in(strip_quoted(m.get("content", "")))
+        if found:
+            return found, "conversation"  # multiple names remain ambiguous
     return [], "none"
 
 
@@ -258,10 +256,13 @@ def type_claim(message: str, conversation: list[dict] | None = None) -> Claim:
         entities, source = services_in(full), "quoted"  # ...but when the user asks to check a quoted claim, it says what the claim is about
     c = Claim("untyped", entities, source)
     unknown = unknown_services(text)
-    if unknown and not services_in(text):
-        c.type, c.cues = "ambiguous", [f"unknown service {unknown[0]!r}"]
-        return c
     c.action, c.declined_action = detect_action(message)
+    # An unknown target cannot be silently replaced by a different known
+    # service mentioned elsewhere in a compound read + write request (L56).
+    # This is deliberately conservative: only the host may clarify the target.
+    if unknown and (c.action or not services_in(text)):
+        c.type, c.cues = "ambiguous", [f"unknown service {unknown[0]!r}; cannot infer an action target from other mentions"]
+        return c
     stripped = text
     for _, pat in ACTION_CUES:  # the words of an action are not an evidence request ("roll back the deploy" is not about deploys)
         stripped = re.sub(pat, " ", stripped)
