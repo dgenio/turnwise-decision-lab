@@ -240,7 +240,8 @@ def execute_user_turn(message: str, *, host: Host, decider: DecisionProvider, co
                 finish("generation_pending", gen.get("text", ""), f"{tier} model (not executed)", step,
                        "no generation backend configured; prompt recorded")
                 break
-            text = (gen.get("text") or "").strip()
+            raw_text = gen.get("text")
+            text = raw_text.strip() if isinstance(raw_text, str) else ""
             outcome = host.review_model_outcome(gen)
             if outcome is not None:
                 step["model_outcome"] = outcome.as_json()
