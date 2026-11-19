@@ -10,6 +10,9 @@ dependencies = []
 
 [project.optional-dependencies]
 jev = ["typesafe-sdk"]
+# Native baselines for the same-task control demo (python -m turnwise_lab.control_demo). Offline test doubles only.
+demo-openai = ["openai-agents==0.25.0"]
+demo-llamaindex = ["llama-index-core==0.14.26"]
 
 [project.scripts]
 turnwise-lab = "turnwise_lab.__main__:main"

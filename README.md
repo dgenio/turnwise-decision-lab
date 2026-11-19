@@ -12,6 +12,8 @@ A conventional model router chooses **which LLM** should answer a request. Turnw
 
 [Research contract, example and falsifiers](docs/per-step-execution-hypothesis.md) · [Existing systems and prior art](docs/comparators.md) · [Quality-first prospective experiment](https://github.com/dgenio/turnwise-decision-lab/issues/9)
 
+**See the difference on one task:** `python -m turnwise_lab.control_demo` runs the same incident question, tools and scripted model under a native OpenAI Agents SDK agent, a native LlamaIndex `FunctionAgent` (both optional) and the Turnwise per-step policy, and prints who decided each step. It is a mechanism demonstration, not a benchmark: [same task, same tools](docs/same-task-native-vs-turnwise.md).
+
 **Current evidence is HOLD:** v0.5 is synthetic and uses no models; v0.6 in [open PR #6](https://github.com/dgenio/turnwise-decision-lab/pull/6) is a real but inconclusive, weak-model-scale experiment with serious investigative and fallback failures. Neither establishes quality non-inferiority, provider-cost savings or production readiness.
 
 ### The next hypothesis: near-baseline quality, much lower cost
@@ -136,6 +138,7 @@ A literature search found model-only routing evaluations (RouteLLM, FrugalGPT, A
 | `turnwise_lab/core.py`, `deciders.py` | v0.4 planner contract and the optional Jev adapter (never run against a live provider) |
 | `turnwise_lab/benchmark.py`, `learning.py` | v0.4 route-label benchmark and stdlib Naive Bayes |
 | `turnwise_lab/provider.py` | Opt-in OpenAI-compatible generation adapter (only tested against a local fake server) |
+| `turnwise_lab/control_demo/` | Same task, same tools: native OpenAI Agents SDK / LlamaIndex agents vs the Turnwise per-step policy (offline) |
 | `docs/` | Pre-registration, threat model, comparators, evaluation plan |
 
 ## Earlier versions (kept, still reproducible)

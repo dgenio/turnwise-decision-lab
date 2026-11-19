@@ -27,3 +27,20 @@ jobs:
           python -m turnwise_lab.evaluate --output reports/synthetic-contract-replay.json
       - name: Committed evidence must be byte-identical to a fresh run (v0.4 benchmark JSON excluded; it records wall-clock timings)
         run: git diff --exit-code -- reports demo
+  native-frameworks-demo:
+    # Same task, same tools: native OpenAI Agents SDK and LlamaIndex agents vs the Turnwise policy (#49).
+    # Each framework's own offline test-double model; no keys, no network calls, no model weights.
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Install the optional demo frameworks (pinned)
+        run: pip install "openai-agents==0.25.0" "llama-index-core==0.14.26"
+      - name: Control-demo tests with every framework present
+        env:
+          TURNWISE_REQUIRE_DEMO_FRAMEWORKS: '1'
+        run: python -m unittest discover -s tests -p "test_control_demo*.py" -v
+      - name: Print the three per-step traces
+        run: python -m turnwise_lab.control_demo
