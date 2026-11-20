@@ -52,6 +52,10 @@ NOT_A_REQUEST = (
     # no resolvable target
     "roll it back",
     "roll back inventory service, and check checkout health",
+    "Roll back checkout and payments.",
+    "Roll back checkout or payments.",
+    "Roll back checkout, payments and auth.",
+    "Roll back checkout and revert payments.",
 )
 
 EXACT_REQUESTS = (
