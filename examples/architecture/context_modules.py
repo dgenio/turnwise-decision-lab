@@ -26,6 +26,7 @@ class ModuleSelectionError(ValueError):
 class Block:
     id: str
     text: str
+    source: str
     applies_to: tuple[str, ...]
     mandatory: bool
     priority: int
@@ -63,7 +64,7 @@ class Selection:
             "operation": self.operation,
             "manifest": self.version,
             "manifest_sha256": self.manifest_sha256,
-            "included": [{"id": b.id, "sha256": b.sha256} for b in self.included],
+            "included": [{"id": b.id, "source": b.source, "sha256": b.sha256} for b in self.included],
             "excluded": [{"id": name, "reason": reason} for name, reason in self.exclusions],
             "module_bytes": self.module_bytes,
             "module_byte_limit": self.module_byte_limit,
@@ -83,7 +84,7 @@ def load_manifest(path: Path = MANIFEST_PATH) -> Manifest:
             raise ModuleSelectionError("manifest requires a nonempty blocks list")
         blocks = tuple(
             Block(
-                id=e["id"], text=e["text"], applies_to=tuple(e["applies_to"]),
+                id=e["id"], text=e["text"], source=e["source"], applies_to=tuple(e["applies_to"]),
                 mandatory=e["mandatory"], priority=e["priority"],
                 depends_on=tuple(e["depends_on"]), conflicts_with=tuple(e["conflicts_with"])
             ) for e in entries
@@ -101,6 +102,8 @@ def load_manifest(path: Path = MANIFEST_PATH) -> Manifest:
             raise ModuleSelectionError("invalid module id")
         if not isinstance(b.text, str) or not b.text.strip():
             raise ModuleSelectionError(f"{b.id}: empty text")
+        if not isinstance(b.source, str) or not b.source.strip():
+            raise ModuleSelectionError(f"{b.id}: missing provenance")
         if type(b.mandatory) is not bool or type(b.priority) is not int:
             raise ModuleSelectionError(f"{b.id}: invalid mandatory/priority fields")
         if not b.applies_to or any(op not in MODEL_OPERATIONS for op in b.applies_to):
