@@ -119,6 +119,28 @@ class ActionAuthorityGateTests(unittest.TestCase):
         self.assertIn("outstanding requested action", why)
         self.assertEqual(host.write_ledger, [])
 
+    def test_approval_claim_must_match_an_actual_held_host_receipt(self):
+        no_write = IncidentHost("Is checkout healthy?")
+        runtime = TurnwiseRuntime(no_write, TriagePolicy(), model=None)
+        claimed = Decision(Op.HOLD, "pretend approval",
+                           message="rollback_deploy(checkout) awaits human approval.")
+        ok, why = runtime.host_validates(claimed, 1)
+        self.assertFalse(ok)
+        self.assertIn("without any host-held action receipt", why)
+
+        requested = IncidentHost("Roll back checkout.")
+        held = requested.execute("rollback_deploy", {"service": "checkout"}, proposed_by="llm")
+        self.assertEqual(held.status, "held_for_approval")
+        runtime = TurnwiseRuntime(requested, TriagePolicy(), model=None)
+        wrong = Decision(Op.HOLD, "retarget", message="rollback_deploy(payments) awaits human approval.")
+        ok, why = runtime.host_validates(wrong, 1)
+        self.assertFalse(ok)
+        self.assertIn("no matching host-held service", why)
+        right = Decision(Op.HOLD, "receipt-grounded",
+                         message="rollback_deploy(checkout) awaits human approval. It has NOT been executed.")
+        self.assertTrue(runtime.host_validates(right, 1)[0])
+        self.assertEqual(requested.write_ledger, [])
+
     def test_malformed_model_proposal_never_becomes_an_executed_action(self):
         outcome = parse_outcome({
             "kind": "tool_proposal", "text": "do it",
