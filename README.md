@@ -80,7 +80,7 @@ A: Conventional agent                                      | B: Turnwise Core
 
 At A3 the model's request for `validate_config` simply runs. At B3 the same request comes back to the policy as data, and at B4 the policy adopts it (`m1` is that first model outcome) because it is a registered read not yet done. An unrequested `rollback_deploy` proposal is declined by the policy, and refused by the host even under a policy that adopts everything; both are covered in [`tests/test_architecture_core.py`](tests/test_architecture_core.py).
 
-**How to read this.** The SDK code paths are real (`Runner.run_sync`, `FunctionTool`, `FunctionAgent`, `structured_predict`). **The model is simulated**: a deterministic stand-in written by the same author as the policy, and this showcase step was authored to produce a proposal. The trace demonstrates *control flow*, not reasoning quality, cost or latency. Real-provider paths now have a bounded rehearsal against a **simulated HTTP provider** (PR #54), but **no paid inference or actual model behaviour has been tested**. Use `python -m examples.architecture.live_smoke` for the free rehearsal; `run_demo --live` refuses and directs you to the bounded harness.
+**How to read this.** The SDK code paths are real (`Runner.run_sync`, `FunctionTool`, `FunctionAgent`, `structured_predict`). **The model is simulated**: a deterministic stand-in written by the same author as the policy, and this showcase step was authored to produce a proposal. The trace demonstrates *control flow*, not reasoning quality, cost or latency. Real-provider paths now have a bounded rehearsal against a **simulated HTTP provider** (PR #54), and a first owner-authorized paid smoke was attempted on 2026-11-19, but **HTTP 429 prevented every model output**. No real-model behavior has been established. Use `python -m examples.architecture.live_smoke` for the free rehearsal; `run_demo --live` refuses and directs you to the bounded harness.
 
 Full walkthrough, per-step traces, parity notes and limitations: [`examples/architecture/README.md`](examples/architecture/README.md).
 
@@ -126,13 +126,15 @@ Explore every turn under every design in the **[interactive explorer](https://dg
 | [v0.4 route-label benchmark](reports/trained-routing-synthetic.md) (on `main`) | **Historical**, superseded by v0.5 | Simple rules matched 38/40 labels; a tiny classifier 29/40. No gain over rules |
 | v0.6 local-inference loop ([PR #6](https://github.com/dgenio/turnwise-decision-lab/pull/6)) | **Held / inconclusive**, not merged | Used a small 0.8B local model as its "heavy" tier (not a capable baseline); 0/7 investigations for the decision-driven arm; silent misses |
 | v0.7/v0.8 safety and exit-gate work ([#37](https://github.com/dgenio/turnwise-decision-lab/pull/37), [#38](https://github.com/dgenio/turnwise-decision-lab/pull/38), [#46](https://github.com/dgenio/turnwise-decision-lab/pull/46)) | **Held**, draft, not merged | v0.7 concluded SHRINK (simpler wins) under a weak model. Not current truth on `main` |
-| Real-provider readiness for the demo ([PR #54](https://github.com/dgenio/turnwise-decision-lab/pull/54)) | **Implemented and tested offline** | Provider classes exercised against a simulated HTTP Responses endpoint with bounded calls; **no real model inference** |
+| Real-provider readiness ([#54](https://github.com/dgenio/turnwise-decision-lab/pull/54), [#56](https://github.com/dgenio/turnwise-decision-lab/pull/56), [#58](https://github.com/dgenio/turnwise-decision-lab/pull/58)) | **Offline-tested, paid smoke inconclusive** | [First run](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372): ten HTTP 429 responses, zero model outputs; an estimated USD 0.32729 reserved, actual billed amount unknown. A second owner-dispatched authorization is proposed in [#60](https://github.com/dgenio/turnwise-decision-lab/pull/60), not executed |
 | Capable heavy-only agent baseline, real model inference, cost | **Not tested** | The decisive experiment ([#9](https://github.com/dgenio/turnwise-decision-lab/issues/9)) has not been run |
+
+See the [2026-11-20 integration gates](docs/pr-consolidation-gates-2026-11-20.md) for the deliberately separate host-safety, prompt-budget and prospective Level C evidence paths.
 
 ## What is not yet proven
 
 - **No quality, cost or latency benefit** against a real, capable, tool-using agent. That comparison has not been run.
-- **No real model has driven the architecture demo.** Real models may return malformed typed outputs, ignore the step contract or choose differently.
+- **No real-model behavior has been observed from the architecture demo.** The attempted provider smoke was rejected by HTTP 429 before any outputs. Real models may return malformed typed outputs, ignore the step contract or choose differently.
 - **No learned or decision-service policy** (Jev or otherwise) has been evaluated; the demo policy is hand-written keyword rules.
 - **No independent data.** One author wrote the world, cases, labels, policies and simulated model.
 - **The host checks provenance, not truth.** `FINISH` verifies that cited receipts exist, not that the answer is causally right.
