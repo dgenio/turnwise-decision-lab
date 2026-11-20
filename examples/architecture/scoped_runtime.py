@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .context_modules import ModuleSelectionError, Selection, select_modules
+from .context_modules import Manifest, ModuleSelectionError, Selection, load_manifest, select_modules
 from .turnwise_core import Decision, MODEL_OPS, Op, TurnwiseRuntime
 
 
@@ -19,7 +19,7 @@ def default_requested_modules(d: Decision) -> tuple[str, ...]:
     if d.op is Op.CALL_LIGHT and d.may_propose:
         return ("extract-arguments",)
     if d.op is Op.CALL_LIGHT:
-        return ("summarize-status",)
+        return ("summarize-evidence",)
     return ()
 
 
@@ -28,16 +28,18 @@ class ScopedContextRuntime(TurnwiseRuntime):
 
     def __init__(self, *args, module_byte_limit: int = 1024,
                  requested_modules: Callable[[Decision], tuple[str, ...]] = default_requested_modules,
-                 **kwargs):
+                 manifest: Manifest | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        # Loaded and validated once: validation and packet assembly see the same registry.
+        self.manifest = manifest if manifest is not None else load_manifest()
         self.module_byte_limit = module_byte_limit
         self.requested_modules = requested_modules
         self.module_audits: list[dict] = []
 
     def _select(self, d: Decision) -> Selection:
         return select_modules(
-            d.op.value, requested=self.requested_modules(d), module_byte_limit=self.module_byte_limit
-        )
+            d.op.value, requested=self.requested_modules(d), module_byte_limit=self.module_byte_limit,
+            manifest=self.manifest)
 
     def host_validates(self, d, step: int) -> tuple[bool, str]:
         ok, reason = super().host_validates(d, step)

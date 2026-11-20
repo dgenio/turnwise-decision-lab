@@ -12,7 +12,7 @@ from dataclasses import replace
 from pathlib import Path
 
 from examples.architecture.action_context_demo import (
-    AliasExtractionPolicy, OfflineModelPort, run_case,
+    LIGHT_TASK, OfflineModelPort, QueryExtractionPolicy, run_case,
 )
 from examples.architecture.context_modules import (
     MANIFEST_PATH, ModuleSelectionError, load_manifest, select_modules,
@@ -20,7 +20,7 @@ from examples.architecture.context_modules import (
 from examples.architecture.incident_env import IncidentHost, TASKS
 from examples.architecture.policies import TriagePolicy
 from examples.architecture.scoped_runtime import ScopedContextRuntime
-from examples.architecture.turnwise_core import Op, TurnwiseRuntime
+from examples.architecture.turnwise_core import Decision, ModelOutcome, Op, TurnwiseRuntime
 
 
 class ManifestContractTests(unittest.TestCase):
@@ -36,7 +36,7 @@ class ManifestContractTests(unittest.TestCase):
                          ["host-authority", "receipt-grounding", "investigate-cause"])
         audit = s.audit()
         self.assertEqual(len(audit["included"]), 3)
-        self.assertIn({"id": "summarize-status", "reason": "different_operation"}, audit["excluded"])
+        self.assertIn({"id": "summarize-evidence", "reason": "different_operation"}, audit["excluded"])
         self.assertIn({"id": "prepare-user-update", "reason": "not_requested"}, audit["excluded"])
         self.assertIn("NOT provider tokens", audit["units"])
 
@@ -65,7 +65,7 @@ class ManifestContractTests(unittest.TestCase):
 
     def test_invalid_requests_rejected(self):
         for op, requested in (
-            ("CALL_HEAVY", ("summarize-status",)),
+            ("CALL_HEAVY", ("summarize-evidence",)),
             ("CALL_LIGHT", ("made-up-instructions",)),
             ("CALL_TOOL", ()),
         ):
@@ -111,21 +111,54 @@ class OptInRuntimeTests(unittest.TestCase):
         self.assertEqual(runtime.module_audits, [])
 
     def test_light_extraction_is_typed_and_read_only(self):
-        result, runtime, port = run_case("extract", "Is check-out healthy right now?", AliasExtractionPolicy())
+        result, runtime, port = run_case("extract", LIGHT_TASK, QueryExtractionPolicy())
         self.assertEqual(result.status, "finished")
-        self.assertEqual([r.tool for r in runtime.host.receipts], ["service_health"])
+        self.assertEqual([r.tool for r in runtime.host.receipts], ["search_docs"])
         self.assertEqual([r.status for r in runtime.host.receipts], ["executed"])
+        self.assertEqual(runtime.host.receipts[0].arguments, {"query": "checkout error rate runbook"})
         self.assertEqual(len(port.packets), 2)
         self.assertEqual([[m["id"] for m in packet["instruction_modules"]] for _, packet in port.packets],
                          [["host-authority", "receipt-grounding", "extract-arguments"],
-                          ["host-authority", "receipt-grounding", "summarize-status"]])
+                          ["host-authority", "receipt-grounding", "summarize-evidence"]])
         self.assertEqual(runtime.module_audits[0]["evidence_included"], [])
+        self.assertEqual(runtime.module_audits[0]["tools_visible_for_proposal"], ["search_docs"])
         self.assertEqual(runtime.module_audits[1]["evidence_included"], ["r1"])
         self.assertEqual(result.writes_executed, 0)
 
+    def test_model_cannot_resolve_a_service_referent_the_user_did_not_name(self):
+        """Integration with the host FINISH gate: a model-mapped alias is not user authority."""
+        class AliasPort(OfflineModelPort):
+            def call(self, tier, packet):
+                self.packets.append((tier, packet))
+                if packet.get("evidence"):
+                    receipt = packet["evidence"][0]
+                    return {"kind": "answer_candidate", "text": "It is degraded.", "tool": None,
+                            "arguments_json": None, "cited_receipts": [receipt["receipt"]]}
+                return {"kind": "tool_proposal", "text": "check-out means checkout.",
+                        "tool": "service_health", "arguments_json": '{"service":"checkout"}',
+                        "cited_receipts": []}
+
+        port = AliasPort()
+        rt = ScopedContextRuntime(IncidentHost("Is check-out healthy right now?"), QueryExtractionPolicy(), port)
+        result = rt.run()
+        self.assertEqual(result.status, "needs_clarification")
+        self.assertEqual(rt.host.receipts, [])
+        self.assertEqual(result.writes_executed, 0)
+
+    def test_host_refuses_finish_when_only_a_model_resolved_the_service(self):
+        host = IncidentHost("Is check-out healthy right now?")
+        receipt = host.execute("service_health", {"service": "checkout"}, proposed_by="turnwise_policy")
+        self.assertTrue(receipt.executed)  # a schema-valid read may run...
+        rt = ScopedContextRuntime(host, QueryExtractionPolicy(), OfflineModelPort())
+        rt.outcomes.append(ModelOutcome("m1", "light_model", "answer_candidate", "It is degraded.",
+                                        cited=("r1",), shown=("r1",)))
+        ok, why = rt.host_validates(Decision(Op.FINISH, "accept", candidate="m1"), 2)
+        self.assertFalse(ok)  # ...but it cannot stand in for a referent the user named
+        self.assertIn("unresolved service target", why)
+
     def test_ambiguous_referent_must_clarify(self):
-        result, runtime, port = run_case("unknown", "Is the service healthy right now?",
-                                         AliasExtractionPolicy())
+        result, runtime, port = run_case("unknown", "What do the runbooks say about it?",
+                                         QueryExtractionPolicy())
         self.assertEqual(result.status, "needs_clarification")
         self.assertEqual(runtime.host.receipts, [])
         self.assertEqual(result.writes_executed, 0)
@@ -158,7 +191,7 @@ class OptInRuntimeTests(unittest.TestCase):
                         "cited_receipts": []}
 
         port = RoguePort()
-        rt = ScopedContextRuntime(IncidentHost("Is check-out healthy?"), AliasExtractionPolicy(), port)
+        rt = ScopedContextRuntime(IncidentHost(LIGHT_TASK), QueryExtractionPolicy(), port)
         result = rt.run()
         self.assertEqual(result.status, "needs_clarification")
         self.assertEqual(rt.host.receipts, [])

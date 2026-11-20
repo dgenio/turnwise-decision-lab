@@ -11,20 +11,22 @@ from __future__ import annotations
 import json
 
 from .incident_env import IncidentHost, TASKS
-from .policies import TriagePolicy
+from .policies import TriagePolicy, op_for
 from .scoped_runtime import ScopedContextRuntime
 from .simulated_model import SimulatedInvestigator
 from .turnwise_core import Decision, ModelOutcome, Op
+from turnwise_lab.world import named_services
 
 
-class AliasExtractionPolicy:
-    """A didactic, typed light-extraction route for a known synthetic alias.
+class QueryExtractionPolicy:
+    """A didactic light-extraction route: a model formulates ONE free-text argument.
 
-    It may adopt the proposal only if the original user request supplies the
-    explicit alias 'check-out'; it never fabricates an ambiguous referent.
-    Host registration/argument/permission checks are still independent.
+    The only argument a model may formulate here is a ``query`` for a registered
+    read tool (``search_docs``). Service targets are never model-resolved: the
+    host parses them from the user's own text, and its FINISH evidence gate
+    relies on that. Host registration/argument/permission checks stay independent.
     """
-    name = "alias-extraction-policy (offline only)"
+    name = "query-extraction-policy (offline only)"
 
     def decide(self, s):
         if s.last_rejection:
@@ -38,21 +40,22 @@ class AliasExtractionPolicy:
             if latest.kind == "answer_candidate":
                 return Decision(Op.FINISH, "host checks citations from final candidate", candidate=latest.id)
             if latest.kind == "tool_proposal" and latest.proposal is not None:
-                proposal = latest.proposal
-                if ("check-out" in s.task.lower() and proposal.tool == "service_health"
-                        and proposal.arguments == {"service": "checkout"}):
-                    return Decision(Op.CALL_TOOL, "model extracted the explicit alias; host validates",
-                                    target="service_health", arguments={"service": "checkout"},
+                proposal, spec = latest.proposal, s.tool(latest.proposal.tool)
+                if (spec is not None and not spec.side_effect and spec.param == "query"
+                        and not s.attempted(proposal.tool, proposal.arguments)):
+                    return Decision(op_for(spec), "model formulated a free-text query; host validates it",
+                                    target=proposal.tool, arguments=dict(proposal.arguments),
                                     adopted_from=latest.id)
-                return Decision(Op.CLARIFY, "proposal not grounded in the original user's referent",
-                                message="Which service do you mean?")
-            return Decision(Op.CLARIFY, "model could not resolve a grounded referent",
-                            message="Which service do you mean?")
+                return Decision(Op.CLARIFY, "proposal is not a free-text read this route may adopt",
+                                message="What should I look up?")
+            return Decision(Op.CLARIFY, "model could not formulate a grounded query",
+                            message="What should I look up?")
         executed = tuple(r.id for r in s.receipts if r.executed)
         if executed:
             return Decision(Op.CALL_LIGHT, "summarize executed host evidence", context=executed)
-        return Decision(Op.CALL_LIGHT, "extract one read-only tool argument; do not execute it",
-                        may_propose=("service_health",))
+        query_tools = tuple(t.id for t in s.tools if t.param == "query" and not t.side_effect)
+        return Decision(Op.CALL_LIGHT, "formulate one free-text read argument; do not execute it",
+                        may_propose=query_tools)
 
 
 class OfflineModelPort:
@@ -67,22 +70,26 @@ class OfflineModelPort:
         self.packets.append((tier, packet))
         selected = {m["id"] for m in packet.get("instruction_modules", [])}
         if "extract-arguments" in selected:
-            if "check-out" not in packet["task"].lower():
-                return {"kind": "needs_evidence", "text": "The service is ambiguous.",
+            services = named_services(packet["task"])
+            if not services:
+                return {"kind": "needs_evidence", "text": "The request names nothing to look up.",
                         "tool": None, "arguments_json": None, "cited_receipts": []}
-            return {"kind": "tool_proposal", "text": "The user explicitly wrote check-out.",
-                    "tool": "service_health", "arguments_json": '{"service":"checkout"}',
-                    "cited_receipts": []}
-        if "summarize-status" in selected and packet.get("evidence"):
+            query = json.dumps({"query": f"{services[0]} error rate runbook"})
+            return {"kind": "tool_proposal", "text": "A runbook search answers this request.",
+                    "tool": "search_docs", "arguments_json": query, "cited_receipts": []}
+        if "summarize-evidence" in selected and packet.get("evidence"):
             receipt = packet["evidence"][0]
-            return {"kind": "answer_candidate", "text":
-                    "The host reports: " + json.dumps(receipt["facts"], sort_keys=True),
+            titles = ", ".join(sorted(v["title"] for v in receipt["facts"].values()))
+            return {"kind": "answer_candidate", "text": f"Relevant documents: {titles}.",
                     "tool": None, "arguments_json": None,
                     "cited_receipts": [receipt["receipt"]]}
         return self.brain.typed_step(packet)
 
     def handoff(self, task_text, max_turns):
         raise AssertionError("native agent handoff is not part of this experiment")
+
+
+LIGHT_TASK = "What do our runbooks say about checkout errors?"
 
 
 def run_case(name: str, task: str, policy):
@@ -95,7 +102,7 @@ def run_case(name: str, task: str, policy):
 def main() -> None:
     cases = (
         ("deterministic host answer", TASKS["severity"], TriagePolicy(), "answered_directly"),
-        ("light argument extraction", "Is check-out healthy right now?", AliasExtractionPolicy(), "finished"),
+        ("light argument extraction", LIGHT_TASK, QueryExtractionPolicy(), "finished"),
         ("capable-tier decision (simulated)", TASKS["investigate"], TriagePolicy(), "finished"),
     )
     print("OFFLINE scripted architecture demonstration: no real models, network or billing.")

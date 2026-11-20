@@ -38,11 +38,11 @@
         "receipt-grounding"
       ],
       "conflicts_with": [],
-      "text": "For this operation, propose at most one registered read tool with a JSON object matching its schema. Resolve the target only if supported by the original request; otherwise return needs_evidence for clarification.",
+      "text": "For this operation, propose at most one registered read tool with a JSON object matching its schema. Service targets come from the user's request as parsed by the host; only free-text arguments such as a search query are yours to formulate. If the request is too vague to formulate one, return needs_evidence for clarification.",
       "source": "research-prototype:#55 (developer-authored; not owner-approved)"
     },
     {
-      "id": "summarize-status",
+      "id": "summarize-evidence",
       "applies_to": [
         "CALL_LIGHT"
       ],
@@ -52,7 +52,7 @@
         "receipt-grounding"
       ],
       "conflicts_with": [],
-      "text": "Summarize the current state from the provided service-health receipt. Preserve uncertainty and cite the executed receipt.",
+      "text": "Summarize only the provided executed host receipts. Preserve uncertainty and cite the receipt IDs you rely on.",
       "source": "research-prototype:#55 (developer-authored; not owner-approved)"
     },
     {
