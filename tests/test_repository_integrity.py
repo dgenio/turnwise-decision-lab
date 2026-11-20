@@ -96,7 +96,7 @@ class EvidenceManifest(unittest.TestCase):
     def test_archived_negative_results_cannot_be_labeled_as_live_success(self):
         data = evidence_manifest()
         archived = {row["pr"]: row for row in data["archived_unmerged_research"]}
-        self.assertTrue({6, 38} <= set(archived))
+        self.assertEqual(set(archived), {6, 31, 37, 38, 44, 46, 60})
         for row in archived.values():
             self.assertRegex(row["commit"], r"\A[0-9a-f]{40}\Z")
             self.assertTrue("HOLD" in row["status"] or "SHRINK" in row["status"])
