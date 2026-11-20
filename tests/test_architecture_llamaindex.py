@@ -18,8 +18,9 @@ except ImportError:
 if HAVE_LLAMAINDEX:
     from llama_index.core.agent.workflow import FunctionAgent
 
-    from examples.architecture.incident_env import TASKS
-    from examples.architecture.llamaindex.conventional import run_conventional
+    from examples.architecture.checklist_null import native_instructions
+    from examples.architecture.incident_env import TASKS, HostSession, IncidentHost
+    from examples.architecture.llamaindex.conventional import build_agent, run_conventional
     from examples.architecture.llamaindex.models import choose_llms
     from examples.architecture.llamaindex.turnwise import run_turnwise
     from examples.architecture.policies import HandoffPolicy
@@ -55,6 +56,21 @@ class LlamaIndexPairTests(unittest.TestCase):
                          ["tool call error_trend", "tool call recent_deploys", "tool call validate_config",
                           "final answer "])
         self.assertTrue(result.answer.startswith("Plausibly yes."))
+
+    def test_checklist_null_changes_only_the_native_prompt(self):
+        m = choose_llms()
+        host = IncidentHost(TASKS["investigate"])
+        session = HostSession(host, actor="llm")
+        baseline = build_agent(m.heavy, session)
+        prompted = build_agent(m.heavy, session, checklist=True)
+        self.assertEqual(baseline.system_prompt, native_instructions())
+        self.assertEqual(prompted.system_prompt, native_instructions(checklist=True))
+        self.assertEqual([t.metadata.name for t in baseline.tools],
+                         [t.metadata.name for t in prompted.tools])
+        self.assertIs(baseline.llm, prompted.llm)
+        result = run_conventional(TASKS["investigate"], m.heavy, model_label=m.label, checklist=True)
+        self.assertTrue(result.title.startswith("A+P"))
+        self.assertEqual(result.writes_executed, 0)
 
     def test_turnwise_calls_the_agents_llm_once_per_step_with_structured_output(self):
         # With the offline mock (a function-calling LLM), structured_predict uses LlamaIndex's function-calling
