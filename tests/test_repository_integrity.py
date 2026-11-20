@@ -8,6 +8,7 @@ a deliberate, reviewed act: update the hash here in the same PR and say why.
 from __future__ import annotations
 
 import hashlib
+import json
 import os
 import re
 import unittest
@@ -15,16 +16,19 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-# Immutable inputs and historical records (see AGENTS.md "Frozen evidence").
-FROZEN = {
-    "docs/preregistration-v0.5.md": "8ebeea35d314d430c360ddb3203bfc51c6bcb8d9269d76921890859fb4a75f0c",
-    "fixtures/sessions.json": "6cc1377592627d2e811108c02c5437d6eda4c685a87327048023b8e6e585a625",
-    "fixtures/scenarios.json": "0f0cacfe8047620963e5d68ec4562ae98216dc3b7f86eedfb88ac75b9842fe2e",
-    "fixtures/route_train.jsonl": "121c22365d00ec9d7e8fb895cc4ec133ec62be10d83faa088b826696898a870d",
-    "fixtures/route_test.jsonl": "be72dd7f506cfdbd1db40eba46e309904d145cbc31fba9100143f74793acfc07",
-    "turnwise_lab/world.py": "be62292baf56c04ef87304d9e6165e70811b17eb2371e3abebc4fcd7b9c60f8a",
-    "reports/live-smoke-44520205372.md": "4d175437a8e014427c448f664843b3206260f3178defd35adf435ded7723837e",
-}
+# The versioned manifest is the single source of truth for pinned record hashes
+# and the distinction between immutable inputs and regenerated offline outputs.
+MANIFEST_PATH = ROOT / "docs" / "evidence-manifest.v1.json"
+REQUIRED_FROZEN_PATHS = frozenset({
+    "docs/preregistration-v0.5.md", "fixtures/sessions.json", "fixtures/scenarios.json",
+    "fixtures/route_train.jsonl", "fixtures/route_test.jsonl", "turnwise_lab/world.py",
+    "reports/live-smoke-44520205372.md",
+})
+
+
+def evidence_manifest():
+    return json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+
 
 WEIGHT_SUFFIXES = {".onnx", ".gguf", ".safetensors", ".pt", ".pth", ".ckpt", ".pkl", ".bin", ".h5"}
 SECRET_FILES = {".env", "id_rsa", "id_ed25519", "credentials.json"}
@@ -43,10 +47,60 @@ def repository_files():
 
 class FrozenEvidence(unittest.TestCase):
     def test_frozen_inputs_and_historical_records_are_unchanged(self):
-        for rel, expected in FROZEN.items():
+        for row in evidence_manifest()["immutable"]:
+            rel, expected = row["path"], row["sha256"]
             with self.subTest(file=rel):
                 digest = hashlib.sha256((ROOT / rel).read_bytes()).hexdigest()
                 self.assertEqual(digest, expected, f"{rel} changed: frozen evidence must not change silently")
+
+
+class EvidenceManifest(unittest.TestCase):
+    """The manifest must be inspectable, complete for its declared scope and safe to read."""
+
+    def test_manifest_schema_scope_and_validation_semantics(self):
+        data = evidence_manifest()
+        self.assertEqual(data["schema"], "turnwise.evidence-manifest/1")
+        self.assertEqual(data["scope"], "main_only")
+        immutable = data["immutable"]
+        regenerated = data["regenerated"]
+        historical = data["historical_unverified_by_regeneration"]
+        paths = [row["path"] for row in (*immutable, *regenerated, *historical)]
+        self.assertEqual(len(paths), len(set(paths)), "one artifact cannot have conflicting provenance roles")
+        self.assertEqual({row["path"] for row in immutable}, REQUIRED_FROZEN_PATHS)
+        self.assertGreaterEqual(len(regenerated), 10)
+        for row in (*immutable, *regenerated, *historical):
+            path = Path(row["path"])
+            with self.subTest(path=str(path)):
+                self.assertFalse(path.is_absolute())
+                self.assertNotIn("..", path.parts)
+                self.assertEqual(path.as_posix(), row["path"])
+                self.assertTrue((ROOT / path).is_file(), "manifest entry does not exist on this commit")
+        for row in immutable:
+            self.assertRegex(row["sha256"], r"\A[0-9a-f]{64}\Z")
+            self.assertEqual(row["validation"], "sha256_in_offline_ci")
+            self.assertIn(row["kind"], {
+                "preregistration", "authored_synthetic_fixture", "frozen_world_code",
+                "historical_paid_attempt_inconclusive"})
+        ci = (ROOT / ".github/workflows/tests.yml").read_text(encoding="utf-8")
+        samples = (ROOT / "examples/architecture/regenerate_samples.sh").read_text(encoding="utf-8")
+        for row in regenerated:
+            self.assertEqual(row["validation"], "byte_identical_git_diff_in_offline_ci")
+            self.assertIn(row["evidence_type"], {"offline_synthetic", "offline_render", "simulated_sdk"})
+            self.assertTrue(row["generator"] in ci or row["generator"] in samples,
+                            f"{row['path']}: generator not found in current CI/replay script")
+            if row["evidence_type"] == "simulated_sdk":
+                self.assertTrue(row["path"].startswith("examples/architecture/sample_output/"))
+            else:
+                self.assertTrue(row["path"].startswith(("reports/", "demo/")))
+
+    def test_archived_negative_results_cannot_be_labeled_as_live_success(self):
+        data = evidence_manifest()
+        archived = {row["pr"]: row for row in data["archived_unmerged_research"]}
+        self.assertTrue({6, 38} <= set(archived))
+        for row in archived.values():
+            self.assertRegex(row["commit"], r"\A[0-9a-f]{40}\Z")
+            self.assertTrue("HOLD" in row["status"] or "SHRINK" in row["status"])
+        self.assertIn("INCONCLUSIVE", (ROOT / "reports/live-smoke-44520205372.md").read_text())
 
 
 class Hygiene(unittest.TestCase):
