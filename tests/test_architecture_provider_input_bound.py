@@ -6,6 +6,7 @@ exact tokenizer count or a guarantee about final provider billing.
 from __future__ import annotations
 
 import unittest
+from unittest import mock
 
 try:
     import httpx2
@@ -66,6 +67,26 @@ class WholeRequestInputCapTests(unittest.TestCase):
                                 max_input_bound_tokens=512)
         with self.assertRaises(ProviderCapReached):
             ledger.admit(r)
+
+    def test_python_paid_entrypoint_refuses_missing_or_insufficient_authorization(self):
+        settings = ProviderSettings("offline-test")
+        prices = Prices(2.0, 8.0)
+        invalid = (
+            {},
+            {"prices": prices},
+            {"authorize_usd": 10.0},
+            {"prices": prices, "authorize_usd": 0.0001},
+            {"prices": prices, "authorize_usd": float("nan")},
+            {"prices": prices, "authorize_usd": True},
+        )
+        for options in invalid:
+            with self.subTest(options=options):
+                # No import of an SDK or provider transport is permitted here.
+                with mock.patch("examples.architecture.live_smoke.run_config",
+                                side_effect=AssertionError("provider must never be called")) as call:
+                    with self.assertRaises(ValueError):
+                        run_matrix(settings, **options)
+                    call.assert_not_called()
 
     def test_plan_and_cap_use_identical_input_assumption(self):
         p = Prices(2.0, 8.0)
