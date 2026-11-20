@@ -1,6 +1,6 @@
 # Release status
 
-**Last reconciled with `main`: 2026-11-19** (after PRs [#53](https://github.com/dgenio/turnwise-decision-lab/pull/53) and [#54](https://github.com/dgenio/turnwise-decision-lab/pull/54)). Public research exhibit. **No production, provider-performance, quality or cost claims.**
+**Last reconciled with `main`: 2026-11-20** (after PRs [#53](https://github.com/dgenio/turnwise-decision-lab/pull/53), [#54](https://github.com/dgenio/turnwise-decision-lab/pull/54), [#56](https://github.com/dgenio/turnwise-decision-lab/pull/56) and [#58](https://github.com/dgenio/turnwise-decision-lab/pull/58)). Public research exhibit. **No production, provider-performance, quality or cost claims.**
 
 Only what is merged into `main` is current. Open PRs, and PRs merged into stacked experimental branches, are not evidence of what `main` does.
 
@@ -17,7 +17,7 @@ Only what is merged into `main` is current. Open PRs, and PRs merged into stacke
 | v0.7 exit gate, locked synthetic study | [PR #38](https://github.com/dgenio/turnwise-decision-lab/pull/38), draft | **Held.** Reported SHRINK under a weak model; no capable baseline |
 | v0.8 request-bound approval authority | [PR #46](https://github.com/dgenio/turnwise-decision-lab/pull/46), draft; [#48](https://github.com/dgenio/turnwise-decision-lab/pull/48) merged **into #46's branch**, not `main` | **Held** |
 | Prompt budgets, remote spend reservations | [#31](https://github.com/dgenio/turnwise-decision-lab/pull/31), [#44](https://github.com/dgenio/turnwise-decision-lab/pull/44), open | **Held** |
-| Real-model provider readiness | [PR #54](https://github.com/dgenio/turnwise-decision-lab/pull/54), 2026-11-19 | **Implemented and tested offline**: provider classes execute against an HTTP Responses API double; the gated live smoke test exists but **no paid call has been made**. Real-model behaviour remains **not tested** |
+| Real-model provider readiness | `main` (PRs [#54](https://github.com/dgenio/turnwise-decision-lab/pull/54), [#56](https://github.com/dgenio/turnwise-decision-lab/pull/56), [#58](https://github.com/dgenio/turnwise-decision-lab/pull/58)) | **Offline path verified; real-model smoke INCONCLUSIVE**: owner-dispatched [run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372) returned HTTP 429 for all ten requests, no model outputs, usage records or writes; estimated USD 0.32729 reserved, actual billing unknown. Subsequent offline correction stops at the first 429 and exports sanitized evidence. A second one-shot authorization is proposed in [#60](https://github.com/dgenio/turnwise-decision-lab/pull/60), not dispatched. |
 | Capable heavy-only baseline, independent held-out data, measured cost and latency | Study gate [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9) | **Not tested** |
 
 Closed without merging (superseded): #7, #10, #26, #27, #32, #33, #36, #45, #50.
@@ -35,7 +35,7 @@ CI proves reproducibility and control-flow properties. It does not test real inf
 
 ## Not done
 
-- No real model, decision model (Jev) or live router (LiteLLM, vLLM Semantic Router, provider tool search) has been run by anything on `main`.
+- One **attempted** paid provider smoke on `main` hit HTTP 429 on all ten requests; no actual model output was obtained. There is still **no verified real-model behavior**, and no live decision model (Jev) or other router has been benchmarked.
 - No held-out sessions written by someone other than the author.
 - No measured answer quality, tokens, latency or price.
 
@@ -51,3 +51,5 @@ Describe the project as **a reproducible research lab with a simulated-inference
 
 - 2026-11-18: v0.4 merged ([PR #1](https://github.com/dgenio/turnwise-decision-lab/pull/1)) and deployed to Pages; v0.5 merged ([PR #2](https://github.com/dgenio/turnwise-decision-lab/pull/2)). An earlier version of this page said v0.5 was not yet merged; that was true when written.
 - 2026-11-19: Turnwise Core selected as the primary architecture to demonstrate and falsify ([audit](architecture-fit-audit-2026-11-18.md)); architecture demo merged (#51, #52).
+
+- 2026-11-20: Reconciled the first paid smoke (429, no model outputs) and added [PR consolidation/evidence gates](pr-consolidation-gates-2026-11-20.md). No second run or quality claim.

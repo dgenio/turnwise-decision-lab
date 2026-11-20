@@ -1,5 +1,9 @@
 # Live smoke test: decision packet (spending gate)
 
+> **Current status (2026-11-20).** The first authorization was consumed by [run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372) on 2026-11-19. All ten admitted requests received HTTP 429; no real-model responses or reported usage were obtained. The application reserved an estimated USD 0.32729; actual billing is unknown. A corrected offline-tested workflow stops at the first 429 and exports sanitized evidence. [PR #60](https://github.com/dgenio/turnwise-decision-lab/pull/60) proposes a *second*, distinct one-shot authorization. **No second provider run has been dispatched; do not dispatch without checking the provider project's model access and capacity.** A workflow merge alone is not a paid run.
+
+> The status line below is the **pre-run historical authorization record**, deliberately retained unmodified for chronology.
+
 **Status (2026-11-19): owner authorised ONE GPT-6.1 Sol run, up to US$2, in ChatGPT. No paid provider call has been made.** The key remains with the owner and is not stored in GitHub, ChatGPT or the repository. A rerun needs new authorisation.
 
 This packet asks for one bounded, paid run of the live smoke test in [`examples/architecture/live_smoke.py`](../examples/architecture/live_smoke.py). The purpose is **real-model compatibility** of the four configurations. It does not measure cost, latency or quality, and it is not a benchmark.
