@@ -46,6 +46,38 @@ class EvidenceRoleGateTests(unittest.TestCase):
         ])
         self.assertTrue(ok, why)
 
+    def test_premature_policy_finish_is_rejected_and_turn_stays_unresolved(self):
+        class PrematurePolicy:
+            name = "adversarial eager policy"
+
+            def decide(self, snapshot):
+                if snapshot.last_rejection:
+                    return Decision(Op.HOLD, "host rejected insufficient evidence",
+                                    message="Unresolved: evidence is incomplete.")
+                if not snapshot.receipts:
+                    return Decision(Op.CALL_TOOL, "symptom read only", target="error_trend",
+                                    arguments={"service": "checkout"})
+                if not snapshot.outcomes:
+                    return Decision(Op.CALL_HEAVY, "generate early", context=("r1",))
+                return Decision(Op.FINISH, "finish without change evidence",
+                                candidate=snapshot.outcomes[-1].id)
+
+        class AnswerPort:
+            label, describe = "SIMULATED (offline)", "single scripted answer"
+
+            def call(self, tier, packet):
+                return {"kind": "answer_candidate", "text": "The deploy caused the errors.",
+                        "cited_receipts": ["r1"]}
+
+        host = IncidentHost("Could the latest checkout deploy explain the error spike?")
+        runtime = TurnwiseRuntime(host, PrematurePolicy(), AnswerPort())
+        result = runtime.run()
+        self.assertEqual(result.status, "held")
+        finish_rows = [row for row in runtime.rows if row.decision.startswith("FINISH")]
+        self.assertEqual(len(finish_rows), 1)
+        self.assertIn("change:checkout", finish_rows[0].host)
+        self.assertEqual(host.write_ledger, [])
+
     def test_evidence_about_another_service_does_not_complete_a_causal_answer(self):
         ok, why = check_finish("Why did checkout errors rise?", [
             ("error_trend", "payments"), ("recent_deploys", "payments"),
