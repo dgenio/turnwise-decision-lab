@@ -307,6 +307,8 @@ class TurnwiseRuntime:
                 return False, "may_propose lists an unregistered tool"
             return True, ""
         if d.op is Op.DIRECT:
+            if self.host.requested_writes:
+                return False, "DIRECT would silently drop a user-requested action; require host disposition"
             return (True, "") if self.host.verified_fact(d.target or "") is not None else (
                 False, f"no host-verified record named {d.target!r}")
         if d.op is Op.FINISH:
@@ -333,8 +335,13 @@ class TurnwiseRuntime:
                if c not in cand.shown or not (self.host.receipt(c) and self.host.receipt(c).executed)]
         if bad:
             return False, f"{cand.id} cites {bad}, which are not executed receipts it was shown"
+        if self.host.requested_writes:
+            return False, "FINISH cannot replace an outstanding requested action with generated prose; require host disposition"
         if self._claims_unexecuted_action(cand.text):
             return False, f"{cand.id} mentions a completed side effect that no host receipt shows as executed"
+        missing = self.host.missing_evidence(cand.cited)
+        if missing:
+            return False, f"{cand.id} lacks task-scoped executed/cited evidence: {', '.join(missing)}"
         return True, ""
 
     # -- execution
