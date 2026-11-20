@@ -80,6 +80,17 @@ class ConventionalAgentIsANativeSDKAgentTests(unittest.TestCase):
                             for c in m.heavy.calls))
         self.assertEqual(result.writes_executed, 0)
 
+    def test_opt_in_demo_adds_a_separate_a_plus_p_arm(self):
+        from examples.architecture.run_demo import run_pair
+
+        ordinary = run_pair("openai-agents", TASKS["investigate"], handoff=False)
+        with_null = run_pair("openai-agents", TASKS["investigate"], handoff=False, checklist_null=True)
+        self.assertEqual(len(ordinary), 2)
+        self.assertEqual(len(with_null), 3)
+        self.assertEqual([r.title for r in with_null[:2]], [r.title for r in ordinary])
+        self.assertTrue(with_null[2].title.startswith("A+P"))
+        self.assertEqual(with_null[2].writes_executed, 0)
+
     def test_trace_shows_text_beside_a_tool_call_without_calling_it_a_final_answer(self):
         from agents.testing import assistant_message, function_call
 
