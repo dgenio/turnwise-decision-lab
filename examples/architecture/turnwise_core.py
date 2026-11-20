@@ -317,6 +317,8 @@ class TurnwiseRuntime:
             return False, f"{d.op.value} must say what is missing"
         if self._claims_unexecuted_action(d.message):
             return False, f"{d.op.value} message mentions a completed side effect that no host receipt shows"
+        if (claim_problem := self.host.approval_claim_problem(d.message)) is not None:
+            return False, f"{d.op.value} message: {claim_problem}"
         return True, ""
 
     def _claims_unexecuted_action(self, text: str) -> bool:
