@@ -141,9 +141,34 @@
       "status": "HOLD: 0/7 decision-driven investigations; no capable baseline"
     },
     {
+      "pr": 31,
+      "commit": "2dc300c369dd33d838add175dbfa5f2d2829ff0c",
+      "status": "HOLD: experimental exact-prompt-budget implementation not ported wholesale"
+    },
+    {
+      "pr": 37,
+      "commit": "4d9987b591e14afbf2988d73c844028264e2d79c",
+      "status": "HOLD: experimental P0 host mechanisms; compatible tests selectively ported"
+    },
+    {
       "pr": 38,
       "commit": "e3bde98e1e0a00bbe87148dcf26d9efefff9397e",
-      "status": "HOLD/SHRINK: locked synthetic exit-gate study; not proof of prospective quality"
+      "status": "HOLD/SHRINK: locked synthetic exit-gate study; no capable baseline"
+    },
+    {
+      "pr": 44,
+      "commit": "0ca03991ee6be6dc9bd06b3aeacbf3650fc199ad",
+      "status": "HOLD: experimental remote spend ledger not a provider billing cap"
+    },
+    {
+      "pr": 46,
+      "commit": "1a2fe83ec83193a2b5c1ab118a2741cc95bf2a96",
+      "status": "HOLD: experimental write-provenance host not merged; tests ported"
+    },
+    {
+      "pr": 60,
+      "commit": "b91ec2e671de57b9acf67df65d8090be6c39f704",
+      "status": "HOLD: unconsumed draft second authorization; NOT approved for dispatch"
     }
   ],
   "limitations": [
@@ -152,5 +177,14 @@
     "Archived commits are recovery identifiers; the current main CI does not execute or independently verify archived branch results.",
     "The consumed paid smoke recorded HTTP 429 and no model outputs; billed spend is unknown.",
     "There is no independently adjudicated prospective quality/non-inferiority or end-to-end economic result."
-  ]
+  ],
+  "experimental_verification": {
+    "v0_5_authored_synthetic_replay": "verified_by_offline_CI",
+    "v0_6_v0_7_independent_inference_reproduction": "not_run_in_main_CI",
+    "first_paid_smoke": "inconclusive_http_429_no_model_outputs",
+    "independent_outcome_adjudication": "not_run",
+    "provider_cost_and_latency": "unknown",
+    "prospective_non_inferiority": "not_run",
+    "historical_rubric_and_reviewer_provenance": "see_archived_commits_not_independently_validated_here"
+  }
 }
