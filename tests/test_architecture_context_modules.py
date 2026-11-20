@@ -10,6 +10,7 @@ import tempfile
 import unittest
 from dataclasses import replace
 from pathlib import Path
+from unittest import mock
 
 from examples.architecture.action_context_demo import (
     AliasExtractionPolicy, OfflineModelPort, run_case,
@@ -20,7 +21,7 @@ from examples.architecture.context_modules import (
 from examples.architecture.incident_env import IncidentHost, TASKS
 from examples.architecture.policies import TriagePolicy
 from examples.architecture.scoped_runtime import ScopedContextRuntime
-from examples.architecture.turnwise_core import Op, TurnwiseRuntime
+from examples.architecture.turnwise_core import Decision, ModelOutcome, Op, TurnwiseRuntime
 
 
 class ManifestContractTests(unittest.TestCase):
@@ -88,6 +89,11 @@ class ManifestContractTests(unittest.TestCase):
         asymmetric = json.loads(json.dumps(base))
         next(b for b in asymmetric["blocks"] if b["id"] == "expanded-mode")["conflicts_with"] = []
         variants.append(asymmetric)
+        for field, value in (("id", ["host-authority"]), ("id", 7), ("applies_to", "CALL_LIGHT"),
+                             ("depends_on", "receipt-grounding"), ("conflicts_with", [1])):
+            typed = json.loads(json.dumps(base))
+            typed["blocks"][0][field] = value
+            variants.append(typed)
         for variant in variants:
             with tempfile.TemporaryDirectory() as tmp:
                 path = Path(tmp) / "manifest.json"
@@ -110,18 +116,79 @@ class OptInRuntimeTests(unittest.TestCase):
         self.assertEqual(port.packets, [])
         self.assertEqual(runtime.module_audits, [])
 
-    def test_light_extraction_is_typed_and_read_only(self):
+    def test_light_extraction_of_an_alias_the_host_cannot_resolve_asks_the_user(self):
+        # Integration finding (rebased on #64's host evidence gate): "check-out" is not a service the host
+        # resolves from the user's words, so a model's extraction of it is a suggestion, not a referent.
         result, runtime, port = run_case("extract", "Is check-out healthy right now?", AliasExtractionPolicy())
+        self.assertEqual(result.status, "needs_clarification")
+        self.assertEqual(runtime.host.receipts, [])
+        self.assertEqual(len(port.packets), 1)
+        self.assertEqual([m["id"] for m in port.packets[0][1]["instruction_modules"]],
+                         ["host-authority", "receipt-grounding", "extract-arguments"])
+        self.assertEqual(runtime.outcomes[0].kind, "tool_proposal")
+        self.assertNotIn("checkout", result.answer)  # model-written names are not relayed as the message
+        self.assertEqual(result.writes_executed, 0)
+
+    def test_host_refuses_finish_on_a_model_resolved_referent_even_if_a_policy_adopts_it(self):
+        class AdoptAnyRead(AliasExtractionPolicy):
+            """The pre-integration behaviour: adopt the model's alias resolution."""
+            def decide(self, s):
+                latest = s.latest
+                if isinstance(latest, ModelOutcome) and latest.kind == "tool_proposal" and not s.receipts:
+                    return Decision(Op.CALL_TOOL, "adopt the model's alias resolution (permissive test policy)",
+                                    target=latest.proposal.tool, arguments=dict(latest.proposal.arguments),
+                                    adopted_from=latest.id)
+                return super().decide(s)
+
+        result, runtime, port = run_case("permissive", "Is check-out healthy right now?", AdoptAnyRead())
+        self.assertEqual([r.status for r in runtime.host.receipts], ["executed"])  # a read is allowed...
+        rejected = [row.host for row in runtime.rows if row.host.startswith("REJECTED")]
+        self.assertEqual(len(rejected), 1)  # ...but the host will not accept an answer about it
+        self.assertEqual([row.short for row in runtime.rows if "rejected" in row.short],
+                         ["policy -> FINISH [rejected]"])
+        self.assertIn("unresolved service target", rejected[0])
+        self.assertNotEqual(result.status, "finished")
+        self.assertEqual(result.writes_executed, 0)
+
+    def test_light_extraction_with_a_host_resolved_referent_finishes(self):
+        result, runtime, port = run_case("extract", "Is checkout healthy right now?", AliasExtractionPolicy())
         self.assertEqual(result.status, "finished")
-        self.assertEqual([r.tool for r in runtime.host.receipts], ["service_health"])
-        self.assertEqual([r.status for r in runtime.host.receipts], ["executed"])
-        self.assertEqual(len(port.packets), 2)
+        self.assertEqual([(r.tool, r.arguments, r.status) for r in runtime.host.receipts],
+                         [("service_health", {"service": "checkout"}, "executed")])
         self.assertEqual([[m["id"] for m in packet["instruction_modules"]] for _, packet in port.packets],
                          [["host-authority", "receipt-grounding", "extract-arguments"],
                           ["host-authority", "receipt-grounding", "summarize-status"]])
         self.assertEqual(runtime.module_audits[0]["evidence_included"], [])
         self.assertEqual(runtime.module_audits[1]["evidence_included"], ["r1"])
         self.assertEqual(result.writes_executed, 0)
+
+    def test_light_status_summary_uses_only_the_summary_module(self):
+        result, runtime, port = run_case("status", TASKS["status"], TriagePolicy())
+        self.assertEqual(result.status, "finished")
+        self.assertEqual(len(port.packets), 1)
+        self.assertEqual([m["id"] for m in port.packets[0][1]["instruction_modules"]],
+                         ["host-authority", "receipt-grounding", "summarize-status"])
+
+    def test_the_validated_selection_is_the_one_sent_even_if_the_manifest_file_changes(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            path = Path(tmp) / "manifest.json"
+            path.write_bytes(MANIFEST_PATH.read_bytes())
+            pinned = load_manifest(path)
+            port = OfflineModelPort()
+            rt = ScopedContextRuntime(IncidentHost(TASKS["investigate"]), TriagePolicy(), port, manifest=pinned)
+            path.write_text("{}", encoding="utf-8")  # a later edit cannot reach a running runtime
+            result = rt.run()
+        self.assertEqual(result.status, "finished")
+        self.assertEqual({a["manifest_sha256"] for a in rt.module_audits}, {pinned.sha256})
+        for _, packet in port.packets:
+            self.assertEqual([m["id"] for m in packet["instruction_modules"]],
+                             ["host-authority", "receipt-grounding", "investigate-cause"])
+
+    def test_an_invalid_manifest_fails_when_the_runtime_is_built(self):
+        with mock.patch("examples.architecture.scoped_runtime.load_manifest",
+                        side_effect=ModuleSelectionError("invalid module manifest")):
+            with self.assertRaises(ModuleSelectionError):
+                ScopedContextRuntime(IncidentHost(TASKS["status"]), TriagePolicy(), OfflineModelPort())
 
     def test_ambiguous_referent_must_clarify(self):
         result, runtime, port = run_case("unknown", "Is the service healthy right now?",
@@ -175,7 +242,7 @@ class OptInRuntimeTests(unittest.TestCase):
         self.assertEqual(result.writes_executed, 0)
         self.assertEqual(port.packets, [])
 
-    def test_cli_renders_all_three_paths_with_exclusions(self):
+    def test_cli_renders_all_four_paths_with_exclusions(self):
         import contextlib
         import io
         from examples.architecture.action_context_demo import main
@@ -185,7 +252,8 @@ class OptInRuntimeTests(unittest.TestCase):
             main()
         shown = output.getvalue()
         self.assertIn("deterministic host answer: answered_directly", shown)
-        self.assertIn("light argument extraction: finished", shown)
+        self.assertIn("light status summary: finished", shown)
+        self.assertIn("light argument extraction, alias the host cannot resolve: needs_clarification", shown)
         self.assertIn("capable-tier decision (simulated): finished", shown)
         self.assertIn("modules excluded:", shown)
         self.assertIn("Mechanism only", shown)

@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from .context_modules import ModuleSelectionError, Selection, select_modules
+from .context_modules import Manifest, ModuleSelectionError, Selection, load_manifest, select_modules
 from .turnwise_core import Decision, MODEL_OPS, Op, TurnwiseRuntime
 
 
@@ -24,33 +24,45 @@ def default_requested_modules(d: Decision) -> tuple[str, ...]:
 
 
 class ScopedContextRuntime(TurnwiseRuntime):
-    """Narrow research adapter; not a replacement agent framework."""
+    """Narrow research adapter; not a replacement agent framework.
+
+    The manifest is loaded and validated once, when the runtime is built, and
+    pinned for the whole run (an invalid manifest fails before any step). The
+    selection checked during host validation is the one placed in the packet:
+    it is never recomputed between the check and the model call.
+    """
 
     def __init__(self, *args, module_byte_limit: int = 1024,
                  requested_modules: Callable[[Decision], tuple[str, ...]] = default_requested_modules,
-                 **kwargs):
+                 manifest: Manifest | None = None, **kwargs):
         super().__init__(*args, **kwargs)
+        self.manifest = manifest if manifest is not None else load_manifest()
         self.module_byte_limit = module_byte_limit
         self.requested_modules = requested_modules
         self.module_audits: list[dict] = []
+        self._validated: tuple[Decision, Selection] | None = None
 
     def _select(self, d: Decision) -> Selection:
-        return select_modules(
-            d.op.value, requested=self.requested_modules(d), module_byte_limit=self.module_byte_limit
-        )
+        return select_modules(d.op.value, requested=self.requested_modules(d),
+                              module_byte_limit=self.module_byte_limit, manifest=self.manifest)
 
     def host_validates(self, d, step: int) -> tuple[bool, str]:
+        self._validated = None
         ok, reason = super().host_validates(d, step)
         if ok and isinstance(d, Decision) and d.op in MODEL_OPS:
             try:
-                self._select(d)
+                self._validated = (d, self._select(d))
             except ModuleSelectionError as exc:
                 return False, f"pre-authored module selection rejected: {exc}"
         return ok, reason
 
     def _packet(self, d: Decision, tier: str) -> dict:
         packet = super()._packet(d, tier)
-        selection = self._select(d)
+        if self._validated is None or self._validated[0] is not d:
+            # Only reachable if a subclass bypasses host validation; never send an unvalidated selection.
+            raise RuntimeError("model packet requested for a decision whose module selection was not validated")
+        selection = self._validated[1]
+        self._validated = None
         packet["instruction_modules"] = [
             {"id": b.id, "text": b.text, "sha256": b.sha256} for b in selection.included
         ]

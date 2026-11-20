@@ -6,7 +6,7 @@
 
 - Pre-authored JSON manifest at `examples/architecture/instruction_modules.v1.json`, version `turnwise.action-modules.v1`. Each module has an ID, explicit operation applicability, fixed instruction text, dependency IDs, conflict IDs, mandatory flag and deterministic priority. The complete manifest bytes and each included block's text are SHA-256 hashed in the audit. Only the checked-in manifest supplies instruction text.
 - `context_modules.py` validates references, cycles, conflicting declarations and operations, then compiles mandatory dependency closures first. **Mandatory overflow is rejected; it never silently drops required blocks.** Requested optional modules are selected by priority, with conflicting/oversized omissions explicitly recorded.
-- `scoped_runtime.py` is an *opt-in subclass* of the already merged `TurnwiseRuntime`. It checks module selection via the **existing host validation step before a model call**, then adds selected blocks to the next operation's *model input packet*. Its audit records both loaded and excluded instruction blocks, evidence receipts and tool proposal visibility.
+- `scoped_runtime.py` is an *opt-in subclass* of the already merged `TurnwiseRuntime`. It loads and validates the manifest **once, when the runtime is built**, and pins it for the run. It checks module selection via the **existing host validation step before a model call**, then adds **exactly that validated selection** to the next operation's *model input packet* (no re-read or recomputation between check and call). Its audit records both loaded and excluded instruction blocks, evidence receipts and tool proposal visibility.
 - Existing host action authorization, approval holds, step limits, response receipts and `FINISH` citation checks stay where they are. The policy still gets control after every model observation. The module selector cannot execute tools or authorize side effects.
 - Default native SDK and Turnwise paths, plus historical frozen files, are **unchanged**. This is a prospective probe, not an additional general agent framework.
 
@@ -16,7 +16,7 @@ The byte budget is **only UTF-8 bytes of instruction-module texts**. It does **n
 
 The default selector uses the **next model operation**, plus whether that step proposes a tool: `CALL_HEAVY` → `investigate-cause`; `CALL_LIGHT` with proposal scope → `extract-arguments`; other `CALL_LIGHT` → `summarize-status`. The manifest also supports multiple requested modules (e.g., investigation **and** a user update) and conflicting modules, but **no claim is made that this selector chooses well**. No task-family semantic classifier is included.
 
-## Three runnable traces
+## Four runnable traces
 
 ```bash
 python -m examples.architecture.action_context_demo
@@ -28,10 +28,11 @@ All use the existing **synthetic incident host** and a framework-free, **scripte
 | Path | Host/policy control | Model | Instruction modules | Expected outcome |
 | --- | --- | --- | --- | --- |
 | Verified incident severity | `DIRECT` from authoritative host record | **Zero calls** | None | `answered_directly` |
-| `check-out` alias health | Light structured `tool_proposal` → policy binds explicit alias → host validates `service_health(checkout)` → light response with receipt | Scripted *light* calls | `extract-arguments`, then `summarize-status`; mandatory modules on both | `finished` |
+| Checkout health | Host read `service_health(checkout)` → light phrasing of that one receipt → host-checked `FINISH` | One scripted *light* call | `summarize-status` plus mandatory modules | `finished` |
+| `check-out` alias health | Light structured `tool_proposal` for `service_health(checkout)` → policy declines it because `checkout` is not a service the **host** resolved from the user's words → `CLARIFY` | One scripted *light* call | `extract-arguments` plus mandatory modules | `needs_clarification` |
 | Checkout deployment investigation | Host symptom/change reads → strong-tier typed model proposal → host checks `validate_config` → strong-tier candidate → host-checked `FINISH` | Scripted *heavy-tier* calls | `investigate-cause` plus mandatory modules | `finished` |
 
-The alias case is deliberately small: `check-out` appears explicitly in the original user request. An ungrounded service name yields `CLARIFY`; a model-proposed service must not become authority merely because it parses. The light-extraction example does **not** show that extraction was necessary or economically sensible; for an explicit exact ID, deterministic extraction should win. The strong-tier label refers to the *chosen operation*, not proof of real capable-model reasoning.
+The alias case is deliberately small, and its outcome changed during integration. The first version of this PR adopted the model's resolution of `check-out` and finished; it was written before the host evidence gate (#64) was merged. On current `main`, the host refuses `FINISH` for a status question unless the service comes from **its own** parse of the user's words, and `check-out` is not such a service. A model's alias resolution is therefore a suggestion, not a referent: the demo policy asks the user, and a test shows that even a policy that adopts the model's resolution cannot get the answer past the host (`unresolved service target`). With an exactly named service (`Is checkout healthy right now?`) the same extraction policy finishes. Consequence for #55: model-based argument extraction can drive a read, but terminal acceptance still needs a host-resolved referent or an explicit user confirmation step (not implemented). The light-extraction example does **not** show that extraction was necessary or economically sensible; for an explicit exact ID, deterministic extraction should win. The strong-tier label refers to the *chosen operation*, not proof of real capable-model reasoning.
 
 Developer regressions cover mandatory overflow, optional overflow, dependencies, conflicts, multi-label selection, manifest cycles, unknown names, no-model execution, missing referent, silent evidence omission, preserved default packet, and the continued host write gate. Their outcomes are development feedback, **not held-out research evidence**.
 
@@ -42,13 +43,16 @@ DIRECT (verified incident severity):
   policy DIRECT severity -> host verified record -> answered_directly
   model calls: 0 | loaded/omitted modules: none needed
 
-LIGHT (explicit check-out alias):
-  policy CALL_LIGHT [host-authority, receipt-grounding, extract-arguments]
-  scripted model -> typed service_health(service=checkout) proposal
-  policy CALL_TOOL -> host executes read r1
+LIGHT (status summary):
+  policy CALL_TOOL service_health -> host r1
   policy CALL_LIGHT [host-authority, receipt-grounding, summarize-status]
      evidence: r1; proposal tools: none
-  scripted model -> answer_candidate cites r1 -> policy FINISH
+  scripted model -> answer_candidate cites r1 -> policy FINISH (host-checked)
+
+LIGHT (check-out alias the host cannot resolve):
+  policy CALL_LIGHT [host-authority, receipt-grounding, extract-arguments]
+  scripted model -> typed service_health(service=checkout) proposal
+  policy declines: checkout is not a host-resolved user referent -> CLARIFY
   excluded each time: unrequested optional modules, including the other
      light task's instructions and every heavy-only module
 

@@ -20,6 +20,7 @@ Start with the [README](../README.md). For what is current, held or historical, 
 |---|---|---|
 | [examples/architecture/README.md](../examples/architecture/README.md) | Demonstrated with simulated inference | The runnable OpenAI Agents SDK and LlamaIndex demonstration: traces, host checks, parity notes, limits |
 | [framework-integration-roadmap.md](framework-integration-roadmap.md) | Proposed; SDK lines updated 2026-11-19 | Integration seams in LangGraph, OpenAI Agents SDK, LlamaIndex and Pipecat |
+| [action-scoped-modules-issue55.md](action-scoped-modules-issue55.md) | Demonstrated with simulated inference (opt-in exhibit, not adopted) | Pre-authored instruction modules selected per model operation, with dependencies, conflicts and fail-closed mandatory overflow ([#55](https://github.com/dgenio/turnwise-decision-lab/issues/55)) |
 | [reference-adapter-contract.md](reference-adapter-contract.md) | Proposed (design contract, no adapter) | Checklist for a provider-neutral adapter |
 | [model-backend.md](model-backend.md) | Implemented; tested only against a local fake server | Boundaries of the opt-in `turnwise_lab.provider_cli` |
 | [live-smoke-decision-packet.md](live-smoke-decision-packet.md) | First authorization consumed; provider HTTP 429, no model outputs; second authorization proposed in #60 | Bounded four-configuration plan, verified outcomes and owner spend gate |
