@@ -61,6 +61,25 @@ class ConventionalAgentIsANativeSDKAgentTests(unittest.TestCase):
         self.assertTrue(result.answer.startswith("Plausibly yes."))
         self.assertEqual(result.writes_executed, 0)
 
+    def test_checklist_null_changes_only_the_native_prompt(self):
+        from examples.architecture.checklist_null import native_instructions
+
+        m = choose_models()
+        baseline = build_agent(m.heavy)
+        prompted = build_agent(m.heavy, checklist=True)
+        self.assertEqual(baseline.instructions, AGENT_INSTRUCTIONS)
+        self.assertEqual(prompted.instructions, native_instructions(checklist=True))
+        self.assertEqual([t.name for t in baseline.tools], [t.name for t in prompted.tools])
+        self.assertIs(baseline.model, prompted.model)
+        self.assertEqual(baseline.model_settings, prompted.model_settings)
+
+        result = run_conventional(TASKS["investigate"], m.heavy, model_label=m.label, checklist=True)
+        self.assertTrue(result.title.startswith("A+P"))
+        self.assertTrue(m.heavy.calls)
+        self.assertTrue(all(c.system_instructions == native_instructions(checklist=True)
+                            for c in m.heavy.calls))
+        self.assertEqual(result.writes_executed, 0)
+
     def test_trace_shows_text_beside_a_tool_call_without_calling_it_a_final_answer(self):
         from agents.testing import assistant_message, function_call
 
