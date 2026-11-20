@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from dataclasses import asdict
@@ -240,6 +241,16 @@ def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = No
         raise ValueError("; ".join(problems))
     if type(max_input_bound_tokens) is not int or max_input_bound_tokens <= 0:
         raise ValueError("max_input_bound_tokens must be a positive integer")
+    # CLI validation is not enough: callers using this Python entrypoint directly
+    # must also obtain explicit per-attempt permission before any paid inference.
+    if double is None:
+        if prices is None or authorize_usd is None:
+            raise ValueError("paid provider mode requires explicit prices and USD authorization")
+        if (isinstance(authorize_usd, bool) or not isinstance(authorize_usd, (int, float))
+                or not math.isfinite(authorize_usd) or authorize_usd <= 0):
+            raise ValueError("paid provider authorization must be a positive finite USD amount")
+        if worst_case_usd(prices, settings, configs, max_input_bound_tokens) > authorize_usd:
+            raise ValueError("paid provider authorization is below the planned worst-case bound")
     source = DOUBLE_SOURCE if double is not None else REAL_SOURCE
     report: dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
