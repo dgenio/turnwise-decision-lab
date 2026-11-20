@@ -24,7 +24,6 @@ Start with the [README](../README.md). For what is current, held or historical, 
 | [model-backend.md](model-backend.md) | Implemented; tested only against a local fake server | Boundaries of the opt-in `turnwise_lab.provider_cli` |
 | [live-smoke-decision-packet.md](live-smoke-decision-packet.md) | First authorization consumed; provider HTTP 429, no model outputs; second authorization proposed in #60 | Bounded four-configuration plan, verified outcomes and owner spend gate |
 | [privacy-threat-model.md](privacy-threat-model.md) | Current | What the public harness does and does not protect |
-
 | [pr-consolidation-gates-2026-11-20.md](pr-consolidation-gates-2026-11-20.md) | Current integration decision record | How to reconcile open PRs, safety/budget contracts, and a prospective Level C study |
 
 ## Experiments and evidence
