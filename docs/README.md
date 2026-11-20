@@ -21,6 +21,8 @@ Start with the [README](../README.md). For what is current, held or historical, 
 | [examples/architecture/README.md](../examples/architecture/README.md) | Demonstrated with simulated inference | The runnable OpenAI Agents SDK and LlamaIndex demonstration: traces, host checks, parity notes, limits |
 | [framework-integration-roadmap.md](framework-integration-roadmap.md) | Proposed; SDK lines updated 2026-11-19 | Integration seams in LangGraph, OpenAI Agents SDK, LlamaIndex and Pipecat |
 | [reference-adapter-contract.md](reference-adapter-contract.md) | Proposed (design contract, no adapter) | Checklist for a provider-neutral adapter |
+| [action-scoped-modules-issue55.md](action-scoped-modules-issue55.md) | Demonstrated with simulated inference (opt-in exhibit); benefit not tested | Pre-authored, versioned instruction blocks selected per next operation; three offline paths; the prospective 2 × 2 ablation |
+| [core-provider-input-budget-2026-11-20.md](core-provider-input-budget-2026-11-20.md) | Implemented and tested (offline) | The conservative whole-request input bound enforced before any provider request, and what it does not guarantee |
 | [model-backend.md](model-backend.md) | Implemented; tested only against a local fake server | Boundaries of the opt-in `turnwise_lab.provider_cli` |
 | [live-smoke-decision-packet.md](live-smoke-decision-packet.md) | First authorization consumed; provider HTTP 429, no model outputs; second authorization proposed in #60 | Bounded four-configuration plan, verified outcomes and owner spend gate |
 | [privacy-threat-model.md](privacy-threat-model.md) | Current | What the public harness does and does not protect |

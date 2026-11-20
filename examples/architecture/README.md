@@ -337,6 +337,7 @@ No efficiency comparison is made.
 | `provider_double.py` | Deterministic Responses API stand-in, with scriptable faults (SIMULATED) |
 | `live_smoke.py` | The bounded four-configuration smoke test: rehearsal by default, paid only with explicit authorisation |
 | `sample_output/`, `regenerate_samples.sh` | Committed offline output, checked by CI |
+| `instruction_modules.v1.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
 
 Tests:
 
