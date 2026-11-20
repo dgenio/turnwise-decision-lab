@@ -124,11 +124,15 @@ class ProviderLedger:
     """Counts, caps and records every request to the provider, whichever framework sends it."""
 
     def __init__(self, *, source: str, max_requests: int, prices: Prices | None = None,
-                 usd_cap: float | None = None, max_output_tokens: int = 2000):
+                 usd_cap: float | None = None, max_output_tokens: int = 2000,
+                 max_input_bound_tokens: int | None = None):
         if type(max_requests) is not int or max_requests < 0:
             raise ValueError("max_requests must be a nonnegative integer")
         if type(max_output_tokens) is not int or max_output_tokens <= 0:
             raise ValueError("max_output_tokens must be a positive integer")
+        if max_input_bound_tokens is not None and (
+                type(max_input_bound_tokens) is not int or max_input_bound_tokens < 0):
+            raise ValueError("max_input_bound_tokens must be a nonnegative integer or None")
         if usd_cap is not None:
             if (prices is None or isinstance(usd_cap, bool)
                     or not isinstance(usd_cap, (int, float))
@@ -136,6 +140,9 @@ class ProviderLedger:
                 raise ValueError("a spend cap needs prices and a finite nonnegative USD amount")
         self.source, self.max_requests, self.prices, self.usd_cap = source, max_requests, prices, usd_cap
         self.max_output_tokens = max_output_tokens
+        # Conservative upper bound over the WHOLE serialized provider request, not a
+        # claim to know the provider's exact model-specific tokenizer.
+        self.max_input_bound_tokens = max_input_bound_tokens
         self.exchanges: list[Exchange] = []
         self.refused: list[str] = []  # requests that were never sent, and why
         self._lock = threading.Lock()
@@ -194,6 +201,9 @@ class ProviderLedger:
                 why = f"request carries no output bound within max_output_tokens={self.max_output_tokens} (got {max_out!r})"
             bound = request_bound(request.content, max_out if isinstance(max_out, int) else 0,
                                   summary.get("input_items", []).count("reasoning"))
+            if why is None and self.max_input_bound_tokens is not None and bound[0] > self.max_input_bound_tokens:
+                why = (f"whole-request input token upper bound {bound[0]} exceeds "
+                       f"max_input_bound_tokens={self.max_input_bound_tokens}")
             if why is None and self.usd_cap is not None:
                 projected = self.spend_bound_usd() + self.prices.cost(*bound)
                 if projected > self.usd_cap:
