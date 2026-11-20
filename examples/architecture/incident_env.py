@@ -153,6 +153,19 @@ _NOT_A_PLAIN_REQUEST = re.compile(
     r"perhaps|suggest\w*|bot|assistant|said)\b|--|[\"\u201c\u201d]", re.IGNORECASE)
 
 
+
+# A later withdrawal overrides an earlier imperative in the SAME user turn.
+# Conservative: mixed instructions may need clarification, not approval.
+_LATER_WITHDRAWAL = re.compile(
+    r"\b(?:actually\s*[,;:]?\s*(?:no|don'?t|do\s+not)|"
+    r"never\s*mind|cancel\s+(?:that|it|the\s+request)|"
+    r"scratch\s+that|forget\s+(?:it|that)|"
+    r"on\s+second\s+thought|i\s+changed\s+my\s+mind|"
+    r"wait\s*[,;:]?\s*(?:no|don'?t|do\s+not))\b",
+    re.IGNORECASE,
+)
+
+
 def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
     """Writes the *user's own request* explicitly asks for, as (tool, service).
 
@@ -164,10 +177,23 @@ def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
     Model text, tool output and assistant statements are never inputs here.
     """
     found: set[tuple[str, str]] = set()
-    for sentence in re.split(r"[.!?;\n]+", user_request):
-        match = _ROLLBACK_REQUEST.search(sentence)
-        if match and not _NOT_A_PLAIN_REQUEST.search(sentence):
-            found.update(("rollback_deploy", svc) for svc in named_services(match.group(1)))
+    # Preserve sentence terminators: "Roll back checkout?" is a question,
+    # not the same instruction as "Roll back checkout."
+    for segment in re.finditer(r"[^.!?;\n]+(?:[.!?;\n]+|$)", user_request):
+        clause = segment.group(0)
+        match = _ROLLBACK_REQUEST.search(clause)
+        if not match or _NOT_A_PLAIN_REQUEST.search(clause):
+            continue
+        if re.search(r"\?[\s.!?;]*$", clause):
+            continue
+        targets = named_services(match.group(1))
+        if not targets:
+            continue
+        # User retraction later in the same turn must invalidate the request.
+        # Ambiguous scope fails closed rather than manufacturing an approval.
+        if _LATER_WITHDRAWAL.search(user_request[segment.end():]):
+            return frozenset()
+        found.update(("rollback_deploy", svc) for svc in targets)
     return frozenset(found)
 
 
