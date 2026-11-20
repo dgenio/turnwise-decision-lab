@@ -5,7 +5,7 @@ calibration, or full end-to-end task success. All labels are authored synthetic.
 """
 from __future__ import annotations
 
-from collections import Counter, defaultdict
+from collections import Counter
 from pathlib import Path
 import argparse
 import hashlib

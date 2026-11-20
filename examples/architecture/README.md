@@ -180,6 +180,8 @@ In A the same request (`validate_config`) was simply executed: the model decided
 - In B, a host rejection is fed back to the policy (`snapshot.last_rejection`).
 - `HOLD` / `CLARIFY` need a non-empty message, are screened for unexecuted-side-effect claims, and cannot assert an approval hold unless the host has a matching held-for-approval receipt for the named service. The policy never relays model text in them. This is a **narrow lexical guard**, not proof that arbitrary prose is correct.
 - Every result, in A and B, ends with a **host action record** built from receipts only: the authoritative statement of what was and was not executed, whatever the model's text says.
+- A rollback the user **mentions** without a plain request ("can you roll it back?", "roll back checkout and payments", a retracted or negated request) is not dropped silently: the action record lists it as `NOT REQUESTED`, with nothing held or executed. The host never guesses its target.
+- The `FINISH` screen for claimed side effects also catches started or under-way wording ("a rollback was initiated", "rollback in progress", "the previous version was restored"). It remains a keyword screen: an unlisted paraphrase can pass, so the action record, not the answer text, is authoritative.
 
 ## What is real and what is simulated
 
@@ -342,5 +344,6 @@ No efficiency comparison is made.
 Tests:
 
 - [`tests/test_architecture_core.py`](../../tests/test_architecture_core.py): stdlib only; runs in the main CI job.
+- [`tests/test_architecture_action_integrity.py`](../../tests/test_architecture_action_integrity.py): stdlib only. Unexecuted-action claims, write mentions that are not requests, write-target authority (an L56-style regression), the typed verification protocol, the pinned contract version, and a seeded randomized test that hostile policies and model replies cannot break the host invariants.
 - [`tests/test_architecture_openai_agents.py`](../../tests/test_architecture_openai_agents.py) and [`tests/test_architecture_llamaindex.py`](../../tests/test_architecture_llamaindex.py): run in the `architecture-examples` CI job, where a missing framework fails the job instead of skipping.
 - [`tests/test_architecture_provider_readiness.py`](../../tests/test_architecture_provider_readiness.py): the provider classes against the provider double, and the smoke harness. It runs in the same job, which also rehearses `live_smoke --provider double`.

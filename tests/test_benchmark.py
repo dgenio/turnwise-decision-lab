@@ -1,5 +1,4 @@
 import unittest
-from copy import deepcopy
 from pathlib import Path
 from tempfile import TemporaryDirectory
 

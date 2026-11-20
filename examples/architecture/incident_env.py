@@ -220,6 +220,33 @@ def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
     return frozenset(found)
 
 
+# Any mention of a rollback, whatever the phrasing ("can you roll it back?", "needs to be rolled back").
+_WRITE_MENTION = re.compile(r"\b(?:roll(?:s|ed|ing)?\s+(?:\w+\s+)?back|roll-?backs?|revert(?:s|ed|ing)?)\b",
+                            re.IGNORECASE)
+
+
+def unrecognized_write_mentions(user_request: str) -> tuple[str, ...]:
+    """User clauses that mention a rollback but did not become a plain, single-service request.
+
+    ``requested_writes`` is deliberately narrow, so an indirect, questioned,
+    negated, retracted or multi-service phrasing yields no authority. Without
+    this list such a request would vanish silently (the v0.6 H18/H19 mechanism,
+    #12). The host reports these clauses as not requested; it never turns them
+    into holds or guesses their target (#39/#40).
+    """
+    requested = requested_writes(user_request)
+    out = []
+    for segment in re.finditer(r"[^.!?;\n]+(?:[.!?;\n]+|$)", user_request):
+        clause = segment.group(0)
+        if not _WRITE_MENTION.search(clause):
+            continue
+        named = {("rollback_deploy", svc) for svc in named_services(clause)}
+        if named and named <= requested and requested_writes(clause) == named:
+            continue  # this clause is exactly a recognized request
+        out.append(" ".join(clause.split()))
+    return tuple(out)
+
+
 class IncidentHost:
     """The execution authority shared by every variant.
 
@@ -326,7 +353,14 @@ class IncidentHost:
         """The authoritative side-effect status of a run, from host receipts only (never from model text)."""
         acts = [f"{r.call()} {r.status.upper()}" for r in self.receipts if r.tool in TOOLS_BY_ID
                 and TOOLS_BY_ID[r.tool].side_effect]
-        return "host action record: " + ("; ".join(acts) if acts else "no side effect was requested or executed")
+        record = "host action record: " + ("; ".join(acts) if acts else "no side effect was requested or executed")
+        mentions = unrecognized_write_mentions(self.user_request)
+        if mentions:
+            record += ("; NOT REQUESTED: the request mentions a rollback that the host did not accept as a plain, "
+                       "unretracted instruction for one registered service, so nothing was held or executed for it ("
+                       + " | ".join(repr(m) for m in mentions) + "). To request one, write e.g. "
+                       "'Please roll back checkout.'")
+        return record
 
     # -- the one execution path
     def execute(self, tool_id: str, arguments: Any, *, proposed_by: str) -> Receipt:

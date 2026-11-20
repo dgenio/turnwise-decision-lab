@@ -2,6 +2,8 @@
 
 This is a **design contract**, not a claim that an adapter already exists.
 
+> **2026-11-20 note.** Two framework integrations now exist on `main`, both built on the implemented contract `turnwise-core/1` (`examples/architecture/turnwise_core.py`) rather than on the `StepAction` sketch below: the OpenAI Agents SDK and LlamaIndex adapters in `examples/architecture/`. Use `Decision`/`Op` and the typed `StepOutcome` from that module as the authoritative vocabulary; the sketch's lowercase kinds map one-to-one onto it (`direct`→`DIRECT`, `call_tool`→`CALL_TOOL`/`CALL_WORKFLOW`, `call_light`/`call_heavy`→`CALL_LIGHT`/`CALL_HEAVY`, `finish`→`FINISH`, `hold`→`HOLD`/`CLARIFY`). The core's `FINISH` names a model answer candidate instead of carrying the answer, and `HANDOFF_AGENT` exists only as a labelled contrast. A LangGraph adapter (#21) is deferred until the prospective study (#9) shows a reason to add a third framework.
+
 ```python
 from dataclasses import dataclass
 from typing import Any, Literal, Mapping, Protocol
