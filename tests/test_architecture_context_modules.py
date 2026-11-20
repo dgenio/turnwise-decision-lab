@@ -115,7 +115,6 @@ class OptInRuntimeTests(unittest.TestCase):
         self.assertEqual(result.status, "finished")
         self.assertEqual([r.tool for r in runtime.host.receipts], ["service_health"])
         self.assertEqual([r.status for r in runtime.host.receipts], ["executed"])
-        self.assertEqual([d.op for d in map(lambda s: s, [])], [])  # no hidden native-agent loop
         self.assertEqual(len(port.packets), 2)
         self.assertEqual([[m["id"] for m in packet["instruction_modules"]] for _, packet in port.packets],
                          [["host-authority", "receipt-grounding", "extract-arguments"],
@@ -136,8 +135,7 @@ class OptInRuntimeTests(unittest.TestCase):
         self.assertEqual(result.status, "finished")
         self.assertEqual([r.tool for r in runtime.host.receipts],
                          ["error_trend", "recent_deploys", "validate_config"])
-        self.assertEqual([r.op if hasattr(r, "op") else r.controller for r in runtime.rows],
-                         ["Turnwise policy"] * len(runtime.rows))
+        self.assertEqual({row.controller for row in runtime.rows}, {"Turnwise policy"})
         self.assertEqual({x["id"] for x in runtime.module_audits[0]["included"]},
                          {"host-authority", "receipt-grounding", "investigate-cause"})
         self.assertEqual(result.writes_executed, 0)
