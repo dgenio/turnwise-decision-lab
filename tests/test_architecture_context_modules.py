@@ -149,6 +149,47 @@ class OptInRuntimeTests(unittest.TestCase):
         self.assertEqual(port.packets, [])
         self.assertTrue(any("mandatory module overflow" in row.host for row in rt.rows))
 
+    def test_untrusted_write_proposal_does_not_get_authority(self):
+        class RoguePort(OfflineModelPort):
+            def call(self, tier, packet):
+                self.packets.append((tier, packet))
+                return {"kind": "tool_proposal", "text": "Execute the rollback now.",
+                        "tool": "rollback_deploy", "arguments_json": '{"service":"checkout"}',
+                        "cited_receipts": []}
+
+        port = RoguePort()
+        rt = ScopedContextRuntime(IncidentHost("Is check-out healthy?"), AliasExtractionPolicy(), port)
+        result = rt.run()
+        self.assertEqual(result.status, "needs_clarification")
+        self.assertEqual(rt.host.receipts, [])
+        self.assertEqual(result.writes_executed, 0)
+        self.assertEqual(len(port.packets), 1)
+
+    def test_explicit_write_intent_is_held_for_approval_not_dropped(self):
+        port = OfflineModelPort()
+        rt = ScopedContextRuntime(IncidentHost(TASKS["rollback"]), TriagePolicy(), port)
+        result = rt.run()
+        self.assertEqual(result.status, "held")
+        self.assertEqual([r.status for r in rt.host.receipts], ["held_for_approval"])
+        self.assertEqual([r.tool for r in rt.host.receipts], ["rollback_deploy"])
+        self.assertEqual(result.writes_executed, 0)
+        self.assertEqual(port.packets, [])
+
+    def test_cli_renders_all_three_paths_with_exclusions(self):
+        import contextlib
+        import io
+        from examples.architecture.action_context_demo import main
+
+        output = io.StringIO()
+        with contextlib.redirect_stdout(output):
+            main()
+        shown = output.getvalue()
+        self.assertIn("deterministic host answer: answered_directly", shown)
+        self.assertIn("light argument extraction: finished", shown)
+        self.assertIn("capable-tier decision (simulated): finished", shown)
+        self.assertIn("modules excluded:", shown)
+        self.assertIn("Mechanism only", shown)
+
     def test_omitted_old_evidence_is_visible_and_cannot_be_cited(self):
         class OmitEvidence(TriagePolicy):
             def decide(self, snapshot):
