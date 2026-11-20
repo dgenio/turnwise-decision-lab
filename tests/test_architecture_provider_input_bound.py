@@ -5,6 +5,7 @@ exact tokenizer count or a guarantee about final provider billing.
 """
 from __future__ import annotations
 
+import json
 import unittest
 from unittest import mock
 
@@ -87,6 +88,34 @@ class WholeRequestInputCapTests(unittest.TestCase):
                     with self.assertRaises(ValueError):
                         run_matrix(settings, **options)
                     call.assert_not_called()
+
+    def test_run_matrix_enforces_the_bound_in_every_configuration_before_transport(self):
+        # Review finding: the plan/bound agreement was tested, but not that run_matrix hands the bound to the
+        # ledger. With a bound below any real request, nothing may reach the (simulated) provider.
+        from examples.architecture.provider_double import ProviderDouble
+        double = ProviderDouble()
+        report = run_matrix(ProviderSettings("gpt-4.1", temperature=0.0), double=double,
+                            max_input_bound_tokens=600)
+        self.assertEqual(double.requests, [])
+        self.assertEqual(report["max_input_bound_tokens"], 600)
+        self.assertEqual(len(report["configs"]), 4)
+        for record in report["configs"]:
+            with self.subTest(config=(record.get("framework"), record.get("architecture"))):
+                self.assertIn("whole-request input token upper bound", json.dumps(record))
+
+    def test_echoed_reasoning_items_count_against_the_input_bound(self):
+        # Each echoed reasoning id is charged max_output_tokens, so a long native-agent run on a reasoning model
+        # can hit the bound and halt before its own turn limit. That is the intended fail-closed behaviour.
+        def with_reasoning(n):
+            return httpx2.Request("POST", "https://provider-double.invalid/v1/responses", json={
+                "model": "offline-test", "max_output_tokens": 2000,
+                "input": [{"role": "user", "content": "q"}] + [{"type": "reasoning", "id": f"rs_{i}"}
+                                                               for i in range(n)]})
+        ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=4, max_input_bound_tokens=8000)
+        ledger.admit(with_reasoning(3))
+        with self.assertRaisesRegex(ProviderCapReached, "whole-request input token upper bound"):
+            ledger.admit(with_reasoning(4))
+        self.assertEqual(len(ledger.exchanges), 1)
 
     def test_plan_and_cap_use_identical_input_assumption(self):
         p = Prices(2.0, 8.0)
