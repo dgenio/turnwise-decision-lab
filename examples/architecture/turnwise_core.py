@@ -28,7 +28,7 @@ from __future__ import annotations
 import copy
 import json
 import re
-from dataclasses import dataclass, field, replace
+from dataclasses import dataclass, replace
 from enum import Enum
 from types import MappingProxyType
 from typing import Any, Mapping, Protocol, Union
@@ -38,6 +38,10 @@ from .trace import RunResult, TraceRow, status_tag, host_text
 
 CONTROLLER = "Turnwise policy"
 NATIVE = "native agent (handoff)"
+
+# The version of the typed contract below: the Op vocabulary, the StepOutcome kinds and their meaning.
+# Bump it (and tests/test_architecture_action_integrity.py) whenever either changes (#20).
+CONTRACT_VERSION = "turnwise-core/1"
 
 
 class Op(str, Enum):
@@ -540,12 +544,19 @@ def handoff_message(host: IncidentHost, context: tuple[str, ...]) -> str:
     return "\n".join([host.user_request] + [host.receipt(rid).for_model() for rid in context])
 
 
-# Any wording that reports a side effect as done. Deliberately broad (negations match too): a screen that
-# fails closed, while the authoritative status is ``action_record`` (host receipts).
+# Any wording that reports a side effect as done, started or under way. Deliberately broad (negations match
+# too): a screen that fails closed, while the authoritative status is ``action_record`` (host receipts).
+# It covers the v0.6 H10 mechanism ("a rollback, which was initiated by the on-call engineer"). It is a
+# keyword screen, not a semantic check: an unlisted paraphrase can still pass (#13).
+_DONE = (r"complete|completed|done|executed|performed|finished|applied|succeeded|initiated|triggered|started|"
+         r"issued|launched|underway|under\s+way|in\s+progress|carried\s+out|kicked\s+off|went\s+through")
 _ACTION_CLAIM = re.compile(
-    r"\b(?:rolled[\s-]?back|reverted|paged)\b"
-    r"|\b(?:rollback|revert)\b[^.!?]{0,40}?\b(?:complete|completed|done|executed|performed|finished|applied|"
-    r"succeeded)\b", re.IGNORECASE)
+    r"\b(?:rolled[\s-]?back|reverted|paged|undone)\b"
+    rf"|\b(?:rollback|revert|roll[\s-]?back)\b[^.!?]{{0,40}}?\b(?:{_DONE})\b"
+    r"|\b(?:initiated|triggered|started|issued|launched|performed|executed|ran|kicked\s+off|carried\s+out)\b"
+    r"[^.!?]{0,20}?\b(?:rollback|revert)\b"
+    r"|\b(?:previous|prior|last\s+known\s+good)\s+(?:version|release|deploy(?:ment)?)\b[^.!?]{0,30}?"
+    r"\b(?:restored|reinstated|redeployed)\b", re.IGNORECASE)
 
 
 def parse_outcome(raw: Any, *, oid: str, source: str, shown: tuple[str, ...]) -> ModelOutcome:

@@ -18,10 +18,12 @@ from __future__ import annotations
 
 import copy
 import json
+import math
 import re
 import threading
 from dataclasses import dataclass, field
-from typing import Any, Mapping
+from types import MappingProxyType
+from typing import Any, Callable, Mapping
 
 from turnwise_lab.core import Capability, Plan, Request
 from turnwise_lab.runtime import HostIdentity, LocalHarness
@@ -87,6 +89,49 @@ def required_evidence_roles(question: str) -> tuple[str, ...]:
     if _STATUS_QUESTION.search(question):
         return ("current_state",)
     return ()
+
+
+def _finite_number(value: Any) -> bool:
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value)
+
+
+def _nonempty_text(value: Any) -> bool:
+    return isinstance(value, str) and bool(value.strip())
+
+
+def _deploy_list(value: Any) -> bool:
+    return isinstance(value, list) and all(isinstance(d, dict) and _nonempty_text(d.get("id")) for d in value)
+
+
+# Minimum receipt *content* per evidence role: the fact-key prefix the role's registered read
+# returns, and a type check per required field. Structural only: a receipt that passes says the
+# right read ran for the right service and returned a well-formed payload, not that it is true,
+# fresh or causally relevant. An empty deployment list is a valid observation ("no deploys").
+EVIDENCE_CONTRACTS: Mapping[str, tuple[str, Mapping[str, Callable[[Any], bool]]]] = MappingProxyType({
+    "symptom": ("trend:", {"error_rate_before_pct": _finite_number, "error_rate_after_pct": _finite_number}),
+    "change": ("deploys:", {"deploys": _deploy_list}),
+    "current_state": ("health:", {"status": _nonempty_text, "error_rate_pct": _finite_number,
+                                  "p95_ms": _finite_number}),
+})
+
+
+def evidence_payload(receipt: "Receipt", role: str, service: str) -> Mapping[str, Any] | None:
+    """The receipt's payload for ``role`` about ``service`` if it meets the role's contract, else None.
+
+    Checks the registered tool's role, the request argument, the fact key AND the payload's own
+    ``service`` field, so a payload about another service cannot stand in for the named one.
+    """
+    contract = EVIDENCE_CONTRACTS.get(role)
+    spec = TOOLS_BY_ID.get(receipt.tool)
+    if contract is None or spec is None or spec.role != role or not receipt.executed:
+        return None
+    if receipt.arguments.get("service") != service:
+        return None
+    prefix, fields = contract
+    payload = receipt.facts.get(prefix + service)
+    if not isinstance(payload, dict) or payload.get("service") != service:
+        return None
+    return payload if all(name in payload and check(payload[name]) for name, check in fields.items()) else None
 
 # The host-verified incident record. Both variants are given it: the
 # conventional agent in its instructions, Turnwise through DIRECT.
@@ -220,6 +265,33 @@ def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
     return frozenset(found)
 
 
+# Any mention of a rollback, whatever the phrasing ("can you roll it back?", "needs to be rolled back").
+_WRITE_MENTION = re.compile(r"\b(?:roll(?:s|ed|ing)?\s+(?:\w+\s+)?back|roll-?backs?|revert(?:s|ed|ing)?)\b",
+                            re.IGNORECASE)
+
+
+def unrecognized_write_mentions(user_request: str) -> tuple[str, ...]:
+    """User clauses that mention a rollback but did not become a plain, single-service request.
+
+    ``requested_writes`` is deliberately narrow, so an indirect, questioned,
+    negated, retracted or multi-service phrasing yields no authority. Without
+    this list such a request would vanish silently (the v0.6 H18/H19 mechanism,
+    #12). The host reports these clauses as not requested; it never turns them
+    into holds or guesses their target (#39/#40).
+    """
+    requested = requested_writes(user_request)
+    out = []
+    for segment in re.finditer(r"[^.!?;\n]+(?:[.!?;\n]+|$)", user_request):
+        clause = segment.group(0)
+        if not _WRITE_MENTION.search(clause):
+            continue
+        named = {("rollback_deploy", svc) for svc in named_services(clause)}
+        if named and named <= requested and requested_writes(clause) == named:
+            continue  # this clause is exactly a recognized request
+        out.append(" ".join(clause.split()))
+    return tuple(out)
+
+
 class IncidentHost:
     """The execution authority shared by every variant.
 
@@ -276,30 +348,22 @@ class IncidentHost:
         services = self.services_named_by_user()
         if not services:
             return ("unresolved service target",)
-        contracts = {
-            "symptom": ("trend:", ("error_rate_before_pct", "error_rate_after_pct")),
-            "change": ("deploys:", ("deploys",)),
-            "current_state": ("health:", ("status", "error_rate_pct", "p95_ms")),
-        }
         missing: list[str] = []
         cited_ids = set(cited)
         for svc in services:
             for role in roles:
-                prefix, required = contracts[role]
-                key = prefix + svc
+                if role not in EVIDENCE_CONTRACTS:  # a role without a contract can never be satisfied
+                    missing.append(f"{role}:{svc} (no evidence contract)")
+                    continue
                 matching = [r for r in self.receipts if r.executed and r.tool in TOOLS_BY_ID
                             and TOOLS_BY_ID[r.tool].role == role and r.arguments.get("service") == svc]
-                valid = []
-                for receipt in matching:
-                    payload = receipt.facts.get(key)
-                    if isinstance(payload, dict) and all(field in payload for field in required):
-                        if role != "change" or isinstance(payload["deploys"], list):
-                            valid.append(receipt)
-                # Conflicts cannot be hidden by choosing a convenient subset of citations.
-                versions = {json.dumps(r.facts[key], sort_keys=True) for r in valid}
+                valid = [(r, p) for r in matching if (p := evidence_payload(r, role, svc)) is not None]
+                # Conflicts cannot be hidden by choosing a convenient subset of citations. A time-varying
+                # read that changes between two calls also counts as a conflict: fail closed, re-plan.
+                versions = {json.dumps(p, sort_keys=True) for _, p in valid}
                 if len(versions) > 1:
                     missing.append(f"conflicting {role}:{svc}")
-                elif not any(r.id in cited_ids for r in valid):
+                elif not any(r.id in cited_ids for r, _ in valid):
                     suffix = " (malformed source payload)" if any(r.id in cited_ids for r in matching) else ""
                     missing.append(f"{role}:{svc}{suffix}")
         return tuple(missing)
@@ -326,7 +390,14 @@ class IncidentHost:
         """The authoritative side-effect status of a run, from host receipts only (never from model text)."""
         acts = [f"{r.call()} {r.status.upper()}" for r in self.receipts if r.tool in TOOLS_BY_ID
                 and TOOLS_BY_ID[r.tool].side_effect]
-        return "host action record: " + ("; ".join(acts) if acts else "no side effect was requested or executed")
+        record = "host action record: " + ("; ".join(acts) if acts else "no side effect was requested or executed")
+        mentions = unrecognized_write_mentions(self.user_request)
+        if mentions:
+            record += ("; NOT REQUESTED: the request mentions a rollback that the host did not accept as a plain, "
+                       "unretracted instruction for one registered service, so nothing was held or executed for it ("
+                       + " | ".join(repr(m) for m in mentions) + "). To request one, write e.g. "
+                       "'Please roll back checkout.'")
+        return record
 
     # -- the one execution path
     def execute(self, tool_id: str, arguments: Any, *, proposed_by: str) -> Receipt:
