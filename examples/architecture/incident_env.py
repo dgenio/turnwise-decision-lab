@@ -72,6 +72,22 @@ TOOLS: tuple[ToolSpec, ...] = tuple(
 )
 TOOLS_BY_ID: dict[str, ToolSpec] = {t.id: t for t in TOOLS}
 
+# Versioned, domain-specific evidence roles. They describe minimum observable
+# receipt coverage, NOT causal accuracy or gold benchmark labels.
+_CAUSAL_QUESTION = re.compile(
+    r"\b(explain|caus(?:e|ed|es|al)|why|because|responsible|behind|due\s+to|"
+    r"linked\s+to|contribut(?:e|ed|es))\b", re.IGNORECASE)
+_STATUS_QUESTION = re.compile(r"\b(healthy|health|status|up|down)\b", re.IGNORECASE)
+
+
+def required_evidence_roles(question: str) -> tuple[str, ...]:
+    """Minimum receipt roles before a generated answer may be accepted."""
+    if _CAUSAL_QUESTION.search(question):
+        return ("symptom", "change")
+    if _STATUS_QUESTION.search(question):
+        return ("current_state",)
+    return ()
+
 # The host-verified incident record. Both variants are given it: the
 # conventional agent in its instructions, Turnwise through DIRECT.
 INCIDENT_RECORD: dict[str, str] = dict(HOST_FACTS)
@@ -156,11 +172,18 @@ _NOT_A_PLAIN_REQUEST = re.compile(
 
 # A later withdrawal overrides an earlier imperative in the SAME user turn.
 # Conservative: mixed instructions may need clarification, not approval.
+_APPROVAL_HOLD_CLAIM = re.compile(
+    r"\b(?:awaits?\s+(?:human\s+)?approval|pending\s+approval|"
+    r"held\s+for\s+(?:human\s+)?approval|approval\s+(?:requested|pending))\b",
+    re.IGNORECASE,
+)
+
 _LATER_WITHDRAWAL = re.compile(
     r"\b(?:actually\s*[,;:]?\s*(?:no|don'?t|do\s+not)|"
     r"never\s*mind|cancel\s+(?:that|it|the\s+request)|"
     r"scratch\s+that|forget\s+(?:it|that)|"
     r"on\s+second\s+thought|i\s+changed\s+my\s+mind|"
+    r"ignore\s+(?:(?:my\s+)?(?:previous|earlier)\s+request|that\s+(?:request|instruction))|"
     r"wait\s*[,;:]?\s*(?:no|don'?t|do\s+not))\b",
     re.IGNORECASE,
 )
@@ -236,6 +259,42 @@ class IncidentHost:
 
     def services_named_by_user(self) -> tuple[str, ...]:
         return named_services(self.user_request)
+
+    def missing_evidence(self, cited: tuple[str, ...]) -> tuple[str, ...]:
+        """Check cited, executed host receipts for the question's roles and referents.
+
+        A structural evidence-sufficiency gate only. It does not validate the
+        answer's numerical, temporal, or causal truth.
+        """
+        roles = required_evidence_roles(self.user_request)
+        if not roles:
+            return ()
+        services = self.services_named_by_user()
+        if not services:
+            return ("unresolved service target",)
+        covered = {(r.arguments.get("service"), TOOLS_BY_ID[r.tool].role)
+                   for r in self.receipts if r.executed and r.id in cited
+                   and r.tool in TOOLS_BY_ID}
+        return tuple(f"{role}:{svc}" for svc in services for role in roles
+                     if (svc, role) not in covered)
+
+    def approval_claim_problem(self, message: str) -> str | None:
+        """Do not let policy prose invent a held approval or a different target.
+
+        A narrow lexical screen for the *demo*. Only a host receipt can
+        authoritatively report action status; this is not a security parser.
+        """
+        if not _APPROVAL_HOLD_CLAIM.search(message):
+            return None
+        held = {r.arguments.get("service") for r in self.receipts
+                if r.status == "held_for_approval" and r.tool in TOOLS_BY_ID
+                and TOOLS_BY_ID[r.tool].side_effect}
+        if not held:
+            return "approval claimed without any host-held action receipt"
+        named = set(named_services(message))
+        if not named or not named.issubset(held):
+            return "approval claim has no matching host-held service receipt"
+        return None
 
     def action_record(self) -> str:
         """The authoritative side-effect status of a run, from host receipts only (never from model text)."""

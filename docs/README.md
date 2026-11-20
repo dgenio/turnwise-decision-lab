@@ -30,6 +30,7 @@ Start with the [README](../README.md). For what is current, held or historical, 
 
 | Document | Status | Read it for |
 |---|---|---|
+| [../reports/live-smoke-44520205372.md](../reports/live-smoke-44520205372.md) | Historical paid attempt; INCONCLUSIVE | Owner-supplied sanitized summary, per-configuration HTTP 429 counts, provenance and unknowns |
 | [../reports/arena.md](../reports/arena.md) | Experimentally measured (authored synthetic, no model) | v0.5 results, every failure, hypothesis verdicts |
 | [preregistration-v0.5.md](preregistration-v0.5.md) | Frozen | v0.5 hypotheses, committed before any code |
 | [../reports/trained-routing-synthetic.md](../reports/trained-routing-synthetic.md) | Historical (v0.4) | Route-label benchmark: rules 38/40, Naive Bayes 29/40 |
