@@ -58,6 +58,10 @@ NOT_A_REQUEST = (
     "Roll back checkout or payments.",
     "Roll back checkout, payments and auth.",
     "Roll back checkout and revert payments.",
+    "Roll back checkout and inventory.",
+    "Roll back checkout and also payments.",
+    "Roll back checkout plus payments.",
+    "Roll back checkout as well as payments.",
 )
 
 EXACT_REQUESTS = (
@@ -67,6 +71,8 @@ EXACT_REQUESTS = (
     # compound action + read: only the action clause names the target (L56 class)
     ("Roll back checkout and check search health", {"checkout"}),
     ("roll back checkout, then check payments health", {"checkout"}),
+    ("Roll back checkout and also check payments health", {"checkout"}),
+    ("Roll back checkout, then check payments health", {"checkout"}),
     ("Check payments health. Roll back checkout.", {"checkout"}),
 )
 
