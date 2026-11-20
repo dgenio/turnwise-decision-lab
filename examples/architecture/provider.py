@@ -6,8 +6,9 @@ framework (the ``openai`` client, which both frameworks use, is built on ``httpx
 
 * **Caps before sending.** The request hook refuses a request *before* it leaves
   the process once the request cap is reached, if it does not carry the
-  configured ``max_output_tokens``, or if its own bound (body bytes as an upper
-  bound on input tokens, plus its ``max_output_tokens``) could push the
+  configured ``max_output_tokens``, if its input bound (body bytes as an upper
+  bound on input tokens, plus a margin and any echoed reasoning) exceeds an
+  optional ``max_input_bound_tokens``, or if its whole bound could push the
   conservative spend over the authorised amount. A refusal raises
   ``ProviderCapReached``, a ``RunHalt``: the Turnwise runtime stops at once
   instead of treating it as one more observation.
@@ -46,8 +47,9 @@ DOUBLE_SOURCE = "PROVIDER DOUBLE (simulated responses; no inference performed)"
 REAL_BASE_URL = "https://api.openai.com/v1"
 DOUBLE_BASE_URL = "https://provider-double.invalid/v1"  # .invalid never resolves, even if the double were bypassed
 DOUBLE_API_KEY = "provider-double-not-a-credential"
-# Only for the *planning estimate* of the worst case (live_smoke --plan). The spend cap itself prices each
-# request from its actual size before sending (see ``request_bound``).
+# Default per-request input bound for the bounded smoke (live_smoke --max-input-bound-tokens). The smoke both
+# ENFORCES it in the ledger and uses it for the planned worst case, so the plan and the cap describe the same
+# quantity. The spend cap additionally prices each admitted request from its actual size (``request_bound``).
 ASSUMED_MAX_INPUT_TOKENS = 8000
 # A tokenizer token is at least one byte, so the request body's byte length bounds its text's input tokens; the
 # margin covers the provider's per-message formatting tokens.
@@ -75,10 +77,6 @@ class Prices:
 
     def cost(self, input_tokens: int, output_tokens: int) -> float:
         return (input_tokens * self.input_per_mtok + output_tokens * self.output_per_mtok) / 1_000_000
-
-    def worst_request(self, max_output_tokens: int) -> float:
-        """Planning estimate only (assumes ASSUMED_MAX_INPUT_TOKENS of input)."""
-        return self.cost(ASSUMED_MAX_INPUT_TOKENS, max_output_tokens)
 
 
 def request_bound(content: bytes, max_output_tokens: int, reasoning_refs: int = 0) -> tuple[int, int]:
