@@ -2,6 +2,19 @@
 
 **Status:** research proposal, not an established standard or proven optimization. **Scope:** an execution policy *inside* an existing agent's step loop, not a new agent framework, external multi-agent orchestrator, or a requirement to use any particular Decision API.
 
+> **Implemented contract (2026-11-20): `turnwise-core/1`.** The working, tested version of this pattern is `examples/architecture/turnwise_core.py` (`CONTRACT_VERSION`). It differs from the v0.1 proposal below; where they disagree, the code and its tests win. The vocabulary is pinned by `tests/test_architecture_action_integrity.py`.
+>
+> | This proposal (v0.1) | `turnwise-core/1` (`Op`) | v0.6 experimental runtime (archived, PR #6) |
+> |---|---|---|
+> | `DIRECT(fact_id, evidence_receipts)` | `DIRECT`: a host-verified record, no model; refused while a user-requested write is outstanding | none |
+> | `CALL_TOOL(tool_id, validated_args)` | `CALL_TOOL`, plus `CALL_WORKFLOW` for registered deterministic flows | `call_tool`, `call_workflow` |
+> | `CALL_LIGHT` / `CALL_HEAVY` | `CALL_LIGHT` / `CALL_HEAVY`: **one** bounded model call with **no tools**; returns a typed `StepOutcome` (`answer_candidate`, `tool_proposal`, `needs_evidence`) to the policy | `call_model(tier)`, which usually ended the turn |
+> | `FINISH(answer, evidence_receipts)` | `FINISH`: names a model answer candidate; the host checks cited executed receipts, task-scoped evidence roles and side-effect claims | `finish` |
+> | `HOLD(reason, approval_request)` | `HOLD` (authorisation or evidence missing) and `CLARIFY` (information missing), both visible stops | `clarify`, `abstain` |
+> | (none) | `HANDOFF_AGENT`: contrast only; a native agent takes control for a segment, so this is **not** Turnwise Core | `handoff_heavy` (unmerged) |
+>
+> Two deliberate departures: `CALL_HEAVY` does not give the model native tool calling (a tool request comes back as a proposal, invariant 1 in [AGENTS.md](../AGENTS.md)), and write intent and action status are owned by the host (`requested_writes`, `action_record`), never by a policy or model output.
+
 ## Problem and hypothesis
 A conventional ReAct/native-tool-calling agent delegates repeated next-action choices to a capable LLM. Some steps are deterministic, some need lightweight inference, and some require heavy reasoning. Hypothesis: an evidence-aware, quality-constrained policy can select among these without degrading end-to-end outcomes beyond a preregistered acceptable margin, while reducing total latency/cost. Neither non-inferiority nor net savings has yet been shown.
 

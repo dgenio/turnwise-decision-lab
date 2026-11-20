@@ -5,7 +5,6 @@ closed-world harness, not a synthetic provider-output claim.
 """
 from __future__ import annotations
 
-from dataclasses import dataclass
 from pathlib import Path
 import argparse
 import json

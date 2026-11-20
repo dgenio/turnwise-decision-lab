@@ -16,6 +16,10 @@ jobs:
           python-version: ${{ matrix.python-version }}
       - name: Unit and integration tests (no external inference)
         run: python -m unittest discover -s tests -v
+      - name: Lint (pyflakes-level rules, pinned; the library itself stays stdlib-only)
+        run: |
+          python -m pip install ruff==0.14.6
+          python -m ruff check .
       - name: Regenerate every committed report and page
         run: |
           python -m turnwise_lab.arena

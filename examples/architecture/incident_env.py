@@ -220,6 +220,33 @@ def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
     return frozenset(found)
 
 
+# Any mention of a rollback, whatever the phrasing ("can you roll it back?", "needs to be rolled back").
+_WRITE_MENTION = re.compile(r"\b(?:roll(?:s|ed|ing)?\s+(?:\w+\s+)?back|roll-?backs?|revert(?:s|ed|ing)?)\b",
+                            re.IGNORECASE)
+
+
+def unrecognized_write_mentions(user_request: str) -> tuple[str, ...]:
+    """User clauses that mention a rollback but did not become a plain, single-service request.
+
+    ``requested_writes`` is deliberately narrow, so an indirect, questioned,
+    negated, retracted or multi-service phrasing yields no authority. Without
+    this list such a request would vanish silently (the v0.6 H18/H19 mechanism,
+    #12). The host reports these clauses as not requested; it never turns them
+    into holds or guesses their target (#39/#40).
+    """
+    requested = requested_writes(user_request)
+    out = []
+    for segment in re.finditer(r"[^.!?;\n]+(?:[.!?;\n]+|$)", user_request):
+        clause = segment.group(0)
+        if not _WRITE_MENTION.search(clause):
+            continue
+        named = {("rollback_deploy", svc) for svc in named_services(clause)}
+        if named and named <= requested and requested_writes(clause) == named:
+            continue  # this clause is exactly a recognized request
+        out.append(" ".join(clause.split()))
+    return tuple(out)
+
+
 class IncidentHost:
     """The execution authority shared by every variant.
 
@@ -261,10 +288,14 @@ class IncidentHost:
         return named_services(self.user_request)
 
     def missing_evidence(self, cited: tuple[str, ...]) -> tuple[str, ...]:
-        """Check cited, executed host receipts for the question's roles and referents.
+        """Check task-scoped *content*, not merely the existence of an executed receipt.
 
-        A structural evidence-sufficiency gate only. It does not validate the
-        answer's numerical, temporal, or causal truth.
+        Each role must have a cited, executed receipt for the user-named service,
+        from the right registered tool, containing the expected fact key and
+        minimum payload shape. Contradictory executed observations for the same
+        role/service fail closed even when a model selectively cites only one.
+        This is a structural demo gate: it does not prove causal correctness or
+        freshness, and must not be treated as semantic verification.
         """
         roles = required_evidence_roles(self.user_request)
         if not roles:
@@ -272,11 +303,33 @@ class IncidentHost:
         services = self.services_named_by_user()
         if not services:
             return ("unresolved service target",)
-        covered = {(r.arguments.get("service"), TOOLS_BY_ID[r.tool].role)
-                   for r in self.receipts if r.executed and r.id in cited
-                   and r.tool in TOOLS_BY_ID}
-        return tuple(f"{role}:{svc}" for svc in services for role in roles
-                     if (svc, role) not in covered)
+        contracts = {
+            "symptom": ("trend:", ("error_rate_before_pct", "error_rate_after_pct")),
+            "change": ("deploys:", ("deploys",)),
+            "current_state": ("health:", ("status", "error_rate_pct", "p95_ms")),
+        }
+        missing: list[str] = []
+        cited_ids = set(cited)
+        for svc in services:
+            for role in roles:
+                prefix, required = contracts[role]
+                key = prefix + svc
+                matching = [r for r in self.receipts if r.executed and r.tool in TOOLS_BY_ID
+                            and TOOLS_BY_ID[r.tool].role == role and r.arguments.get("service") == svc]
+                valid = []
+                for receipt in matching:
+                    payload = receipt.facts.get(key)
+                    if isinstance(payload, dict) and all(field in payload for field in required):
+                        if role != "change" or isinstance(payload["deploys"], list):
+                            valid.append(receipt)
+                # Conflicts cannot be hidden by choosing a convenient subset of citations.
+                versions = {json.dumps(r.facts[key], sort_keys=True) for r in valid}
+                if len(versions) > 1:
+                    missing.append(f"conflicting {role}:{svc}")
+                elif not any(r.id in cited_ids for r in valid):
+                    suffix = " (malformed source payload)" if any(r.id in cited_ids for r in matching) else ""
+                    missing.append(f"{role}:{svc}{suffix}")
+        return tuple(missing)
 
     def approval_claim_problem(self, message: str) -> str | None:
         """Do not let policy prose invent a held approval or a different target.
@@ -300,7 +353,14 @@ class IncidentHost:
         """The authoritative side-effect status of a run, from host receipts only (never from model text)."""
         acts = [f"{r.call()} {r.status.upper()}" for r in self.receipts if r.tool in TOOLS_BY_ID
                 and TOOLS_BY_ID[r.tool].side_effect]
-        return "host action record: " + ("; ".join(acts) if acts else "no side effect was requested or executed")
+        record = "host action record: " + ("; ".join(acts) if acts else "no side effect was requested or executed")
+        mentions = unrecognized_write_mentions(self.user_request)
+        if mentions:
+            record += ("; NOT REQUESTED: the request mentions a rollback that the host did not accept as a plain, "
+                       "unretracted instruction for one registered service, so nothing was held or executed for it ("
+                       + " | ".join(repr(m) for m in mentions) + "). To request one, write e.g. "
+                       "'Please roll back checkout.'")
+        return record
 
     # -- the one execution path
     def execute(self, tool_id: str, arguments: Any, *, proposed_by: str) -> Receipt:

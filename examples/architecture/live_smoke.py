@@ -37,6 +37,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import math
 import sys
 import time
 from dataclasses import asdict
@@ -65,8 +66,10 @@ def request_cap(architecture: str) -> int:
     return NATIVE_LIMIT if architecture == "conventional" else TURNWISE_BUDGET.max_model_calls
 
 
-def worst_case_usd(prices: Prices, settings: ProviderSettings, configs=CONFIGS) -> float:
-    return sum(request_cap(arch) for _, arch in configs) * prices.worst_request(settings.max_output_tokens)
+def worst_case_usd(prices: Prices, settings: ProviderSettings, configs=CONFIGS,
+                   max_input_bound_tokens: int = ASSUMED_MAX_INPUT_TOKENS) -> float:
+    return (sum(request_cap(arch) for _, arch in configs)
+            * prices.cost(max_input_bound_tokens, settings.max_output_tokens))
 
 
 # ---------------------------------------------------------------- one configuration
@@ -226,7 +229,8 @@ def _verdict(checks: list[dict[str, str]], error: str | None) -> str:
 
 # ---------------------------------------------------------------- the matrix
 def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = None, prices: Prices | None = None,
-               authorize_usd: float | None = None, configs=CONFIGS, on_record=None) -> dict[str, Any]:
+               authorize_usd: float | None = None, configs=CONFIGS, on_record=None,
+               max_input_bound_tokens: int = ASSUMED_MAX_INPUT_TOKENS) -> dict[str, Any]:
     """``double`` given: rehearsal against the local provider double. Otherwise: the real provider (paid).
 
     ``on_record(report)`` is called with the partial report after every configuration, so a caller can keep
@@ -235,13 +239,26 @@ def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = No
     problems = parity_problems(settings)
     if problems:
         raise ValueError("; ".join(problems))
+    if type(max_input_bound_tokens) is not int or max_input_bound_tokens <= 0:
+        raise ValueError("max_input_bound_tokens must be a positive integer")
+    # CLI validation is not enough: callers using this Python entrypoint directly
+    # must also obtain explicit per-attempt permission before any paid inference.
+    if double is None:
+        if prices is None or authorize_usd is None:
+            raise ValueError("paid provider mode requires explicit prices and USD authorization")
+        if (isinstance(authorize_usd, bool) or not isinstance(authorize_usd, (int, float))
+                or not math.isfinite(authorize_usd) or authorize_usd <= 0):
+            raise ValueError("paid provider authorization must be a positive finite USD amount")
+        if worst_case_usd(prices, settings, configs, max_input_bound_tokens) > authorize_usd:
+            raise ValueError("paid provider authorization is below the planned worst-case bound")
     source = DOUBLE_SOURCE if double is not None else REAL_SOURCE
     report: dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
         "source": source, "real_inference": double is None, "scenario": SCENARIO, "task": TASKS[SCENARIO],
         "settings": asdict(settings), "prices_usd_per_mtok": None if prices is None else asdict(prices),
-        "authorized_usd": authorize_usd,
-        "worst_case_usd": None if prices is None else worst_case_usd(prices, settings, configs),
+        "authorized_usd": authorize_usd, "max_input_bound_tokens": max_input_bound_tokens,
+        "worst_case_usd": None if prices is None else worst_case_usd(
+            prices, settings, configs, max_input_bound_tokens),
         "spend_bound_usd": 0.0 if prices is not None else None,
         "complete": False, "verdict": "INCOMPLETE", "configs": [],
     }
@@ -251,7 +268,8 @@ def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = No
     for framework, architecture in configs:
         usd_cap = None if authorize_usd is None else max(authorize_usd - spent, 0.0)
         ledger = ProviderLedger(source=source, max_requests=request_cap(architecture), prices=prices,
-                                usd_cap=usd_cap, max_output_tokens=settings.max_output_tokens)
+                                usd_cap=usd_cap, max_output_tokens=settings.max_output_tokens,
+                                max_input_bound_tokens=max_input_bound_tokens)
         setup = ProviderSetup(settings, ledger, None if double is None else double.transport())
         try:
             rec = run_config(framework, architecture, setup)
@@ -322,16 +340,19 @@ def render(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
-def plan(settings: ProviderSettings, prices: Prices | None, configs=CONFIGS) -> str:
+def plan(settings: ProviderSettings, prices: Prices | None, configs=CONFIGS,
+         max_input_bound_tokens: int = ASSUMED_MAX_INPUT_TOKENS) -> str:
     caps = ", ".join(f"{f}/{a}={request_cap(a)}" for f, a in configs)
     total = sum(request_cap(a) for _, a in configs)
     out = [f"model {settings.model}; retries 0; timeout {settings.timeout_s:g}s per request; "
            f"max_output_tokens {settings.max_output_tokens}",
-           f"request caps: {caps} (max {total} provider requests in total)"]
+           f"request caps: {caps} (max {total} provider requests in total)",
+           f"hard per-request input upper bound: {max_input_bound_tokens} tokens (whole serialized request, "
+           "bytes + safety margin, not exact tokenizer counts)"]
     if prices:
-        out.append(f"planned worst case: {total} x (≤{ASSUMED_MAX_INPUT_TOKENS} input + ≤{settings.max_output_tokens} "
+        out.append(f"planned worst case: {total} x (≤{max_input_bound_tokens} input + ≤{settings.max_output_tokens} "
                    f"output tokens) at ${prices.input_per_mtok}/${prices.output_per_mtok} per MTok = "
-                   f"${worst_case_usd(prices, settings, configs):.4f}")
+                   f"${worst_case_usd(prices, settings, configs, max_input_bound_tokens):.4f}")
         out.append("hard bound: before sending, each request is priced from its actual size (body bytes + its "
                    "max_output_tokens) and refused if it could take the spend past --authorize-usd")
     return "\n".join(out)
@@ -373,6 +394,8 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--reasoning-effort", default=None)
     p.add_argument("--temperature", type=float, default=None)
     p.add_argument("--max-output-tokens", type=int, default=2000)
+    p.add_argument("--max-input-bound-tokens", type=int, default=ASSUMED_MAX_INPUT_TOKENS,
+                   help="hard conservative bound on the entire serialized request input (default 8000)")
     p.add_argument("--timeout", type=float, default=60.0, help="seconds per provider request")
     p.add_argument("--input-usd-per-mtok", type=float)
     p.add_argument("--output-usd-per-mtok", type=float)
@@ -390,6 +413,8 @@ def main(argv: list[str] | None = None) -> int:
         p.error("--provider openai needs an explicit --model")
     if not 0 < args.max_output_tokens <= 128_000 or not args.timeout > 0:
         p.error("--max-output-tokens must be in 1..128000 and --timeout positive")
+    if args.max_input_bound_tokens <= 0:
+        p.error("--max-input-bound-tokens must be positive")
     for name in ("input_usd_per_mtok", "output_usd_per_mtok", "authorize_usd"):
         value = getattr(args, name)
         if value is not None and not value > 0:
@@ -402,14 +427,14 @@ def main(argv: list[str] | None = None) -> int:
         p.error("; ".join(problems))
     prices = (Prices(args.input_usd_per_mtok, args.output_usd_per_mtok)
               if args.input_usd_per_mtok is not None and args.output_usd_per_mtok is not None else None)
-    print(plan(settings, prices, configs), file=sys.stderr)
+    print(plan(settings, prices, configs, args.max_input_bound_tokens), file=sys.stderr)
     if args.plan:
         return 0
     if args.provider == "openai":
         import os
         if prices is None or args.authorize_usd is None:
             p.error("paid runs need --input-usd-per-mtok, --output-usd-per-mtok and --authorize-usd")
-        worst = worst_case_usd(prices, settings, configs)
+        worst = worst_case_usd(prices, settings, configs, args.max_input_bound_tokens)
         if worst > args.authorize_usd:
             p.error(f"the worst case ${worst:.4f} exceeds --authorize-usd {args.authorize_usd:.2f}; lower the caps "
                     "or raise the authorisation")
@@ -432,7 +457,7 @@ def main(argv: list[str] | None = None) -> int:
 
     try:
         report = run_matrix(settings, double=double, prices=prices, authorize_usd=args.authorize_usd,
-                            configs=configs, on_record=keep)
+                            configs=configs, on_record=keep, max_input_bound_tokens=args.max_input_bound_tokens)
     except KeyboardInterrupt:  # keep the record of whatever was already sent (and possibly billed)
         partial["verdict"] = "INTERRUPTED"
         save(partial)
