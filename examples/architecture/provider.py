@@ -28,6 +28,7 @@ by itself.
 from __future__ import annotations
 
 import json
+import math
 import os
 import threading
 import time
@@ -65,8 +66,12 @@ class Prices:
     output_per_mtok: float
 
     def __post_init__(self) -> None:
-        if not (self.input_per_mtok > 0 and self.output_per_mtok > 0):
-            raise ValueError("prices must be positive")
+        # A positive infinity is not a meaningful price: in combination with a
+        # configured cap it makes preflight accounting nonsensical.
+        for value in (self.input_per_mtok, self.output_per_mtok):
+            if (isinstance(value, bool) or not isinstance(value, (int, float))
+                    or not math.isfinite(value) or value <= 0):
+                raise ValueError("token prices must be positive finite numbers")
 
     def cost(self, input_tokens: int, output_tokens: int) -> float:
         return (input_tokens * self.input_per_mtok + output_tokens * self.output_per_mtok) / 1_000_000
@@ -120,8 +125,15 @@ class ProviderLedger:
 
     def __init__(self, *, source: str, max_requests: int, prices: Prices | None = None,
                  usd_cap: float | None = None, max_output_tokens: int = 2000):
-        if usd_cap is not None and (prices is None or usd_cap < 0):
-            raise ValueError("a spend cap needs prices and must not be negative")
+        if type(max_requests) is not int or max_requests < 0:
+            raise ValueError("max_requests must be a nonnegative integer")
+        if type(max_output_tokens) is not int or max_output_tokens <= 0:
+            raise ValueError("max_output_tokens must be a positive integer")
+        if usd_cap is not None:
+            if (prices is None or isinstance(usd_cap, bool)
+                    or not isinstance(usd_cap, (int, float))
+                    or not math.isfinite(usd_cap) or usd_cap < 0):
+                raise ValueError("a spend cap needs prices and a finite nonnegative USD amount")
         self.source, self.max_requests, self.prices, self.usd_cap = source, max_requests, prices, usd_cap
         self.max_output_tokens = max_output_tokens
         self.exchanges: list[Exchange] = []
