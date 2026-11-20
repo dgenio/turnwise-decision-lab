@@ -6,7 +6,7 @@
 
 The shared `ProviderLedger` already guarded request count, output tokens and estimated USD liability at the HTTP request hook. It now also takes an optional `max_input_bound_tokens`, rejecting requests **before transport** when `request_bound(request.content, max_output_tokens, reasoning_refs)[0]` exceeds the bound. The estimate uses the **complete serialized provider request**, including instructions, tool schemas, selected context, and a formatting margin; it is not based solely on the user prompt. Echoed reasoning references are additionally charged conservatively.
 
-The bounded smoke CLI exposes `--max-input-bound-tokens` (default **8,000**). Its planned worst-case USD calculation uses that **same enforced value** rather than an unenforced input-size assumption. Both conventional and Turnwise configurations use the common transport hook, including requests made during native agent handoffs. The existing response/output request and estimated-spend guards remain in place.
+The bounded smoke CLI exposes `--max-input-bound-tokens` (default **8,000**). Its planned worst-case USD calculation uses that **same enforced value** rather than an unenforced input-size assumption. Both conventional and Turnwise configurations use the common transport hook, including requests made during native agent handoffs. The existing response/output request and estimated-spend guards remain in place. **The Python `run_matrix` entrypoint now independently rejects paid mode without explicit prices, a positive finite USD authorization and an authorization that covers its planned worst case**; the CLI check alone is not the sole guard.
 
 ## Strict limitations
 
