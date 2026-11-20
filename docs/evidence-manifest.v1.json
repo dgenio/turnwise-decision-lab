@@ -1,0 +1,156 @@
+{
+  "schema": "turnwise.evidence-manifest/1",
+  "scope": "main_only",
+  "purpose": "Inspectably distinguish pinned original records from rerunnable derived output. This document does not certify model inference, correctness or quality.",
+  "immutable": [
+    {
+      "path": "docs/preregistration-v0.5.md",
+      "kind": "preregistration",
+      "sha256": "8ebeea35d314d430c360ddb3203bfc51c6bcb8d9269d76921890859fb4a75f0c",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "fixtures/sessions.json",
+      "kind": "authored_synthetic_fixture",
+      "sha256": "6cc1377592627d2e811108c02c5437d6eda4c685a87327048023b8e6e585a625",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "fixtures/scenarios.json",
+      "kind": "authored_synthetic_fixture",
+      "sha256": "0f0cacfe8047620963e5d68ec4562ae98216dc3b7f86eedfb88ac75b9842fe2e",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "fixtures/route_train.jsonl",
+      "kind": "authored_synthetic_fixture",
+      "sha256": "121c22365d00ec9d7e8fb895cc4ec133ec62be10d83faa088b826696898a870d",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "fixtures/route_test.jsonl",
+      "kind": "authored_synthetic_fixture",
+      "sha256": "be72dd7f506cfdbd1db40eba46e309904d145cbc31fba9100143f74793acfc07",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "turnwise_lab/world.py",
+      "kind": "frozen_world_code",
+      "sha256": "be62292baf56c04ef87304d9e6165e70811b17eb2371e3abebc4fcd7b9c60f8a",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "reports/live-smoke-44520205372.md",
+      "kind": "historical_paid_attempt_inconclusive",
+      "sha256": "4d175437a8e014427c448f664843b3206260f3178defd35adf435ded7723837e",
+      "validation": "sha256_in_offline_ci"
+    }
+  ],
+  "regenerated": [
+    {
+      "path": "reports/arena.json",
+      "generator": "python -m turnwise_lab.arena",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "reports/arena.md",
+      "generator": "python -m turnwise_lab.arena",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/index.html",
+      "generator": "python -m turnwise_lab.explorer",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "reports/live-local-run.json",
+      "generator": "python -m turnwise_lab.live_demo --output reports/live-local-run.json",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "reports/trained-routing-synthetic.md",
+      "generator": "python -m turnwise_lab.benchmark --output /tmp/trained.json --markdown reports/trained-routing-synthetic.md",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/showcase.json",
+      "generator": "python -m turnwise_lab.showcase --json-out demo/showcase.json --html-out demo/planning-contract.html",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/planning-contract.html",
+      "generator": "python -m turnwise_lab.showcase --json-out demo/showcase.json --html-out demo/planning-contract.html",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/local-run.html",
+      "generator": "python -m scripts.render_local_demo",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "reports/synthetic-contract-replay.json",
+      "generator": "python -m turnwise_lab.evaluate --output reports/synthetic-contract-replay.json",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "examples/architecture/sample_output/openai-agents.txt",
+      "generator": "examples/architecture/regenerate_samples.sh",
+      "evidence_type": "simulated_sdk",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "examples/architecture/sample_output/llamaindex.txt",
+      "generator": "examples/architecture/regenerate_samples.sh",
+      "evidence_type": "simulated_sdk",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "examples/architecture/sample_output/all-scenarios-brief.txt",
+      "generator": "examples/architecture/regenerate_samples.sh",
+      "evidence_type": "simulated_sdk",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    }
+  ],
+  "historical_unverified_by_regeneration": [
+    {
+      "path": "reports/trained-routing-synthetic.json",
+      "reason": "v0.4 historical timed benchmark JSON; CI intentionally writes current replay to /tmp/trained.json instead"
+    },
+    {
+      "path": "reports/synthetic-contract-replay.md",
+      "reason": "historical narrative; not among outputs regenerated and compared by current CI"
+    },
+    {
+      "path": "demo/live-local-run.json",
+      "reason": "historical rendered data; CI currently targets reports/live-local-run.json"
+    }
+  ],
+  "archived_unmerged_research": [
+    {
+      "pr": 6,
+      "commit": "06379175ff419d42d875da5d71e0ed257986ebe5",
+      "status": "HOLD: 0/7 decision-driven investigations; no capable baseline"
+    },
+    {
+      "pr": 38,
+      "commit": "e3bde98e1e0a00bbe87148dcf26d9efefff9397e",
+      "status": "HOLD/SHRINK: locked synthetic exit-gate study; not proof of prospective quality"
+    }
+  ],
+  "limitations": [
+    "A content hash proves bytes only, not correctness, source trust or independent replication.",
+    "Regeneration verifies deterministic offline replay/rendering, never live model-inference reproduction.",
+    "Archived commits are recovery identifiers; the current main CI does not execute or independently verify archived branch results.",
+    "The consumed paid smoke recorded HTTP 429 and no model outputs; billed spend is unknown.",
+    "There is no independently adjudicated prospective quality/non-inferiority or end-to-end economic result."
+  ]
+}
