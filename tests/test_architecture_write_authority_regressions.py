@@ -13,9 +13,11 @@ pinned:
 
 These are developer-authored mechanism regressions, written after reading the original failures; they
 are not held-out evidence and do not show that the lexical parser generalises. Rollback mentions the
-parser does not accept as a plain request (a rollback clause after a read clause, a second service in one
-clause) are never held; since #72 the host action record lists them as NOT REQUESTED, which
-``test_architecture_action_integrity.py`` covers. Whether to hold them instead is open in issue #12.
+parser does not accept as a plain request (a rollback clause after a read clause, multiple
+action targets in one clause) receive no authority; since #72 the host action record lists
+them as NOT REQUESTED. A multi-target clause must not silently hold only its first target.
+``test_architecture_action_integrity.py`` covers this. Whether and how to explicitly
+support compound actions remains open in the #12/#24 research backlog.
 """
 from __future__ import annotations
 
