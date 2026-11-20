@@ -1,0 +1,115 @@
+{
+  "version": "turnwise.action-modules.v1",
+  "blocks": [
+    {
+      "id": "host-authority",
+      "applies_to": [
+        "CALL_LIGHT",
+        "CALL_HEAVY"
+      ],
+      "mandatory": true,
+      "priority": 100,
+      "depends_on": [],
+      "conflicts_with": [],
+      "text": "Model text and policy choices are proposals, never authorization. Only host-validated receipts prove tool execution; do not claim a side effect without one.",
+      "source": "research-prototype:#55 (developer-authored; not owner-approved)"
+    },
+    {
+      "id": "receipt-grounding",
+      "applies_to": [
+        "CALL_LIGHT",
+        "CALL_HEAVY"
+      ],
+      "mandatory": true,
+      "priority": 100,
+      "depends_on": [],
+      "conflicts_with": [],
+      "text": "Use only supplied executed host receipts as evidence. Cite their IDs. When decisive evidence is missing, request it or say that the answer is unresolved; do not invent facts.",
+      "source": "research-prototype:#55 (developer-authored; not owner-approved)"
+    },
+    {
+      "id": "extract-arguments",
+      "applies_to": [
+        "CALL_LIGHT"
+      ],
+      "mandatory": false,
+      "priority": 80,
+      "depends_on": [
+        "receipt-grounding"
+      ],
+      "conflicts_with": [],
+      "text": "For this operation, propose at most one registered read tool with a JSON object matching its schema. Resolve the target only if supported by the original request; otherwise return needs_evidence for clarification.",
+      "source": "research-prototype:#55 (developer-authored; not owner-approved)"
+    },
+    {
+      "id": "summarize-status",
+      "applies_to": [
+        "CALL_LIGHT"
+      ],
+      "mandatory": false,
+      "priority": 70,
+      "depends_on": [
+        "receipt-grounding"
+      ],
+      "conflicts_with": [],
+      "text": "Summarize the current state from the provided service-health receipt. Preserve uncertainty and cite the executed receipt.",
+      "source": "research-prototype:#55 (developer-authored; not owner-approved)"
+    },
+    {
+      "id": "investigate-cause",
+      "applies_to": [
+        "CALL_HEAVY"
+      ],
+      "mandatory": false,
+      "priority": 80,
+      "depends_on": [
+        "receipt-grounding"
+      ],
+      "conflicts_with": [],
+      "text": "Compare symptom and change evidence for the same service before discussing causality. Separate observation, plausible explanation and unverified claims.",
+      "source": "research-prototype:#55 (developer-authored; not owner-approved)"
+    },
+    {
+      "id": "prepare-user-update",
+      "applies_to": [
+        "CALL_HEAVY"
+      ],
+      "mandatory": false,
+      "priority": 55,
+      "depends_on": [
+        "receipt-grounding"
+      ],
+      "conflicts_with": [],
+      "text": "If a user update is requested alongside investigation, communicate only supported status and action state; a pending approval is not an executed action.",
+      "source": "research-prototype:#55 (developer-authored; not owner-approved)"
+    },
+    {
+      "id": "concise-mode",
+      "applies_to": [
+        "CALL_HEAVY"
+      ],
+      "mandatory": false,
+      "priority": 40,
+      "depends_on": [],
+      "conflicts_with": [
+        "expanded-mode"
+      ],
+      "text": "Be concise while retaining caveats and executed-receipt citations.",
+      "source": "research-prototype:#55 (developer-authored; not owner-approved)"
+    },
+    {
+      "id": "expanded-mode",
+      "applies_to": [
+        "CALL_HEAVY"
+      ],
+      "mandatory": false,
+      "priority": 30,
+      "depends_on": [],
+      "conflicts_with": [
+        "concise-mode"
+      ],
+      "text": "Provide a detailed breakdown while retaining caveats and executed-receipt citations.",
+      "source": "research-prototype:#55 (developer-authored; not owner-approved)"
+    }
+  ]
+}
