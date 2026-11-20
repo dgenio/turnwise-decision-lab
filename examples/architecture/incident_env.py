@@ -257,6 +257,19 @@ def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
         targets = named_services(match.group(1))
         if not targets:
             continue
+        # A second write verb or a bare coordinated service extends the action target
+        # beyond this one-word extraction. Never silently authorize only the first
+        # target of "roll back checkout and payments" (or two writes in one clause).
+        # A separate read verb ("and check payments health") remains allowed.
+        remainder = clause[match.end():]
+        second_write = re.search(r"\b(?:roll\s*back|roll-back|revert)\b", remainder, re.IGNORECASE)
+        coordinated = re.match(
+            r"\s*(?:and|or|,)\s*(?:then\s+)?(?:the\s+)?"
+            r"(?:(?:latest|last|most\s+recent)\s+)?(\w+)\b",
+            remainder, re.IGNORECASE,
+        )
+        if second_write or (coordinated and named_services(coordinated.group(1))):
+            continue  # ambiguous/multiple action targets: visible NOT REQUESTED, no hold
         # User retraction later in the same turn must invalidate the request.
         # Ambiguous scope fails closed rather than manufacturing an approval.
         if _LATER_WITHDRAWAL.search(user_request[segment.end():]):
