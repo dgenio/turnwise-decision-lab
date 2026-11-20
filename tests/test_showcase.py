@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 import json
-from pathlib import Path
 import unittest
 
 from turnwise_lab.showcase import ROOT, SHOWCASE, make_exhibit, page, text_report

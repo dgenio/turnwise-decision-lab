@@ -9,7 +9,8 @@ from __future__ import annotations
 from dataclasses import asdict, dataclass
 from typing import Any
 from urllib.parse import urlparse
-from urllib.request import Request as HTTPRequest, urlopen
+from urllib.error import HTTPError
+from urllib.request import HTTPRedirectHandler, Request as HTTPRequest, build_opener
 import json
 import os
 import time
@@ -30,6 +31,17 @@ class GenerationResult:
         return asdict(self)
 
 
+class _RefuseRedirects(HTTPRedirectHandler):
+    """urllib follows 301/302/303 by default and copies the Authorization header to the new URL,
+    even on another host. The key must only ever reach the endpoint the operator named (#17)."""
+
+    def redirect_request(self, req, fp, code, msg, headers, newurl):
+        raise HTTPError(req.full_url, code, "redirect refused; no request sent to the new location", headers, fp)
+
+
+_OPENER = build_opener(_RefuseRedirects)
+
+
 def _endpoint_is_allowed(endpoint: str) -> bool:
     parsed = urlparse(endpoint)
     if parsed.username or parsed.password or parsed.fragment or parsed.query:
@@ -43,11 +55,14 @@ def _endpoint_is_allowed(endpoint: str) -> bool:
 
 def generate_public_synthetic(request: Request, *, model: str, endpoint: str,
                               api_key_env: str = 'OPENAI_API_KEY',
-                              allow_remote: bool = False, timeout_s: int = 30) -> GenerationResult:
+                              allow_remote: bool = False, timeout_s: int = 30,
+                              max_output_tokens: int = 800) -> GenerationResult:
     """Make an explicitly authorized external Chat Completions request.
 
     Call only with public/synthetic input. A weak preflight is NOT a privacy
-    guarantee; the user/host is responsible for clearance.
+    guarantee; the user/host is responsible for clearance. The key is sent only
+    to ``endpoint`` (redirects are refused), output is bounded by
+    ``max_output_tokens``, there are no retries, and billed cost is not inferred.
     """
     if not allow_remote:
         raise PermissionError('Explicit --allow-remote is required; no request sent')
@@ -57,6 +72,8 @@ def generate_public_synthetic(request: Request, *, model: str, endpoint: str,
         raise ValueError('Model and HTTPS endpoint (or loopback test endpoint) required')
     if timeout_s<1 or timeout_s>120:
         raise ValueError('Timeout outside 1–120s')
+    if type(max_output_tokens) is not int or not 1 <= max_output_tokens <= 8192:
+        raise ValueError('max_output_tokens must be an integer in 1–8192')
     if _OBVIOUS_PRIVATE.search(request.text + ' ' + request.task_summary + ' ' +
                               ' '.join(s.summary+' '+s.body for s in request.sources)):
         raise PermissionError('Possible private content detected; no request sent')
@@ -72,11 +89,12 @@ def generate_public_synthetic(request: Request, *, model: str, endpoint: str,
             {'role':'user','content':'Request: '+request.text+'\nTask state: '+request.task_summary+'\nEvidence:\n'+evidence},
         ],
         'temperature':0,
+        'max_tokens':max_output_tokens,
     }
     data=json.dumps(body).encode('utf-8')
     req=HTTPRequest(endpoint,data=data,headers={'Authorization':'Bearer '+key,'Content-Type':'application/json'},method='POST')
     t0=time.perf_counter()
-    with urlopen(req,timeout=timeout_s) as resp:
+    with _OPENER.open(req,timeout=timeout_s) as resp:
         if resp.status!=200:
             raise RuntimeError('Provider returned unexpected status')
         payload=resp.read(3_000_001)
