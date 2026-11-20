@@ -103,7 +103,10 @@ Status labels: **Implemented and tested** · **Demonstrated with simulated infer
 
 ## Paid providers, secrets and data
 
-- Default runs are offline. Never make a paid provider call (`run_demo --live`, `turnwise_lab.provider_cli --allow-remote`, or the paid mode of any live-smoke harness) without explicit human authorization of the model and spend: they cost money.
+- Default runs are offline. Never call `live_smoke --provider openai`, `secure_live_once --execute`, dispatch `.github/workflows/paid-smoke.yml`, or use `turnwise_lab.provider_cli --allow-remote` without explicit human authorization for that **specific model, cap and one attempt**. No automatic reruns; these calls can cost money.
+- First owner-dispatched GPT-6.1 Sol authorization was consumed on 2026-11-19 ([run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372), fixed tag `turnwise-paid-gpt-6-1-sol-001`). HTTP 429 produced no model output. Do not move/delete this tag or bypass the create-only reservation. PR #60 proposes a *separate* one-shot authorization; merging the workflow is not permission to dispatch it without verifying account/model capacity.
+- All real-provider calls must use the dedicated bounded `ProviderLedger`, a provider-double rehearsal and the first-429 stop; the client USD cap is an **estimate**, not a provider billing ceiling. Agents must not handle the owner's API key.
+- Use the [PR consolidation gates](docs/pr-consolidation-gates-2026-11-20.md) before promoting any v0.6/v0.7/v0.8 research branch into the canonical Turnwise Core on `main`.
 - Never commit keys, `.env` files, real company or customer data, or logs from real systems. All data here is invented and synthetic. See [docs/privacy-threat-model.md](docs/privacy-threat-model.md) and [docs/model-backend.md](docs/model-backend.md).
 - Do not make a claim about live-model behaviour based on an open PR.
 
