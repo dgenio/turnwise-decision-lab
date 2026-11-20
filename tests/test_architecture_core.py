@@ -160,7 +160,7 @@ class PolicyIsStateDrivenTests(unittest.TestCase):
 
     def test_invalid_or_failed_model_output_is_an_observation_never_an_answer(self):
         script = [{"kind": "banana", "text": "x"}, RuntimeError("provider down"),
-                  {"kind": "answer_candidate", "text": "", "cited_receipts": []}, answer("ok", "r1")]
+                  {"kind": "answer_candidate", "text": "", "cited_receipts": []}, answer("ok", "r1", "r2")]
         result, rt, _, _ = run(script=script, budget=Budget(max_model_calls=4))
         self.assertEqual([o.kind for o in rt.outcomes], ["invalid", "invalid", "invalid", "answer_candidate"])
         self.assertEqual(ops(rt)[-1], "FINISH")

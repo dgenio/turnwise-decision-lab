@@ -102,7 +102,7 @@ python -m examples.architecture.run_demo --framework all --scenario all --handof
 python -m examples.architecture.live_smoke
 ```
 
-A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. **The owner approved exactly one local attempt with GPT-6.1 Sol and an estimated US$2 guard, but no real inference has been run.** For credential-safe execution, run `python -m examples.architecture.secure_live_once` (free rehearsal), then `python -m examples.architecture.secure_live_once --execute` on your own computer. The launcher prompts for a project key without echo, disables SDK trace export and writes results outside the repo. See the [decision packet](../../docs/live-smoke-decision-packet.md).
+A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. **The one owner-authorized GPT-6.1 Sol attempt was dispatched on 2026-11-19 ([run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372)); HTTP 429 prevented any model outputs, and the authorization is consumed. Actual billing is unknown.** Do not repeat it. Another paid attempt requires a distinct explicit authorization and verified model access. For credential-safe execution, run `python -m examples.architecture.secure_live_once` (free rehearsal), then `python -m examples.architecture.secure_live_once --execute` on your own computer. The launcher prompts for a project key without echo, disables SDK trace export and writes results outside the repo. See the [decision packet](../../docs/live-smoke-decision-packet.md).
 
 ## Recorded output (offline: real SDK 0.25.0, simulated model)
 
@@ -158,7 +158,7 @@ In A the same request (`validate_config`) was simply executed: the model decided
 | `CALL_TOOL` / `CALL_WORKFLOW` | The host executes one registered read or deterministic workflow. | every scenario |
 | `CALL_LIGHT` | One call to the cheaper model, with policy-selected context. | `--scenario status` |
 | `CALL_HEAVY` | One call to the capable model with policy-selected context. It returns a typed outcome and executes nothing. | `--scenario investigate` |
-| `FINISH` | Ask the host to accept a model's answer candidate. The host checks that the cited receipts were executed and shown to the model. A keyword screen refuses any wording of a completed side effect when no write executed. It does **not** check causal truth. | `investigate`, `status` |
+| `FINISH` | Ask the host to accept a model's answer candidate. The host checks that cited receipts were executed and shown to the model **and** that the required evidence roles cover the user-named service(s): symptom plus change for causal investigations, current state for health/status. It rejects an outstanding action being replaced with generated prose. A keyword screen refuses wording of a completed side effect when no write executed. It does **not** check causal truth. | `investigate`, `status` |
 | `HOLD` / `CLARIFY` | Stop visibly. A held write is **not** an executed action. | `HOLD`: `--scenario rollback`; `CLARIFY`: a request that names no service (tests) |
 | `HANDOFF_AGENT` | **Contrast only, not Turnwise Core.** The native agent runs its own loop for a bounded segment. The trace labels those steps `native agent (handoff)`, and control returns to the policy afterwards. The run's title is derived from what happened: any handoff makes it "Agent handoff (contrast; NOT Turnwise Core)". The agent declares no citations; the runtime attaches the receipts it was given or produced and says so, so `FINISH`'s provenance check is weak for handoffs. | `--handoff --scenario investigate` |
 
@@ -172,13 +172,13 @@ In A the same request (`validate_config`) was simply executed: the model decided
 - In B, the host also validates each *decision*:
   - the operation kind must match the capability kind;
   - context may contain executed receipts only;
-  - `DIRECT` needs an existing record;
-  - `FINISH` needs a real answer candidate with valid citations;
+  - `DIRECT` needs an existing record and cannot bypass a requested action;
+  - `FINISH` needs an answer candidate with valid citations and domain-specific evidence-role coverage for the user-named services; it cannot bypass a requested action;
   - claimed adoptions must match the model's proposal.
 - In B, steps, model calls, tool calls and rejections are budgeted from the runtime's own counters, not from anything the policy holds.
 - In B, the policy receives a **copy** of the state: changing its snapshot (receipts, budget) changes nothing the host relies on.
 - In B, a host rejection is fed back to the policy (`snapshot.last_rejection`).
-- `HOLD` / `CLARIFY` are checked only for a non-empty message and the same side-effect keyword screen. The policy never relays model text in them.
+- `HOLD` / `CLARIFY` need a non-empty message, are screened for unexecuted-side-effect claims, and cannot assert an approval hold unless the host has a matching held-for-approval receipt for the named service. The policy never relays model text in them. This is a **narrow lexical guard**, not proof that arbitrary prose is correct.
 - Every result, in A and B, ends with a **host action record** built from receipts only: the authoritative statement of what was and was not executed, whatever the model's text says.
 
 ## What is real and what is simulated
@@ -190,12 +190,12 @@ In A the same request (`validate_config`) was simply executed: the model decided
 | Host validation and tool execution | **Real** Python: the existing `LocalHarness` and `world.py` handlers |
 | Synthetic incident data | Synthetic, from the existing v0.5 world |
 | Policy | **Real code**, deterministic rules ([`policies.py`](policies.py)); not learned, tuned or evaluated |
-| Provider classes: Agents SDK `OpenAIResponsesModel` + `openai.AsyncOpenAI`; LlamaIndex `OpenAIResponses` (pinned `llama-index-llms-openai==0.9.0`) | **Real**, tested offline against an HTTP-level provider double ([`provider_double.py`](provider_double.py)); **never run against the real provider** |
-| Model replies | **SIMULATED** in the demo, the tests and the smoke rehearsal; real only via `live_smoke --provider openai`, which has **not been run** |
+| Provider classes: Agents SDK `OpenAIResponsesModel` + `openai.AsyncOpenAI`; LlamaIndex `OpenAIResponses` (pinned `llama-index-llms-openai==0.9.0`) | **Real**, tested offline against an HTTP-level provider double ([`provider_double.py`](provider_double.py)); **offline rehearsal passed; one authorized real attempt returned only HTTP 429** |
+| Model replies | **SIMULATED** in the demo, the tests and the smoke rehearsal; real only via `live_smoke --provider openai`, which was **attempted once but received no model outputs (HTTP 429)** |
 
 ## Real-provider readiness
 
-**Status (2026-11-19): ready for a bounded live smoke test; no real inference has been performed.**
+**Status (2026-11-20): one owner-dispatched paid smoke was INCONCLUSIVE (HTTP 429, zero model outputs); the one-shot authorization has been consumed.** The provider-double rehearsal remains the only passing execution of the provider paths.
 
 The offline demo replaces each framework's *model object* with a test double (`ScriptedModel`, `MockFunctionCallingLLM`). That leaves the classes a live run actually uses untested, and for LlamaIndex those classes take a different internal path. So the live paths are now exercised one level lower:
 
@@ -309,9 +309,9 @@ No efficiency comparison is made.
 
 - **No quality, cost or latency claim.** The printed counts are operation counts for one simulated run. They are not measurements. Turnwise adds policy decisions and host checks that a native agent does not have.
 - **The simulated model is not a model.** It is deterministic and was written by the same author as the policy. Offline traces prove *control flow*, not reasoning ability.
-- **Real-model behaviour is still untested.** The provider classes are tested against a provider *double* that emulates the wire format and scripted faults (malformed outputs, refusals, errors). A real model may still make different tool choices or ignore the step contract, and the API may reject parameters that the double accepts. Nothing establishes this until the [bounded live smoke test](../../docs/live-smoke-decision-packet.md) is authorised and run.
+- **Real-model behaviour is still untested.** The provider classes are tested against a provider *double* that emulates the wire format and scripted faults (malformed outputs, refusals, errors). A real model may still make different tool choices or ignore the step contract, and the API may reject parameters that the double accepts. The [first authorized smoke](../../docs/live-smoke-decision-packet.md) returned HTTP 429 without outputs; another specifically authorized, capacity-verified run would be required to observe real-model behavior.
 - **The policy is hand-written** for this synthetic domain. It is a stand-in for a learned or decision-service policy (Jev/System One is not used). Simple host rules may do as well, which is the open research question in [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9).
-- **`FINISH` checks provenance, not truth.** Evidence being present is not proof of causation.
+- **`FINISH` checks cited receipt provenance and a small host-side evidence-role contract, not truth.** In this synthetic incident domain, a causal question requires cited symptom and change reads for each named service, while a status question requires cited current-state evidence. This prevents some premature exits but is neither semantic entailment nor independent answer correctness. The native conventional baseline does not use B's FINISH contract; Level C must include A+G (the same host exit gate) to isolate the effect of per-step control.
 - The write-intent parser and the side-effect claim screen are keyword rules. They fail closed (they refuse more than necessary) but are not semantic checks.
 - CI blocks the network only for clients that honour `HTTP(S)_PROXY` (pointed at a dead port). Only the two frameworks are pinned; their dependencies are not.
 - Single-turn tasks only. There are no multi-turn referents and no approve-and-resume flow.
