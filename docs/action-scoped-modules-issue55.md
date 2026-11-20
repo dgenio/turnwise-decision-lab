@@ -35,6 +35,36 @@ The alias case is deliberately small: `check-out` appears explicitly in the orig
 
 Developer regressions cover mandatory overflow, optional overflow, dependencies, conflicts, multi-label selection, manifest cycles, unknown names, no-model execution, missing referent, silent evidence omission, preserved default packet, and the continued host write gate. Their outcomes are development feedback, **not held-out research evidence**.
 
+### Minimal step-by-step mechanism traces (scripted, not measured)
+
+```text
+DIRECT (verified incident severity):
+  policy DIRECT severity -> host verified record -> answered_directly
+  model calls: 0 | loaded/omitted modules: none needed
+
+LIGHT (explicit check-out alias):
+  policy CALL_LIGHT [host-authority, receipt-grounding, extract-arguments]
+  scripted model -> typed service_health(service=checkout) proposal
+  policy CALL_TOOL -> host executes read r1
+  policy CALL_LIGHT [host-authority, receipt-grounding, summarize-status]
+     evidence: r1; proposal tools: none
+  scripted model -> answer_candidate cites r1 -> policy FINISH
+  excluded each time: unrequested optional modules, including the other
+     light task's instructions and every heavy-only module
+
+HEAVY (deployment diagnosis):
+  policy CALL_TOOL error_trend -> host r1
+  policy CALL_TOOL recent_deploys -> host r2
+  policy CALL_HEAVY [host-authority, receipt-grounding, investigate-cause]
+     evidence: r1, r2; prepare-user-update NOT selected
+  scripted model -> typed validate_config proposal
+  policy CALL_WORKFLOW -> host executes registered read r3
+  policy CALL_HEAVY with same modules + evidence r1/r2/r3
+  scripted model -> answer_candidate cites executed receipts -> FINISH
+```
+
+These sequences are developer-authored predictions enforced by the offline tests, not behavioral measurements from a hosted model. Audit data records all non-included module IDs and reasons; it does **not** establish that the chosen subset contained every fact a real model needed.
+
 ## Prospective 2 × 2 ablation (not executed)
 
 | | Fixed instruction/evidence/tool context | Action-scoped pre-authored context |
