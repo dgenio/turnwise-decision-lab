@@ -178,7 +178,7 @@ In A the same request (`validate_config`) was simply executed: the model decided
 - In B, steps, model calls, tool calls and rejections are budgeted from the runtime's own counters, not from anything the policy holds.
 - In B, the policy receives a **copy** of the state: changing its snapshot (receipts, budget) changes nothing the host relies on.
 - In B, a host rejection is fed back to the policy (`snapshot.last_rejection`).
-- `HOLD` / `CLARIFY` are checked only for a non-empty message and the same side-effect keyword screen. The policy never relays model text in them.
+- `HOLD` / `CLARIFY` need a non-empty message, are screened for unexecuted-side-effect claims, and cannot assert an approval hold unless the host has a matching held-for-approval receipt for the named service. The policy never relays model text in them. This is a **narrow lexical guard**, not proof that arbitrary prose is correct.
 - Every result, in A and B, ends with a **host action record** built from receipts only: the authoritative statement of what was and was not executed, whatever the model's text says.
 
 ## What is real and what is simulated
