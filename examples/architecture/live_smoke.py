@@ -236,9 +236,8 @@ def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = No
     ``on_record(report)`` is called with the partial report after every configuration, so a caller can keep
     the record of requests already made even if the run is interrupted.
     """
-    problems = parity_problems(settings)
-    if problems:
-        raise ValueError("; ".join(problems))
+    # Argument and authorization checks come first: they need no framework, so a refusal never depends on
+    # which optional packages happen to be importable.
     if type(max_input_bound_tokens) is not int or max_input_bound_tokens <= 0:
         raise ValueError("max_input_bound_tokens must be a positive integer")
     # CLI validation is not enough: callers using this Python entrypoint directly
@@ -251,6 +250,9 @@ def run_matrix(settings: ProviderSettings, *, double: ProviderDouble | None = No
             raise ValueError("paid provider authorization must be a positive finite USD amount")
         if worst_case_usd(prices, settings, configs, max_input_bound_tokens) > authorize_usd:
             raise ValueError("paid provider authorization is below the planned worst-case bound")
+    problems = parity_problems(settings)
+    if problems:
+        raise ValueError("; ".join(problems))
     source = DOUBLE_SOURCE if double is not None else REAL_SOURCE
     report: dict[str, Any] = {
         "generated_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -475,7 +477,8 @@ def _preflight(settings: ProviderSettings, *, simulated: bool = False) -> None:
     from .llamaindex.models import choose_llms
     from .openai_agents.models import choose_models
     for choose in (choose_models, choose_llms):
-        ledger = ProviderLedger(source=DOUBLE_SOURCE if simulated else REAL_SOURCE, max_requests=0)
+        ledger = ProviderLedger(source=DOUBLE_SOURCE if simulated else REAL_SOURCE, max_requests=0,
+                                max_output_tokens=settings.max_output_tokens)
         choose(provider=ProviderSetup(settings, ledger, ProviderDouble().transport() if simulated else None))
 
 
