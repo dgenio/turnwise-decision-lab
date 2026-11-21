@@ -3,6 +3,7 @@
     python -m examples.architecture.run_demo                         # OpenAI Agents SDK, main scenario
     python -m examples.architecture.run_demo --framework llamaindex
     python -m examples.architecture.run_demo --scenario all --handoff
+    python -m examples.architecture.run_demo --shielded              # also run arm S (#88), opt-in
 
 Offline: the frameworks run for real, the model is SIMULATED, and nothing is
 sent over the network. Real-provider runs go only through the bounded smoke
@@ -45,11 +46,17 @@ LIVE_REDIRECT = ("run_demo is offline only. Real-provider runs go through the bo
                  "python -m examples.architecture.live_smoke --help")
 
 
+SHIELDED_SDK_ONLY = ("Arm S (the shielded native agent, #88) is implemented for the OpenAI Agents SDK only. "
+                     "Run it with --framework openai-agents.")
+
+
 def run_pair(framework: str, task: str, *, live: bool = False, handoff: bool,
-             checklist_null: bool = False) -> list[RunResult]:
+             checklist_null: bool = False, shielded: bool = False) -> list[RunResult]:
     """Fresh models and a fresh host for every run, so runs cannot influence each other. Simulated model only."""
     if live:
         raise SystemExit(LIVE_REDIRECT)
+    if shielded and framework != "openai-agents":
+        raise SystemExit(SHIELDED_SDK_ONLY)
     run_conventional, choose, run_turnwise = _load(framework)
     m = choose()
     results = [run_conventional(task, m.heavy, model_label=m.label)]
@@ -61,6 +68,10 @@ def run_pair(framework: str, task: str, *, live: bool = False, handoff: bool,
     if checklist_null:
         m = choose()  # A+P uses a fresh native model, same task/tools/host policy as A
         results.append(run_conventional(task, m.heavy, model_label=m.label, checklist=True))
+    if shielded:  # arm S: same agent, tools, host and model as A; the host acts before the loop and at the exit
+        from .openai_agents.shielded import run_shielded
+        m = choose()
+        results.append(run_shielded(task, m.heavy, model_label=m.label)[0])
     return results
 
 
@@ -88,6 +99,9 @@ def main(argv: list[str] | None = None) -> None:
                         help="also run the HANDOFF_AGENT contrast (a different architecture from Turnwise Core)")
     parser.add_argument("--checklist-null", action="store_true",
                         help="also run A+P, native agent with frozen checklist prompt (offline, not an efficacy result)")
+    parser.add_argument("--shielded", action="store_true",
+                        help="also run arm S, the shielded native agent (#88): the model keeps its own loop, the host acts "
+                             "before it, on every tool call and at the exit (OpenAI Agents SDK only; offline, not an efficacy result)")
     parser.add_argument("--brief", action="store_true", help="print only the side-by-side controller view")
     parser.add_argument("--live", action="store_true",
                         help="not supported here: real-provider runs go through examples.architecture.live_smoke")
@@ -101,13 +115,18 @@ def main(argv: list[str] | None = None) -> None:
     for framework in frameworks:
         for scenario in scenarios:
             results = run_pair(framework, TASKS[scenario], handoff=args.handoff,
-                               checklist_null=args.checklist_null)
+                               checklist_null=args.checklist_null, shielded=args.shielded)
             parts = [header(framework, scenario)]
             if not args.brief:
                 parts += [render(r) for r in results]
             parts.append(render_side_by_side(results[0], results[1]))
+            if args.brief and args.shielded:
+                s = results[-1]
+                parts.append(f"S shielded native agent (SIMULATED, not Turnwise Core, no efficacy claim): "
+                             f"{s.status}; model_calls={s.counts['model_calls']}; "
+                             f"host_tool_requests={s.counts['host_tool_requests']}")
             if args.brief and args.checklist_null:
-                null = results[-1]
+                null = results[-2 if args.shielded else -1]  # S, when requested, is appended after A+P
                 parts.append(f"A+P checklist-prompted native null (SIMULATED, no efficacy claim): "
                              f"{null.status}; model_calls={null.counts['model_calls']}; "
                              f"host_tool_requests={null.counts['host_tool_requests']}")

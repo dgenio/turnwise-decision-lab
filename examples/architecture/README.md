@@ -94,6 +94,12 @@ python -m examples.architecture.run_demo --framework llamaindex
 python -m examples.architecture.run_demo --framework all --scenario all --handoff
 ```
 
+```bash
+python -m examples.architecture.run_demo --shielded
+```
+
+`--shielded` also runs **arm S, the shielded native agent** ([#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)): the same agent as A in its own loop, with host rules and the host's required reads before it, the host on every tool call, and a host exit check that returns a rejected answer with the reason. It is opt-in, OpenAI Agents SDK only, and **not Turnwise Core**: the model, not a policy, regains control after each observation. What it is, what it gives up and the rule under which it replaces or yields to Core: [docs/role-inversion-2026-11-21.md](../../docs/role-inversion-2026-11-21.md).
+
 **By default nothing leaves your machine.** The frameworks run for real: the SDK `Runner`, function-tool dispatch, structured-output parsing and LlamaIndex's agent workflow. Only the model is replaced, by each framework's own offline test double: `agents.testing.ScriptedModel` and LlamaIndex's `MockFunctionCallingLLM`. Their replies come from [`simulated_model.py`](simulated_model.py), a small deterministic investigator. It reacts only to what the framework actually passes it: instructions, the task, tool results, or the Turnwise context packet. Every trace says `SIMULATED`, and no output claims inference happened.
 
 `run_demo` is offline only; `--live` now refuses and points to the bounded smoke test below. **Real-provider runs go only through [`live_smoke.py`](live_smoke.py)**, which by default rehearses against a local provider double (free, offline):
@@ -323,7 +329,7 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 - CI blocks the network only for clients that honour `HTTP(S)_PROXY` (pointed at a dead port). Only the three packages in `requirements.txt` are pinned; their dependencies are not (the owner-dispatched paid workflow installs the fully hash-pinned `requirements-actions-py312.txt`).
 - Single-turn tasks only. There are no multi-turn referents and no approve-and-resume flow.
 - **Deferred from [#49](https://github.com/dgenio/turnwise-decision-lab/issues/49):**
-  - null arms: simple host rules + the native agent, and a checklist-prompted native agent ([#43](https://github.com/dgenio/turnwise-decision-lab/issues/43));
+  - null arms: simple host rules + the native agent (now arm S, `--shielded`, [#88](https://github.com/dgenio/turnwise-decision-lab/issues/88); OpenAI Agents SDK only), and a checklist-prompted native agent (`--checklist-null`, [#43](https://github.com/dgenio/turnwise-decision-lab/issues/43)). Both exist offline; neither has been compared with a real model;
   - a follow-up/retargeting scenario;
   - prompt and schema inventory parity tooling;
   - reuse of the v0.6 runtime in [#47](https://github.com/dgenio/turnwise-decision-lab/pull/47).
@@ -339,6 +345,7 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 | `simulated_model.py` | Offline stand-in for model replies, the same in both architectures |
 | `step_schema.py` | `StepOutcome`, the typed result of one model step |
 | `openai_agents/`, `llamaindex/` | `conventional.py` (A), `turnwise.py` (B), `models.py` (simulated model, or a bounded provider model) |
+| `shield.py`, `openai_agents/shielded.py` | Arm S, the shielded native agent (opt-in, [#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)): host rules and reads before the agent, a host exit check with bounded feedback. Not Turnwise Core |
 | `trace.py`, `run_demo.py` | Per-step controller traces and the offline CLI |
 | `provider.py` | `ProviderLedger` (request and spend caps before sending, a record of every request and response) and the settings shared by both frameworks |
 | `provider_double.py` | Deterministic Responses API stand-in, with scriptable faults (SIMULATED) |
