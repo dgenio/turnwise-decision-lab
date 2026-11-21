@@ -353,7 +353,10 @@ class NoEvaluationInputsTests(unittest.TestCase):
         # They see the world only through the host and the snapshot: no world module, fixtures,
         # oracle helpers or simulated-model internals are imported, and no file is opened.
         stdlib = {"__future__", "re", "json", "dataclasses", "enum", "typing", "copy", "types"}
-        allowed_names = {"incident_env": {"INCIDENT_RECORD", "IncidentHost", "Receipt", "ToolSpec"},
+        # is_causal_question / is_status_question are pure regex predicates over the task text, shared with
+        # the host's evidence gate so the policy routes a question the way the host judges it (ADV-004/007).
+        allowed_names = {"incident_env": {"INCIDENT_RECORD", "IncidentHost", "Receipt", "ToolSpec",
+                                          "is_causal_question", "is_status_question"},
                          "trace": {"RunResult", "TraceRow", "status_tag", "host_text"},
                          "turnwise_core": {"Decision", "ModelOutcome", "Op", "Snapshot"}}
         for module in (policies, turnwise_core):

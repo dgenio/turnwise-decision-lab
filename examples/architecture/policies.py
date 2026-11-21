@@ -17,11 +17,9 @@ from __future__ import annotations
 
 import re
 
-from .incident_env import Receipt, ToolSpec
+from .incident_env import Receipt, ToolSpec, is_causal_question, is_status_question
 from .turnwise_core import Decision, ModelOutcome, Op, Snapshot
 
-_DIAGNOSTIC = re.compile(r"\b(explain|cause[ds]?|why|because|responsible|behind)\b", re.IGNORECASE)
-_STATUS = re.compile(r"\b(healthy|health|status|up|down)\b", re.IGNORECASE)
 # Which host-verified record answers which kind of question.
 _FACT_CUES = tuple((re.compile(pattern, re.IGNORECASE), key) for pattern, key in (
     (r"\bstatus page\b", "status_page"), (r"\bseverity\b", "severity"), (r"\bcommander\b", "incident_commander"),
@@ -158,9 +156,10 @@ class HandoffPolicy(TriagePolicy):
 
 
 def _intent(task: str) -> str:
-    if _DIAGNOSTIC.search(task):
+    # The host's own definitions: the policy routes a question the way the host will judge its evidence.
+    if is_causal_question(task):
         return "diagnostic"
-    if _STATUS.search(re.sub(r"status page", "", task, flags=re.IGNORECASE)):
+    if is_status_question(task):
         return "status"
     return "other"
 
