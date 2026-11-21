@@ -1,0 +1,61 @@
+{
+  "card": "P1",
+  "label": "POST HOC, exploratory; not part of the protocol; not used for the verdict",
+  "scopes": {
+    "airline": {
+      "d1": 0.1487,
+      "d1_read_tools_only": 0.1297,
+      "share_of_d1_removed_that_is_call_output": 0.1215,
+      "share_of_d1_removed_that_is_narration_output": 0.4141,
+      "tool_turns": 589,
+      "tool_turns_with_narration": 476,
+      "trajectories": 141
+    },
+    "gpt-4o-airline": {
+      "d1": 0.073,
+      "d1_read_tools_only": 0.0591,
+      "share_of_d1_removed_that_is_call_output": 0.274,
+      "share_of_d1_removed_that_is_narration_output": 0.0685,
+      "tool_turns": 125,
+      "tool_turns_with_narration": 12,
+      "trajectories": 39
+    },
+    "gpt-4o-retail": {
+      "d1": 0.1655,
+      "d1_read_tools_only": 0.121,
+      "share_of_d1_removed_that_is_call_output": 0.2458,
+      "share_of_d1_removed_that_is_narration_output": 0.0387,
+      "tool_turns": 868,
+      "tool_turns_with_narration": 61,
+      "trajectories": 124
+    },
+    "retail": {
+      "d1": 0.2634,
+      "d1_read_tools_only": 0.1876,
+      "share_of_d1_removed_that_is_call_output": 0.131,
+      "share_of_d1_removed_that_is_narration_output": 0.3814,
+      "tool_turns": 3024,
+      "tool_turns_with_narration": 2217,
+      "trajectories": 415
+    },
+    "sonnet-35-new-airline": {
+      "d1": 0.1695,
+      "d1_read_tools_only": 0.149,
+      "share_of_d1_removed_that_is_call_output": 0.1035,
+      "share_of_d1_removed_that_is_narration_output": 0.4548,
+      "tool_turns": 464,
+      "tool_turns_with_narration": 464,
+      "trajectories": 102
+    },
+    "sonnet-35-new-retail": {
+      "d1": 0.2932,
+      "d1_read_tools_only": 0.2079,
+      "share_of_d1_removed_that_is_call_output": 0.1113,
+      "share_of_d1_removed_that_is_narration_output": 0.4403,
+      "tool_turns": 2156,
+      "tool_turns_with_narration": 2156,
+      "trajectories": 291
+    }
+  },
+  "set": "eval-split trajectories with reward == 1"
+}
