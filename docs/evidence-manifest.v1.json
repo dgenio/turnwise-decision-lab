@@ -90,6 +90,12 @@
       "validation": "byte_identical_git_diff_in_offline_ci"
     },
     {
+      "path": "demo/live-local-run.json",
+      "generator": "python -m scripts.render_local_demo",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
       "path": "demo/local-run.html",
       "generator": "python -m scripts.render_local_demo",
       "evidence_type": "offline_render",
@@ -128,10 +134,6 @@
     {
       "path": "reports/synthetic-contract-replay.md",
       "reason": "historical narrative; not among outputs regenerated and compared by current CI"
-    },
-    {
-      "path": "demo/live-local-run.json",
-      "reason": "historical rendered data; CI currently targets reports/live-local-run.json"
     }
   ],
   "archived_unmerged_research": [
