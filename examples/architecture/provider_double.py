@@ -14,6 +14,9 @@ network and no credentials. What the reply *says* comes from the same
 
 * a request with ``text.format.type == "json_schema"`` is one Turnwise step:
   the user message is the context packet, and the reply is a ``StepOutcome`` JSON text;
+* if that schema is a ``StepAnswer`` (it has no ``arguments_json`` field), the step was asked through the
+  native tools field (the B' ablation): the reply is ``function_call`` items, which are proposals, or a
+  ``StepAnswer`` JSON text;
 * any other request is a native tool-calling turn: the reply is one
   ``function_call`` item or a final message. A brain built with
   ``batch_reads=True`` returns several ``function_call`` items in one response
@@ -87,8 +90,13 @@ class ProviderDouble:
                                                 for i in body.get("input", []))):
             # The real API behaves like this: items are not persisted when store=false.
             return _error(404, "Item with id 'rs_…' not found. Items are not persisted when `store` is set to false.")
-        step = ((body.get("text") or {}).get("format") or {}).get("type") == "json_schema"
-        output = self._typed_step(body, n, fault) if step else self._native_turn(body, n, fault)
+        fmt = (body.get("text") or {}).get("format") or {}
+        step = fmt.get("type") == "json_schema"
+        properties = (fmt.get("schema") or {}).get("properties") or {}
+        if step and "kind" in properties and "arguments_json" not in properties:
+            output = self._intercept_turn(body, n, fault)  # a StepAnswer schema: the native-intercept port (B')
+        else:
+            output = self._typed_step(body, n, fault) if step else self._native_turn(body, n, fault)
         status = "completed"
         incomplete = None
         if fault == "incomplete":
@@ -122,6 +130,30 @@ class ProviderDouble:
             outcome = {"kind": "tool_proposal", "text": "Roll the deploy back now.", "tool": "rollback_deploy",
                        "arguments_json": json.dumps({"service": "checkout"}), "cited_receipts": []}
         return [_message(n, text=json.dumps(outcome))]
+
+    def _intercept_turn(self, body: dict[str, Any], n: int, fault: str | None) -> list[dict[str, Any]]:
+        """One Turnwise step asked through the native tools field: function calls (proposals) or a StepAnswer."""
+        if fault == "refusal":
+            return [_message(n, refusal="I can't help with that request.")]
+        if fault == "not_json":
+            return [_message(n, text="Sure! The deploy probably caused it.")]
+        if fault == "schema_violation":
+            return [_message(n, text=json.dumps({"kind": "final_answer", "answer": "yes"}))]
+        if fault == "bad_arguments":
+            return [_function_call(n, "validate_config", '{"service": checkout')]
+        if fault == "unknown_tool":
+            return [_function_call(n, "delete_everything", '{"service": "checkout"}')]
+        if fault == "write_call":
+            return [_function_call(n, "rollback_deploy", '{"service": "checkout"}')]
+        items = [i for i in body.get("input", []) if isinstance(i, dict)]
+        users = [_text_of(i.get("content")) for i in items if i.get("role") == "user"]
+        results = [line for text in users for line in text.split("\n")[1:] if line.startswith("{")]
+        results += [str(i.get("output")) for i in items if i.get("type") == "function_call_output"]
+        turn = self.brain.intercept_turn(task=(users[0] if users else "").split("\n")[0], tool_results=results,
+                                         tools=[t.get("name") for t in body.get("tools") or [] if isinstance(t, dict)])
+        if isinstance(turn, list):
+            return [_function_call(n, a.tool, json.dumps(a.arguments), k) for k, a in enumerate(turn)]
+        return [_message(n, text=json.dumps(turn))]
 
     def _native_turn(self, body: dict[str, Any], n: int, fault: str | None) -> list[dict[str, Any]]:
         if fault == "refusal":
