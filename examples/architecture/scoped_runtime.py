@@ -24,7 +24,12 @@ def default_requested_modules(d: Decision) -> tuple[str, ...]:
 
 
 class ScopedContextRuntime(TurnwiseRuntime):
-    """Narrow research adapter; not a replacement agent framework."""
+    """Narrow research adapter; not a replacement agent framework.
+
+    The manifest is loaded and validated once, when the runtime is built. The
+    selection checked during host validation is the one placed in the packet:
+    it is never recomputed between the check and the model call.
+    """
 
     def __init__(self, *args, module_byte_limit: int = 1024,
                  requested_modules: Callable[[Decision], tuple[str, ...]] = default_requested_modules,
@@ -35,6 +40,7 @@ class ScopedContextRuntime(TurnwiseRuntime):
         self.module_byte_limit = module_byte_limit
         self.requested_modules = requested_modules
         self.module_audits: list[dict] = []
+        self._validated: tuple[Decision, Selection] | None = None
 
     def _select(self, d: Decision) -> Selection:
         return select_modules(
@@ -42,17 +48,21 @@ class ScopedContextRuntime(TurnwiseRuntime):
             manifest=self.manifest)
 
     def host_validates(self, d, step: int) -> tuple[bool, str]:
+        self._validated = None
         ok, reason = super().host_validates(d, step)
         if ok and isinstance(d, Decision) and d.op in MODEL_OPS:
             try:
-                self._select(d)
+                self._validated = (d, self._select(d))
             except ModuleSelectionError as exc:
                 return False, f"pre-authored module selection rejected: {exc}"
         return ok, reason
 
     def _packet(self, d: Decision, tier: str) -> dict:
         packet = super()._packet(d, tier)
-        selection = self._select(d)
+        if self._validated is None or self._validated[0] is not d:
+            # Only reachable if a subclass bypasses host validation; never send an unvalidated selection.
+            raise RuntimeError("model packet requested for a decision whose module selection was not validated")
+        selection, self._validated = self._validated[1], None
         packet["instruction_modules"] = [
             {"id": b.id, "text": b.text, "sha256": b.sha256} for b in selection.included
         ]
