@@ -1,0 +1,896 @@
+{
+  "cards": {
+    "P1": {
+      "cached": 0.1,
+      "fresh": 2.5,
+      "lapse_at_user": false,
+      "min_cacheable": 1024,
+      "output": 10.0
+    },
+    "P2": {
+      "cached": 0.2,
+      "fresh": 2.0,
+      "lapse_at_user": false,
+      "min_cacheable": 1024,
+      "output": 10.0
+    },
+    "P3": {
+      "cached": 2.0,
+      "fresh": 2.0,
+      "lapse_at_user": false,
+      "min_cacheable": 0,
+      "output": 10.0
+    },
+    "P4": {
+      "cached": 0.1,
+      "fresh": 2.5,
+      "lapse_at_user": true,
+      "min_cacheable": 1024,
+      "output": 10.0
+    }
+  },
+  "data_commit": "59a200c6d575d595120f1cb70fea53cef0632f6b",
+  "meta": {
+    "tool_definition_problems": [],
+    "tool_definition_tokens": {
+      "airline": 2293,
+      "retail": 2805
+    }
+  },
+  "primary": {
+    "by_domain": {
+      "airline": {
+        "d0_fires": {
+          "correct": 0,
+          "false_fire_rate": null,
+          "fires": 0
+        },
+        "d1_top_tools": [
+          [
+            "get_reservation_details",
+            231
+          ],
+          [
+            "get_user_details",
+            109
+          ],
+          [
+            "search_direct_flight",
+            22
+          ],
+          [
+            "update_reservation_flights",
+            14
+          ],
+          [
+            "search_onestop_flight",
+            12
+          ],
+          [
+            "update_reservation_passengers",
+            9
+          ],
+          [
+            "cancel_reservation",
+            9
+          ],
+          [
+            "update_reservation_baggages",
+            6
+          ],
+          [
+            "list_all_airports",
+            3
+          ]
+        ],
+        "model_turns": 1170,
+        "oracles": {
+          "D0": {
+            "cost_share": {
+              "P1": 0.0,
+              "P2": 0.0,
+              "P3": 0.0,
+              "P4": 0.0
+            },
+            "cost_share_interval_P1": [
+              0.0,
+              0.0
+            ],
+            "turn_share": 0.0,
+            "turns_deleted": 0
+          },
+          "D1": {
+            "cost_share": {
+              "P1": 0.1487,
+              "P2": 0.1934,
+              "P3": 0.3418,
+              "P4": 0.0698
+            },
+            "cost_share_interval_P1": [
+              0.1167,
+              0.1872
+            ],
+            "turn_share": 0.3547,
+            "turns_deleted": 415
+          },
+          "D2": {
+            "cost_share": {
+              "P1": 0.2979,
+              "P2": 0.3553,
+              "P3": 0.5151,
+              "P4": 0.2177
+            },
+            "cost_share_interval_P1": [
+              0.2714,
+              0.3257
+            ],
+            "turn_share": 0.5034,
+            "turns_deleted": 589
+          },
+          "batching": {
+            "cost_share": {
+              "P1": 0.0148,
+              "P2": 0.0206,
+              "P3": 0.0415,
+              "P4": 0.0072
+            },
+            "cost_share_interval_P1": [
+              0.0039,
+              0.0276
+            ],
+            "turn_share": 0.0325,
+            "turns_deleted": 38
+          }
+        },
+        "tasks": 18,
+        "trajectories": 141
+      },
+      "retail": {
+        "d0_fires": {
+          "correct": 41,
+          "false_fire_rate": 0.1277,
+          "fires": 47
+        },
+        "d1_top_tools": [
+          [
+            "get_order_details",
+            971
+          ],
+          [
+            "get_user_details",
+            362
+          ],
+          [
+            "find_user_id_by_name_zip",
+            352
+          ],
+          [
+            "get_product_details",
+            325
+          ],
+          [
+            "find_user_id_by_email",
+            229
+          ],
+          [
+            "exchange_delivered_order_items",
+            128
+          ],
+          [
+            "return_delivered_order_items",
+            114
+          ],
+          [
+            "modify_pending_order_items",
+            106
+          ],
+          [
+            "modify_pending_order_address",
+            99
+          ],
+          [
+            "cancel_pending_order",
+            50
+          ]
+        ],
+        "model_turns": 5510,
+        "oracles": {
+          "D0": {
+            "cost_share": {
+              "P1": 0.0026,
+              "P2": 0.0038,
+              "P3": 0.0073,
+              "P4": 0.0011
+            },
+            "cost_share_interval_P1": [
+              0.0008,
+              0.005
+            ],
+            "turn_share": 0.0074,
+            "turns_deleted": 41
+          },
+          "D1": {
+            "cost_share": {
+              "P1": 0.2634,
+              "P2": 0.3327,
+              "P3": 0.5045,
+              "P4": 0.1134
+            },
+            "cost_share_interval_P1": [
+              0.247,
+              0.2798
+            ],
+            "turn_share": 0.5123,
+            "turns_deleted": 2823
+          },
+          "D2": {
+            "cost_share": {
+              "P1": 0.2894,
+              "P2": 0.3634,
+              "P3": 0.5445,
+              "P4": 0.1317
+            },
+            "cost_share_interval_P1": [
+              0.2742,
+              0.3041
+            ],
+            "turn_share": 0.5488,
+            "turns_deleted": 3024
+          },
+          "batching": {
+            "cost_share": {
+              "P1": 0.0403,
+              "P2": 0.0543,
+              "P3": 0.0931,
+              "P4": 0.0174
+            },
+            "cost_share_interval_P1": [
+              0.0294,
+              0.0521
+            ],
+            "turn_share": 0.0866,
+            "turns_deleted": 477
+          }
+        },
+        "tasks": 51,
+        "trajectories": 415
+      }
+    },
+    "by_file": {
+      "gpt-4o-airline": {
+        "d0_fires": {
+          "correct": 0,
+          "false_fire_rate": null,
+          "fires": 0
+        },
+        "d1_top_tools": [
+          [
+            "get_reservation_details",
+            52
+          ],
+          [
+            "get_user_details",
+            18
+          ],
+          [
+            "update_reservation_flights",
+            8
+          ],
+          [
+            "search_direct_flight",
+            4
+          ],
+          [
+            "search_onestop_flight",
+            2
+          ],
+          [
+            "update_reservation_passengers",
+            1
+          ],
+          [
+            "cancel_reservation",
+            1
+          ]
+        ],
+        "model_turns": 341,
+        "oracles": {
+          "D0": {
+            "cost_share": {
+              "P1": 0.0,
+              "P2": 0.0,
+              "P3": 0.0,
+              "P4": 0.0
+            },
+            "cost_share_interval_P1": [
+              0.0,
+              0.0
+            ],
+            "turn_share": 0.0,
+            "turns_deleted": 0
+          },
+          "D1": {
+            "cost_share": {
+              "P1": 0.073,
+              "P2": 0.1139,
+              "P3": 0.2372,
+              "P4": 0.0214
+            },
+            "cost_share_interval_P1": [
+              0.0479,
+              0.105
+            ],
+            "turn_share": 0.2522,
+            "turns_deleted": 86
+          },
+          "D2": {
+            "cost_share": {
+              "P1": 0.1318,
+              "P2": 0.1909,
+              "P3": 0.3607,
+              "P4": 0.111
+            },
+            "cost_share_interval_P1": [
+              0.1075,
+              0.159
+            ],
+            "turn_share": 0.3666,
+            "turns_deleted": 125
+          },
+          "batching": {
+            "cost_share": {
+              "P1": 0.0021,
+              "P2": 0.0041,
+              "P3": 0.0105,
+              "P4": 0.0006
+            },
+            "cost_share_interval_P1": [
+              0.0,
+              0.0056
+            ],
+            "turn_share": 0.0117,
+            "turns_deleted": 4
+          }
+        },
+        "tasks": 14,
+        "trajectories": 39
+      },
+      "gpt-4o-retail": {
+        "d0_fires": {
+          "correct": 27,
+          "false_fire_rate": 0.0,
+          "fires": 27
+        },
+        "d1_top_tools": [
+          [
+            "get_order_details",
+            264
+          ],
+          [
+            "find_user_id_by_name_zip",
+            108
+          ],
+          [
+            "get_user_details",
+            101
+          ],
+          [
+            "get_product_details",
+            82
+          ],
+          [
+            "find_user_id_by_email",
+            59
+          ],
+          [
+            "return_delivered_order_items",
+            37
+          ],
+          [
+            "exchange_delivered_order_items",
+            33
+          ],
+          [
+            "modify_pending_order_items",
+            30
+          ],
+          [
+            "list_all_product_types",
+            27
+          ],
+          [
+            "modify_pending_order_address",
+            23
+          ]
+        ],
+        "model_turns": 1665,
+        "oracles": {
+          "D0": {
+            "cost_share": {
+              "P1": 0.0053,
+              "P2": 0.0088,
+              "P3": 0.0173,
+              "P4": 0.0016
+            },
+            "cost_share_interval_P1": [
+              0.003,
+              0.008
+            ],
+            "turn_share": 0.0162,
+            "turns_deleted": 27
+          },
+          "D1": {
+            "cost_share": {
+              "P1": 0.1655,
+              "P2": 0.2532,
+              "P3": 0.4613,
+              "P4": 0.0503
+            },
+            "cost_share_interval_P1": [
+              0.1507,
+              0.1799
+            ],
+            "turn_share": 0.4799,
+            "turns_deleted": 799
+          },
+          "D2": {
+            "cost_share": {
+              "P1": 0.182,
+              "P2": 0.2782,
+              "P3": 0.5059,
+              "P4": 0.0609
+            },
+            "cost_share_interval_P1": [
+              0.1687,
+              0.1985
+            ],
+            "turn_share": 0.5213,
+            "turns_deleted": 868
+          },
+          "batching": {
+            "cost_share": {
+              "P1": 0.019,
+              "P2": 0.0333,
+              "P3": 0.0701,
+              "P4": 0.0057
+            },
+            "cost_share_interval_P1": [
+              0.0118,
+              0.0287
+            ],
+            "turn_share": 0.0673,
+            "turns_deleted": 112
+          }
+        },
+        "tasks": 44,
+        "trajectories": 124
+      },
+      "sonnet-35-new-airline": {
+        "d0_fires": {
+          "correct": 0,
+          "false_fire_rate": null,
+          "fires": 0
+        },
+        "d1_top_tools": [
+          [
+            "get_reservation_details",
+            179
+          ],
+          [
+            "get_user_details",
+            91
+          ],
+          [
+            "search_direct_flight",
+            18
+          ],
+          [
+            "search_onestop_flight",
+            10
+          ],
+          [
+            "cancel_reservation",
+            8
+          ],
+          [
+            "update_reservation_passengers",
+            8
+          ],
+          [
+            "update_reservation_baggages",
+            6
+          ],
+          [
+            "update_reservation_flights",
+            6
+          ],
+          [
+            "list_all_airports",
+            3
+          ]
+        ],
+        "model_turns": 829,
+        "oracles": {
+          "D0": {
+            "cost_share": {
+              "P1": 0.0,
+              "P2": 0.0,
+              "P3": 0.0,
+              "P4": 0.0
+            },
+            "cost_share_interval_P1": [
+              0.0,
+              0.0
+            ],
+            "turn_share": 0.0,
+            "turns_deleted": 0
+          },
+          "D1": {
+            "cost_share": {
+              "P1": 0.1695,
+              "P2": 0.2156,
+              "P3": 0.3777,
+              "P4": 0.0905
+            },
+            "cost_share_interval_P1": [
+              0.1358,
+              0.2085
+            ],
+            "turn_share": 0.3969,
+            "turns_deleted": 329
+          },
+          "D2": {
+            "cost_share": {
+              "P1": 0.3434,
+              "P2": 0.4013,
+              "P3": 0.568,
+              "P4": 0.2631
+            },
+            "cost_share_interval_P1": [
+              0.3068,
+              0.3819
+            ],
+            "turn_share": 0.5597,
+            "turns_deleted": 464
+          },
+          "batching": {
+            "cost_share": {
+              "P1": 0.0183,
+              "P2": 0.0252,
+              "P3": 0.0522,
+              "P4": 0.01
+            },
+            "cost_share_interval_P1": [
+              0.0041,
+              0.0341
+            ],
+            "turn_share": 0.041,
+            "turns_deleted": 34
+          }
+        },
+        "tasks": 18,
+        "trajectories": 102
+      },
+      "sonnet-35-new-retail": {
+        "d0_fires": {
+          "correct": 14,
+          "false_fire_rate": 0.3,
+          "fires": 20
+        },
+        "d1_top_tools": [
+          [
+            "get_order_details",
+            707
+          ],
+          [
+            "get_user_details",
+            261
+          ],
+          [
+            "find_user_id_by_name_zip",
+            244
+          ],
+          [
+            "get_product_details",
+            243
+          ],
+          [
+            "find_user_id_by_email",
+            170
+          ],
+          [
+            "exchange_delivered_order_items",
+            95
+          ],
+          [
+            "return_delivered_order_items",
+            77
+          ],
+          [
+            "modify_pending_order_items",
+            76
+          ],
+          [
+            "modify_pending_order_address",
+            76
+          ],
+          [
+            "cancel_pending_order",
+            28
+          ]
+        ],
+        "model_turns": 3845,
+        "oracles": {
+          "D0": {
+            "cost_share": {
+              "P1": 0.0017,
+              "P2": 0.0022,
+              "P3": 0.0036,
+              "P4": 0.0009
+            },
+            "cost_share_interval_P1": [
+              0.0,
+              0.0044
+            ],
+            "turn_share": 0.0036,
+            "turns_deleted": 14
+          },
+          "D1": {
+            "cost_share": {
+              "P1": 0.2932,
+              "P2": 0.3576,
+              "P3": 0.5208,
+              "P4": 0.1375
+            },
+            "cost_share_interval_P1": [
+              0.2768,
+              0.3099
+            ],
+            "turn_share": 0.5264,
+            "turns_deleted": 2024
+          },
+          "D2": {
+            "cost_share": {
+              "P1": 0.3221,
+              "P2": 0.3902,
+              "P3": 0.5591,
+              "P4": 0.1587
+            },
+            "cost_share_interval_P1": [
+              0.307,
+              0.336
+            ],
+            "turn_share": 0.5607,
+            "turns_deleted": 2156
+          },
+          "batching": {
+            "cost_share": {
+              "P1": 0.0468,
+              "P2": 0.0609,
+              "P3": 0.1018,
+              "P4": 0.0219
+            },
+            "cost_share_interval_P1": [
+              0.0345,
+              0.0599
+            ],
+            "turn_share": 0.0949,
+            "turns_deleted": 365
+          }
+        },
+        "tasks": 50,
+        "trajectories": 291
+      }
+    },
+    "definition": "eval-split trajectories with reward == 1"
+  },
+  "protocol": "research/stage0_headroom/PROTOCOL.md",
+  "real_inference": false,
+  "rules": {
+    "airline": {},
+    "retail": {
+      "TOOL:list_all_product_types": {
+        "share": 0.9104,
+        "support": 67,
+        "tool": "get_product_details"
+      }
+    }
+  },
+  "secondary": {
+    "by_domain": {
+      "airline": {
+        "d0_fires": {
+          "correct": 0,
+          "false_fire_rate": null,
+          "fires": 0
+        },
+        "d1_top_tools": [
+          [
+            "get_reservation_details",
+            408
+          ],
+          [
+            "get_user_details",
+            210
+          ],
+          [
+            "search_direct_flight",
+            100
+          ],
+          [
+            "update_reservation_flights",
+            86
+          ],
+          [
+            "search_onestop_flight",
+            51
+          ],
+          [
+            "update_reservation_baggages",
+            36
+          ],
+          [
+            "cancel_reservation",
+            24
+          ],
+          [
+            "book_reservation",
+            17
+          ],
+          [
+            "list_all_airports",
+            16
+          ],
+          [
+            "update_reservation_passengers",
+            9
+          ]
+        ],
+        "model_turns": 2894,
+        "oracles": {
+          "D0": {
+            "cost_share": {
+              "P1": 0.0,
+              "P2": 0.0,
+              "P3": 0.0,
+              "P4": 0.0
+            },
+            "turn_share": 0.0,
+            "turns_deleted": 0
+          },
+          "D1": {
+            "cost_share": {
+              "P1": 0.1629,
+              "P2": 0.2044,
+              "P3": 0.3254,
+              "P4": 0.0745
+            },
+            "turn_share": 0.3321,
+            "turns_deleted": 961
+          },
+          "D2": {
+            "cost_share": {
+              "P1": 0.321,
+              "P2": 0.3807,
+              "P3": 0.5322,
+              "P4": 0.1849
+            },
+            "turn_share": 0.5187,
+            "turns_deleted": 1501
+          },
+          "batching": {
+            "cost_share": {
+              "P1": 0.0239,
+              "P2": 0.0311,
+              "P3": 0.0544,
+              "P4": 0.0106
+            },
+            "turn_share": 0.0435,
+            "turns_deleted": 126
+          }
+        },
+        "tasks": 22,
+        "trajectories": 264
+      },
+      "retail": {
+        "d0_fires": {
+          "correct": 71,
+          "false_fire_rate": 0.2198,
+          "fires": 91
+        },
+        "d1_top_tools": [
+          [
+            "get_order_details",
+            1489
+          ],
+          [
+            "get_user_details",
+            542
+          ],
+          [
+            "find_user_id_by_name_zip",
+            526
+          ],
+          [
+            "get_product_details",
+            526
+          ],
+          [
+            "find_user_id_by_email",
+            367
+          ],
+          [
+            "exchange_delivered_order_items",
+            206
+          ],
+          [
+            "modify_pending_order_items",
+            184
+          ],
+          [
+            "return_delivered_order_items",
+            161
+          ],
+          [
+            "modify_pending_order_address",
+            148
+          ],
+          [
+            "list_all_product_types",
+            91
+          ]
+        ],
+        "model_turns": 8640,
+        "oracles": {
+          "D0": {
+            "cost_share": {
+              "P1": 0.0029,
+              "P2": 0.0043,
+              "P3": 0.0085,
+              "P4": 0.0011
+            },
+            "turn_share": 0.0082,
+            "turns_deleted": 71
+          },
+          "D1": {
+            "cost_share": {
+              "P1": 0.2612,
+              "P2": 0.3301,
+              "P3": 0.4978,
+              "P4": 0.1093
+            },
+            "turn_share": 0.5061,
+            "turns_deleted": 4373
+          },
+          "D2": {
+            "cost_share": {
+              "P1": 0.2879,
+              "P2": 0.3611,
+              "P3": 0.5366,
+              "P4": 0.1285
+            },
+            "turn_share": 0.541,
+            "turns_deleted": 4674
+          },
+          "batching": {
+            "cost_share": {
+              "P1": 0.0409,
+              "P2": 0.055,
+              "P3": 0.0935,
+              "P4": 0.0172
+            },
+            "turn_share": 0.0865,
+            "turns_deleted": 747
+          }
+        },
+        "tasks": 52,
+        "trajectories": 624
+      }
+    },
+    "definition": "all eval-split trajectories"
+  },
+  "split": "eval",
+  "token_estimator": "ceil(characters / 4)",
+  "verdict": "SHRINK",
+  "verdict_reason": "in every domain the batching ceiling is at least as large as D0"
+}

@@ -38,6 +38,7 @@ Start with the [README](../README.md). For what is current, held or historical, 
 | [../reports/live-smoke-44520205372.md](../reports/live-smoke-44520205372.md) | Historical paid attempt; INCONCLUSIVE | Owner-supplied sanitized summary, per-configuration HTTP 429 counts, provenance and unknowns |
 | [../reports/arena.md](../reports/arena.md) | Experimentally measured (authored synthetic, no model) | v0.5 results, every failure, hypothesis verdicts |
 | [preregistration-v0.5.md](preregistration-v0.5.md) | Frozen | v0.5 hypotheses, committed before any code |
+| [../research/stage0_headroom/RESULTS.md](../research/stage0_headroom/RESULTS.md) | Experimentally measured (re-priced public trajectories, no inference by this repo); verdict SHRINK | Stage 0 of [#86](https://github.com/dgenio/turnwise-decision-lab/issues/86): hindsight ceilings on the share of cache-aware cost in model turns a host could have issued, on τ-bench trajectories. [Protocol](../research/stage0_headroom/PROTOCOL.md) frozen before the run |
 | [../reports/trained-routing-synthetic.md](../reports/trained-routing-synthetic.md) | Historical (v0.4) | Route-label benchmark: rules 38/40, Naive Bayes 29/40 |
 | [evaluation-plan.md](evaluation-plan.md) | Proposed (next gate) | What v0.5 established and what the next experiment must measure |
 | [quality-constrained-efficiency-v06.md](quality-constrained-efficiency-v06.md) | Proposed (draft protocol, not pre-registered) | Comparator ladder and metrics for a real-model study |
