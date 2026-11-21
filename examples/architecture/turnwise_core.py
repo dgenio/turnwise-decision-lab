@@ -546,12 +546,15 @@ def handoff_message(host: IncidentHost, context: tuple[str, ...]) -> str:
 
 # Any wording that reports a side effect as done, started or under way. Deliberately broad (negations match
 # too): a screen that fails closed, while the authoritative status is ``action_record`` (host receipts).
-# It covers the v0.6 H10 mechanism ("a rollback, which was initiated by the on-call engineer"). It is a
-# keyword screen, not a semantic check: an unlisted paraphrase can still pass (#13).
+# It covers the v0.6 H10 mechanism ("a rollback, which was initiated by the on-call engineer") and the
+# adversarial ADV-003 phrasings ("I rolled checkout back", "was restored", "I undid", "switched ... back").
+# It is a keyword screen, not a semantic check: an unlisted paraphrase can still pass (#13).
 _DONE = (r"complete|completed|done|executed|performed|finished|applied|succeeded|initiated|triggered|started|"
          r"issued|launched|underway|under\s+way|in\s+progress|carried\s+out|kicked\s+off|went\s+through")
 _ACTION_CLAIM = re.compile(
-    r"\b(?:rolled[\s-]?back|reverted|paged|undone)\b"
+    r"\b(?:rolled[\s-]?back|reverted|paged|undone|undid|restored|reinstated)\b"
+    # split verb phrases: "I rolled checkout back", "switched checkout back to build d-141" (ADV-003)
+    r"|\b(?:rolled|switched|moved|put|set|flipped)\s+(?:[\w-]+\s+){0,3}?back\b"
     rf"|\b(?:rollback|revert|roll[\s-]?back)\b[^.!?]{{0,40}}?\b(?:{_DONE})\b"
     r"|\b(?:initiated|triggered|started|issued|launched|performed|executed|ran|kicked\s+off|carried\s+out)\b"
     r"[^.!?]{0,20}?\b(?:rollback|revert)\b"

@@ -76,17 +76,37 @@ TOOLS_BY_ID: dict[str, ToolSpec] = {t.id: t for t in TOOLS}
 
 # Versioned, domain-specific evidence roles. They describe minimum observable
 # receipt coverage, NOT causal accuracy or gold benchmark labels.
-_CAUSAL_QUESTION = re.compile(
-    r"\b(explain|caus(?:e|ed|es|al)|why|because|responsible|behind|due\s+to|"
-    r"linked\s+to|contribut(?:e|ed|es))\b", re.IGNORECASE)
-_STATUS_QUESTION = re.compile(r"\b(healthy|health|status|up|down)\b", re.IGNORECASE)
+#
+# ONE definition of "causal" and "status" questions, shared by the host's evidence
+# gate, the demonstration policy and the simulated model, so paraphrases of one
+# question cannot get different evidence requirements or routing (adversarial
+# findings ADV-004/005/007). A question is causal if it uses causal wording, or if
+# it relates a change (deploy, config, release...) to a symptom (errors, latency,
+# incident...): "Did the checkout deployment increase error rates?" is causal.
+_CAUSAL_WORDING = re.compile(
+    r"\b(explain|caus(?:e|ed|es|al|ing)|why|because|responsible|behind|due\s+to|"
+    r"linked\s+to|contribut(?:e|ed|es|ing))\b", re.IGNORECASE)
+_CHANGE_WORDING = re.compile(
+    r"\b(deploy\w*|release[ds]?|rollouts?|config\w*|upgrade[ds]?|migrations?|changes?)\b", re.IGNORECASE)
+_SYMPTOM_WORDING = re.compile(
+    r"\b(errors?|latency|incidents?|outages?|failures?|failing|timeouts?|5xx|degrad\w*)\b", re.IGNORECASE)
+_STATUS_WORDING = re.compile(r"\b(healthy|health|status|up|down)\b", re.IGNORECASE)
+
+
+def is_causal_question(text: str) -> bool:
+    return bool(_CAUSAL_WORDING.search(text)
+                or (_CHANGE_WORDING.search(text) and _SYMPTOM_WORDING.search(text)))
+
+
+def is_status_question(text: str) -> bool:
+    return bool(_STATUS_WORDING.search(re.sub(r"status\s+page", "", text, flags=re.IGNORECASE)))
 
 
 def required_evidence_roles(question: str) -> tuple[str, ...]:
     """Minimum receipt roles before a generated answer may be accepted."""
-    if _CAUSAL_QUESTION.search(question):
+    if is_causal_question(question):
         return ("symptom", "change")
-    if _STATUS_QUESTION.search(question):
+    if is_status_question(question):
         return ("current_state",)
     return ()
 
@@ -206,7 +226,8 @@ def summarize_facts(tool: str, facts: Mapping[str, Any]) -> str:
 
 # ---------------------------------------------------------------- the host
 _ROLLBACK_REQUEST = re.compile(
-    r"^\s*(?:please\s+)?(?:roll\s+back|revert)\s+(?:the\s+)?(?:(?:latest|last|most\s+recent)\s+)?(\w+)\b",
+    # "Rollback"/"roll-back" spellings mean the same imperative as "roll back" (ADV-001).
+    r"^\s*(?:please\s+)?(?:roll\s*-?\s*back|revert)\s+(?:the\s+)?(?:(?:latest|last|most\s+recent)\s+)?(\w+)\b",
     re.IGNORECASE)
 # Anything that makes the request negated, conditional, hedged or quoted disqualifies it.
 _NOT_A_PLAIN_REQUEST = re.compile(
@@ -290,9 +311,16 @@ def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
         if _LATER_WITHDRAWAL.search(user_request[segment.end():]):
             return frozenset()
         found.update(("rollback_deploy", svc) for svc in targets)
+    # A same-turn negation of the same target ("Roll back checkout. Never roll back checkout.") contradicts
+    # the request: the host reports it NOT REQUESTED instead of asking a human to approve it (ADV-008).
+    for segment in re.finditer(r"[^.!?;\n]+(?:[.!?;\n]+|$)", user_request):
+        clause = segment.group(0)
+        if _WRITE_MENTION.search(clause) and _NEGATION.search(clause):
+            found -= {w for w in found if w[1] in named_services(clause)}
     return frozenset(found)
 
 
+_NEGATION = re.compile(r"\b(?:not|no|never|don'?t|do\s+not)\b", re.IGNORECASE)
 # Any mention of a rollback, whatever the phrasing ("can you roll it back?", "needs to be rolled back").
 _WRITE_MENTION = re.compile(r"\b(?:roll(?:s|ed|ing)?\s+(?:\w+\s+)?back|roll-?backs?|revert(?:s|ed|ing)?)\b",
                             re.IGNORECASE)
