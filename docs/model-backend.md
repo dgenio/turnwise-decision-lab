@@ -17,4 +17,4 @@ Safety/usage boundaries:
 - The prompt asks the model to treat retrieved evidence as untrusted and cite IDs; it does not prove prompt-injection resistance or factual correctness.
 - Do not enter confidential data, corporate contexts, credentials in arguments, or authorization tokens in prompts.
 
-Sample invocation is in the README. For a meaningful provider comparison, first add an exact model/config receipt and deterministic task-level answer checker, use a measured per-task budget, and preserve both failures and successes.
+Invocation (sends one real, possibly paid request; needs `OPENAI_API_KEY` and explicit owner authorization, see [AGENTS.md](../AGENTS.md#paid-providers-secrets-and-data)): `python -m turnwise_lab.provider_cli --endpoint https://<host>/v1/chat/completions --model <model> --allow-remote`. For a meaningful provider comparison, first add an exact model/config receipt and deterministic task-level answer checker, use a measured per-task budget, and preserve both failures and successes.

@@ -1,7 +1,7 @@
 [project]
 name = "turnwise-decision-lab"
 version = "0.5.0"
-description = "Outcome-scored experiment on per-turn routing: when an agent turn needs a model, a tool, a workflow or nothing"
+description = "Research lab: can a small typed decision policy, rather than the LLM, choose each next step of a tool-using agent?"
 readme = "README.md"
 requires-python = ">=3.10"
 license = {text = "MIT"}
@@ -10,9 +10,6 @@ dependencies = []
 
 [project.optional-dependencies]
 jev = ["typesafe-sdk"]
-
-[project.scripts]
-turnwise-lab = "turnwise_lab.__main__:main"
 
 [build-system]
 requires = ["setuptools>=65"]
