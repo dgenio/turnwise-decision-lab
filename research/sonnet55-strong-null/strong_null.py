@@ -10,6 +10,11 @@ There is no per-step controller here. The whole architecture is one straight-lin
                             ALL tools, deciding its own operations. It is never called step by step.
     6. host exit check      receipts + claims screen on the finished answer; status is derived, not asserted.
 
+Variant E (``typed_citations=True``) changes only the native agent's FINAL OUTPUT TYPE to ``CitedAnswer``
+(text + cited receipt ids); the loop, tools and instructions are untouched, and the exit check then verifies
+the citations against host receipts. It is the cheapest answer to "can a final-output schema replace the
+per-step controller's citation gate?".
+
 Everything that decides *authority* is the existing ``IncidentHost`` (argument validation, write intent parsed
 from the user's text only, tool budget, receipts). Nothing is reimplemented. Step 4 reuses the host's own
 ``required_evidence_roles`` and tool registry roles, so SSN introduces no new heuristic about what evidence a
@@ -24,7 +29,9 @@ from __future__ import annotations
 import hashlib
 import re
 from dataclasses import dataclass, field
-from typing import Any
+from typing import Any, List
+
+from pydantic import BaseModel, Field
 
 from examples.architecture.incident_env import (AGENT_INSTRUCTIONS, INCIDENT_RECORD, TOOLS, TOOLS_BY_ID,
                                                 HostSession, IncidentHost, required_evidence_roles)
@@ -58,6 +65,14 @@ def checklist_sha256() -> str:
     return hashlib.sha256(CHECKLIST.encode("utf-8")).hexdigest()
 
 
+class CitedAnswer(BaseModel):
+    """Final output type of variant E. The field descriptions are the only prompt text it adds."""
+
+    text: str = Field(description="The answer for the user.")
+    cited_receipts: List[str] = Field(
+        description="Ids of the host tool receipts the answer relies on (the 'receipt' field of tool results).")
+
+
 @dataclass
 class SSNResult:
     status: str  # held | answered_directly | needs_clarification | finished | insufficient_evidence |
@@ -70,9 +85,10 @@ class SSNResult:
     prefetched: tuple[str, ...] = ()  # receipt ids the host read before the native agent ran
     exit_check: dict[str, Any] = field(default_factory=dict)
     failure: str | None = None
+    cited: tuple[str, ...] | None = None  # variant E only: receipt ids the native agent declared
 
 
-def run_ssn(task: str, model: Any, *, model_label: str = "", checklist: bool = False,
+def run_ssn(task: str, model: Any, *, model_label: str = "", checklist: bool = False, typed_citations: bool = False,
             host: IncidentHost | None = None, max_turns: int = 10) -> SSNResult:
     """Run one task. ``host`` may be supplied so the caller can read receipts even if the native agent raises."""
     host = host or IncidentHost(task)
@@ -109,9 +125,11 @@ def run_ssn(task: str, model: Any, *, model_label: str = "", checklist: bool = F
     message = "\n".join([task] + [host.receipt(r).for_model() for r in prefetched])
 
     # 5. Native fallback: the existing agent, its own loop, all tools. Variant D only adds the frozen checklist.
-    native_answer, calls, failure = None, None, None
+    native_answer, calls, failure, cited = None, None, None, None
     try:
-        if checklist:
+        if typed_citations:
+            native_answer, calls, cited = _run_native_typed(message, model, host, max_turns)
+        elif checklist:
             native_answer, calls = _run_native_with_checklist(message, model, host, max_turns)
         else:
             res = run_conventional(message, model, model_label=model_label, max_turns=max_turns, host=host)
@@ -124,27 +142,39 @@ def run_ssn(task: str, model: Any, *, model_label: str = "", checklist: bool = F
                          exit_check={"checked": False})
 
     # 6. Host exit check: facts come from host receipts, never from the agent's prose.
-    check = exit_check(host, native_answer)
+    check = exit_check(host, native_answer, cited)
     status = "finished" if check["accepted"] else check["status"]
     answer = native_answer if check["accepted"] else f"Unresolved: the host did not accept the agent's answer ({check['why']})."
     return SSNResult(status, answer, "native_agent", native_called=True, native_answer=native_answer,
-                     native_model_calls_reported=calls, prefetched=prefetched, exit_check=check)
+                     native_model_calls_reported=calls, prefetched=prefetched, exit_check=check, cited=cited)
 
 
-def exit_check(host: IncidentHost, answer: str) -> dict[str, Any]:
+def exit_check(host: IncidentHost, answer: str, cited: tuple[str, ...] | None = None) -> dict[str, Any]:
     """Provenance and side-effect screens on a finished native answer. Not a truth check.
 
-    The native agent declares no citations, so every executed receipt counts as available to it (the same weak
-    provenance Turnwise records for a HANDOFF_AGENT answer). Missing evidence therefore means a required role was
-    never obtained by anyone, not that the agent ignored what it was given.
+    ``cited=None`` (variants C/D): the native agent declares no citations, so every executed receipt counts as
+    available to it (the same weak provenance Turnwise records for a HANDOFF_AGENT answer); "missing evidence"
+    then means a required role was never obtained by anyone.
+
+    ``cited`` given (variant E): the agent's own declaration is checked, as Turnwise's FINISH checks a model's:
+    at least one citation, each an *executed* host receipt (all executed receipts were shown to the agent, since
+    the host returns every result to it), and the cited set must cover the required evidence roles.
+    Still provenance only: an answer may cite a receipt and ignore what it says.
     """
+    executed_ids = {r.id for r in host.receipts if r.executed}
     executed_writes = [r for r in host.receipts if r.executed and TOOLS_BY_ID[r.tool].side_effect]
     if _ACTION_CLAIM.search(answer) and not executed_writes:
         return {"accepted": False, "status": "unverified_action_claim",
                 "why": "answer mentions a completed side effect that no host receipt shows"}
     if (problem := host.approval_claim_problem(answer)) is not None:
         return {"accepted": False, "status": "unverified_action_claim", "why": problem}
-    missing = host.missing_evidence(tuple(r.id for r in host.receipts if r.executed))
+    if cited is not None:
+        if not cited:
+            return {"accepted": False, "status": "insufficient_evidence", "why": "answer cites no host receipt"}
+        if (bad := [c for c in cited if c not in executed_ids]):
+            return {"accepted": False, "status": "insufficient_evidence",
+                    "why": f"cited ids are not executed host receipts: {bad}"}
+    missing = host.missing_evidence(tuple(executed_ids) if cited is None else tuple(cited))
     if missing:
         return {"accepted": False, "status": "insufficient_evidence",
                 "why": "required evidence missing: " + ", ".join(missing)}
@@ -159,3 +189,14 @@ def _run_native_with_checklist(message: str, model: Any, host: IncidentHost, max
     result = Runner.run_sync(agent, message, context=HostSession(host, actor="llm"), max_turns=max_turns,
                              run_config=RunConfig(tracing_disabled=True))
     return str(result.final_output), len(result.raw_responses)
+
+
+def _run_native_typed(message: str, model: Any, host: IncidentHost, max_turns: int) -> tuple[str, int, tuple[str, ...]]:
+    """The same native agent and loop; only its final output type is ``CitedAnswer`` (tools stay attached)."""
+    from agents import RunConfig, Runner
+
+    agent = build_agent(model).clone(output_type=CitedAnswer)
+    result = Runner.run_sync(agent, message, context=HostSession(host, actor="llm"), max_turns=max_turns,
+                             run_config=RunConfig(tracing_disabled=True))
+    out: CitedAnswer = result.final_output
+    return out.text, len(result.raw_responses), tuple(out.cited_receipts)

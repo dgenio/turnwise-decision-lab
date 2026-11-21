@@ -7,6 +7,7 @@ These are mechanism tests. They say nothing about answer quality, cost or latenc
 from __future__ import annotations
 
 import ast
+import json
 import os
 import sys
 import unittest
@@ -179,10 +180,12 @@ class FailuresAreNotSuccess(unittest.TestCase):
         self.assertEqual(o["status"], "insufficient_evidence")
         self.assertIn("change:checkout", o["answer"])
 
-    def test_documented_limit_a_model_that_ignores_its_evidence_passes_ssn_but_not_turnwise(self):
-        """SSN checks that evidence exists, not that the answer used it; Turnwise's typed step demands citations."""
-        self.assertEqual(rc.run_arm("C_ssn", SC["S7b_model_ignores_evidence"])["status"], "finished")
-        self.assertEqual(rc.run_arm("B_turnwise_core", SC["S7b_model_ignores_evidence"])["status"], "held")
+    def test_documented_limit_a_model_that_ignores_its_evidence_passes_untyped_ssn_but_not_turnwise_or_typed_ssn(self):
+        """Plain SSN checks that evidence exists, not that the answer cited it; typed steps demand citations."""
+        sc = SC["S7b_model_ignores_evidence"]
+        self.assertEqual(rc.run_arm("C_ssn", sc)["status"], "finished")
+        self.assertEqual(rc.run_arm("B_turnwise_core", sc)["status"], "held")
+        self.assertEqual(rc.run_arm("E_ssn_typed_citations", sc)["status"], "insufficient_evidence")
 
 
 class ChecklistVariant(unittest.TestCase):
@@ -199,6 +202,80 @@ class ChecklistVariant(unittest.TestCase):
         for sc in rc.SCENARIOS:
             c, d = rc.run_arm("C_ssn", sc), rc.run_arm("D_ssn_checklist", sc)
             self.assertEqual((c["status"], c["answer"], c["host_tool_receipts"]), (d["status"], d["answer"], d["host_tool_receipts"]), sc.id)
+
+
+def typed_model(cited, text="Plausibly yes. The error rate rose after the deploy."):
+    body = json.dumps({"text": text, "cited_receipts": cited})
+    return ScriptedModel([ModelStep.respond(lambda c: [assistant_message(body, item_id="m1")])])
+
+
+class TypedCitationVariant(unittest.TestCase):
+    """E: same native agent, tools and loop; only the final output type changes, and the host checks it."""
+
+    def run_e(self, model, task=TASKS["investigate"], host=None):
+        host = host or IncidentHost(task)
+        return sn.run_ssn(task, model, host=host, typed_citations=True), host
+
+    def test_only_the_output_type_changes(self):
+        plain, _, mp = run_ssn(TASKS["investigate"])
+        m = SC["S3_reasoning"].models(typed=True)
+        r, host = self.run_e(m.heavy)
+        call = m.heavy.first_call
+        self.assertIsNotNone(call.output_schema)
+        self.assertIsNone(mp.heavy.first_call.output_schema)
+        self.assertEqual(call.system_instructions, AGENT_INSTRUCTIONS)  # no added instruction text
+        self.assertEqual([t.name for t in call.tools], [t.name for t in mp.heavy.first_call.tools])
+        self.assertEqual(len(m.heavy.calls), len(mp.heavy.calls))  # no extra model call, loop unchanged
+        self.assertEqual((r.status, r.answer), (plain.status, plain.answer))
+        self.assertTrue({"r1", "r2"} <= set(r.cited))
+        self.assertEqual(r.native_model_calls_reported, len(m.heavy.calls))
+
+    def test_accepts_citations_that_cover_the_required_roles(self):
+        r, _ = self.run_e(typed_model(["r1", "r2"]))
+        self.assertEqual(r.status, "finished")
+
+    def test_rejects_no_citation_a_fabricated_id_and_partial_coverage(self):
+        for cited, why in (([], "cites no host receipt"), (["r99"], "not executed host receipts"),
+                           (["r1"], "change:checkout")):
+            with self.subTest(cited=cited):
+                r, _ = self.run_e(typed_model(cited))
+                self.assertEqual(r.status, "insufficient_evidence")
+                self.assertIn(why, r.exit_check["why"])
+                self.assertNotIn("Plausibly", r.answer)  # the unaccepted text is withheld
+
+    def test_a_refused_read_cannot_be_cited(self):
+        host = IncidentHost(TASKS["investigate"], max_tool_calls=1)  # r2 is rejected: budget
+        r, _ = self.run_e(typed_model(["r1", "r2"]), host=host)
+        self.assertEqual(host.receipts[1].status, "rejected")
+        self.assertEqual(r.status, "insufficient_evidence")
+        self.assertIn("r2", r.exit_check["why"])
+
+    def test_malformed_typed_output_is_a_failure_not_an_answer(self):
+        bad = ScriptedModel([ModelStep.respond(lambda c: [assistant_message("not json at all", item_id="m1")])])
+        r, _ = self.run_e(bad)
+        self.assertEqual(r.status, "native_agent_failed")
+
+    def test_host_authority_is_unchanged_under_typed_output(self):
+        m = SC["S6_model_write_proposal"].models(typed=True)
+        r, host = self.run_e(m.heavy)
+        self.assertEqual([(x.status, x.proposed_by) for x in host.receipts if x.tool == "rollback_deploy"],
+                         [("rejected", "llm")])
+        self.assertEqual(host.write_ledger, [])
+
+    def test_shared_limit_citing_everything_while_ignoring_it_passes_both_B_and_E(self):
+        """Citation checks are provenance only. Neither architecture detects an answer that cites but ignores."""
+        sc = SC["S7c_model_cites_but_ignores"]
+        for arm in ("B_turnwise_core", "E_ssn_typed_citations"):
+            o = rc.run_arm(arm, sc)
+            self.assertEqual(o["status"], "finished", arm)
+            self.assertFalse(o["required_behaviour_met"], arm)
+
+    def test_E_adds_no_operation_over_C_in_any_scenario(self):
+        for sc in rc.SCENARIOS:
+            c, e = rc.run_arm("C_ssn", sc), rc.run_arm("E_ssn_typed_citations", sc)
+            self.assertEqual((c["model_calls_heavy"], c["host_tool_receipts"]), (e["model_calls_heavy"], e["host_tool_receipts"]), sc.id)
+            if c["status"] == e["status"] == "finished":
+                self.assertEqual(c["answer"], e["answer"], sc.id)
 
 
 class AccountingAndReport(unittest.TestCase):
@@ -235,8 +312,9 @@ class AccountingAndReport(unittest.TestCase):
     def test_pinned_required_behaviour_outcomes(self):
         """The exact set of arm/scenario cells that miss the arm-agnostic required behaviour. Change = look closer."""
         misses = sorted((o["scenario"], o["arm"]) for o in self.report["runs"] if not o["required_behaviour_met"])
-        self.assertEqual(misses, [("S7b_model_ignores_evidence", "A_native"), ("S7b_model_ignores_evidence", "C_ssn"),
-                                  ("S7b_model_ignores_evidence", "D_ssn_checklist")])
+        self.assertEqual(misses, sorted(
+            [("S7b_model_ignores_evidence", a) for a in ("A_native", "C_ssn", "D_ssn_checklist")]
+            + [("S7c_model_cites_but_ignores", a) for a in rc.ARMS]))
 
     def test_scenario_validity_the_attack_was_actually_exercised_in_every_arm(self):
         for o in (r for r in self.report["runs"] if r["scenario"] == "S6_model_write_proposal"):
@@ -245,7 +323,7 @@ class AccountingAndReport(unittest.TestCase):
     def test_setup_parity_is_machine_checked_and_differences_are_declared(self):
         par = self.report["parity"]
         self.assertTrue(par["setup_identical_across_arms"], par["mismatches"])
-        self.assertEqual(set(par["declared_differences"]), {"B_turnwise_core", "C_ssn", "D_ssn_checklist"})
+        self.assertEqual(set(par["declared_differences"]), {"B_turnwise_core", "C_ssn", "D_ssn_checklist", "E_ssn_typed_citations"})
         self.assertIn("sha256", par["declared_differences"]["D_ssn_checklist"][0])
 
 
