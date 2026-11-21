@@ -6,6 +6,7 @@ exact tokenizer count or a guarantee about final provider billing.
 from __future__ import annotations
 
 import json
+import os
 import unittest
 from unittest import mock
 
@@ -17,6 +18,17 @@ try:
     HAVE_PROVIDER = True
 except ImportError:
     HAVE_PROVIDER = False
+
+# Running the whole matrix (even against the provider double) needs both SDKs; most tests here need only httpx2.
+try:
+    import agents  # noqa: F401
+    import llama_index.core  # noqa: F401
+    import llama_index.llms.openai  # noqa: F401
+    HAVE_FRAMEWORKS = True
+except ImportError:
+    if os.environ.get("TURNWISE_REQUIRE_FRAMEWORKS") == "1":
+        raise
+    HAVE_FRAMEWORKS = False
 
 
 def request(extra=""):
@@ -89,6 +101,7 @@ class WholeRequestInputCapTests(unittest.TestCase):
                         run_matrix(settings, **options)
                     call.assert_not_called()
 
+    @unittest.skipUnless(HAVE_FRAMEWORKS, "running the matrix needs openai-agents and llama-index")
     def test_run_matrix_enforces_the_bound_in_every_configuration_before_transport(self):
         # Review finding: the plan/bound agreement was tested, but not that run_matrix hands the bound to the
         # ledger. With a bound below any real request, nothing may reach the (simulated) provider.
