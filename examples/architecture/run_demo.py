@@ -45,7 +45,8 @@ LIVE_REDIRECT = ("run_demo is offline only. Real-provider runs go through the bo
                  "python -m examples.architecture.live_smoke --help")
 
 
-def run_pair(framework: str, task: str, *, live: bool = False, handoff: bool) -> list[RunResult]:
+def run_pair(framework: str, task: str, *, live: bool = False, handoff: bool,
+             checklist_null: bool = False) -> list[RunResult]:
     """Fresh models and a fresh host for every run, so runs cannot influence each other. Simulated model only."""
     if live:
         raise SystemExit(LIVE_REDIRECT)
@@ -57,6 +58,9 @@ def run_pair(framework: str, task: str, *, live: bool = False, handoff: bool) ->
     if handoff:
         m = choose()
         results.append(run_turnwise(task, m.heavy, m.light, model_label=m.label, policy=HandoffPolicy())[0])
+    if checklist_null:
+        m = choose()  # A+P uses a fresh native model, same task/tools/host policy as A
+        results.append(run_conventional(task, m.heavy, model_label=m.label, checklist=True))
     return results
 
 
@@ -82,6 +86,8 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--scenario", choices=[*TASKS, "all"], default="investigate")
     parser.add_argument("--handoff", action="store_true",
                         help="also run the HANDOFF_AGENT contrast (a different architecture from Turnwise Core)")
+    parser.add_argument("--checklist-null", action="store_true",
+                        help="also run A+P, native agent with frozen checklist prompt (offline, not an efficacy result)")
     parser.add_argument("--brief", action="store_true", help="print only the side-by-side controller view")
     parser.add_argument("--live", action="store_true",
                         help="not supported here: real-provider runs go through examples.architecture.live_smoke")
@@ -94,11 +100,17 @@ def main(argv: list[str] | None = None) -> None:
     blocks: list[str] = []
     for framework in frameworks:
         for scenario in scenarios:
-            results = run_pair(framework, TASKS[scenario], handoff=args.handoff)
+            results = run_pair(framework, TASKS[scenario], handoff=args.handoff,
+                               checklist_null=args.checklist_null)
             parts = [header(framework, scenario)]
             if not args.brief:
                 parts += [render(r) for r in results]
             parts.append(render_side_by_side(results[0], results[1]))
+            if args.brief and args.checklist_null:
+                null = results[-1]
+                parts.append(f"A+P checklist-prompted native null (SIMULATED, no efficacy claim): "
+                             f"{null.status}; model_calls={null.counts['model_calls']}; "
+                             f"host_tool_requests={null.counts['host_tool_requests']}")
             blocks.append("\n\n".join(parts))
     print("\n\n".join(blocks))
 

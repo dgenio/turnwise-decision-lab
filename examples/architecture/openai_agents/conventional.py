@@ -16,15 +16,17 @@ from typing import Any
 
 from agents import Agent, FunctionTool, ModelSettings, RunConfig, RunContextWrapper, Runner, ToolCallOutputItem
 
-from ..incident_env import AGENT_INSTRUCTIONS, TOOLS, HostSession, IncidentHost, ToolSpec
+from ..checklist_null import native_instructions
+from ..incident_env import TOOLS, HostSession, IncidentHost, ToolSpec
 from ..trace import NativeTurnItem, RunResult, conventional_rows, receipt_id_from_output
 
 
-def build_agent(model: Any, model_settings: ModelSettings | None = None) -> Agent[HostSession]:
-    """The agent both variants share: same instructions, same tools, same model and model settings."""
+def build_agent(model: Any, model_settings: ModelSettings | None = None, *,
+                checklist: bool = False) -> Agent[HostSession]:
+    """The native agent; checklist=True adds only frozen A+P prompt guidance."""
     return Agent[HostSession](
         name="Incident investigator",
-        instructions=AGENT_INSTRUCTIONS,
+        instructions=native_instructions(checklist=checklist),
         tools=[_function_tool(spec) for spec in TOOLS],
         model=model,
         model_settings=model_settings or ModelSettings(),
@@ -44,10 +46,11 @@ def _function_tool(spec: ToolSpec) -> FunctionTool:
 
 
 def run_conventional(task: str, model: Any, *, model_label: str, max_turns: int = 10,
-                     model_settings: ModelSettings | None = None, host: IncidentHost | None = None) -> RunResult:
+                     model_settings: ModelSettings | None = None, host: IncidentHost | None = None,
+                     checklist: bool = False) -> RunResult:
     """``host`` may be passed in so a caller can still read its receipts if the run raises (e.g. MaxTurnsExceeded)."""
     host = host or IncidentHost(task)
-    agent = build_agent(model, model_settings)
+    agent = build_agent(model, model_settings, checklist=checklist)
     result = Runner.run_sync(agent, task, context=HostSession(host, actor="llm"), max_turns=max_turns,
                              run_config=RunConfig(tracing_disabled=True))
     # Each raw response is one model call, i.e. one model decision.
@@ -63,10 +66,13 @@ def run_conventional(task: str, model: Any, *, model_label: str, max_turns: int 
     rows = conventional_rows(turns, host.receipts, receipt_for_call=receipt_for_call,
                              controller="LLM (inside the SDK Runner loop)", loop_name="the SDK Runner")
     return RunResult(
-        title="Conventional agent -- OpenAI Agents SDK (Agent + Runner.run_sync + function tools)",
+        title=("A+P checklist-prompted native agent" if checklist else "Conventional agent")
+              + " -- OpenAI Agents SDK (Agent + Runner.run_sync + function tools)",
         model_label=model_label, task=task, status="completed (SDK final_output)",
         answer=str(result.final_output), rows=rows,
-        notes=["the SDK ends the run when the model answers without a tool call; no host check of the answer", host.action_record()],
+        notes=["the SDK ends the run when the model answers without a tool call; no host check of the answer",
+               host.action_record()] + (["A+P: frozen prompt guidance only; simulated result is NOT efficacy evidence"]
+                                       if checklist else []),
         counts={"model_calls": len(result.raw_responses), "host_tool_requests": len(host.receipts)},
         writes_executed=len(host.write_ledger))
 
