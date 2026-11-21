@@ -2,6 +2,8 @@
 
 **Status: Experimentally measured (re-priced public trajectories, no inference by this repo).** Run on 2026-11-21 under [PROTOCOL.md](PROTOCOL.md), which was committed before the script and before this run. Issue: [#86](https://github.com/dgenio/turnwise-decision-lab/issues/86). Every token figure is an estimate (`ceil(characters / 4)`); the trajectories carry no provider usage. Every share is a hindsight ceiling, not a saving anyone achieved.
 
+> **Note, 2026-11-21.** [Amendment 1](PROTOCOL-AMENDMENT-1.md) adds τ²-bench, a coding set and the tier ceiling, under a protocol frozen before its own script and run. Results: [RESULTS-AMENDMENT-1.md](RESULTS-AMENDMENT-1.md) (combined verdict SHRINK). The findings below are unchanged.
+
 ## Verdict
 
 **SHRINK**, by the frozen decision rule: in every domain the batching ceiling is at least as large as the strict oracle D0 (airline 1.5% against 0.0%, retail 4.0% against 0.3%).
