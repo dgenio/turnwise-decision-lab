@@ -433,7 +433,8 @@ class WireAndReportTests(unittest.TestCase):
     def test_every_arm_ran_offline_through_the_real_provider_classes_and_passed(self):
         self.assertFalse(self.report["real_inference"])
         self.assertIn("SIMULATED", self.report["label"])
-        self.assertEqual([a["arm"] for a in self.report["native"]], ["A", "A'"])
+        self.assertEqual([a["arm"] for a in self.report["native"]], ["A", "A'", "S"])  # S next to A and Core (#88)
+        self.assertEqual({a["verdict"] for a in self.report["native"]}, {"PASS"})
         for k in self.module.KS:
             arms = self.arms(k)
             self.assertEqual(list(arms), ["B", "B' seq", "B' batch"])

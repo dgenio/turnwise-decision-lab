@@ -8,6 +8,8 @@ no inference) through the real OpenAI Agents SDK provider classes and reports wh
 
 * **A**    the conventional agent; the simulated model asks for one tool per response;
 * **A'**   the same agent when the model asks for its evidence reads in one response;
+* **S**    the same agent, shielded: host rules and the evidence the host's contract requires first, then the
+           unmodified agent loop, then a host exit gate. The agent keeps control, so NOT Turnwise Core (#88);
 * **B**    Turnwise Core: one typed ``StepOutcome`` per model call, no tools attached;
 * **B'**   the same loop and policy with the native-intercept port: a real tools field, an append-only
            conversation, every tool call returned to the policy as a proposal. Reported twice, because whether
@@ -17,7 +19,8 @@ no inference) through the real OpenAI Agents SDK provider classes and reports wh
 **k** is the number of evidence reads the *model* chooses under the Turnwise arms. The task needs three reads.
 The policy's playbook reads ``3 - k`` of them first, so k = 1 is the default ``TriagePolicy`` and k = 3 is a
 playbook that reads nothing. Arms A and A' have no policy: the model always chooses all three, so they do not
-vary with k.
+vary with k. Arm S does not vary either: its host rules always read the two roles the evidence contract
+requires, which leaves the model one read (the same split as k = 1).
 
 What this is not: a measurement. Token counts are the double's synthetic ``bytes // 4``, replies are
 simulated, and a real model may batch differently, ignore the step contract, or behave differently when a call
@@ -33,7 +36,8 @@ from typing import Any
 
 from .cost_accounting import (ASSUMPTIONS, STRUCTURAL_LABEL, PriceCard, RequestShape, shapes_from_exchanges,
                               structural_cost)
-from .cost_structure import DEFAULT_MIN_CACHEABLE_TOKENS, RECORDED_CARD, batching_label, run_arm
+from .cost_structure import (ARM_NAMES, DEFAULT_MIN_CACHEABLE_TOKENS, RECORDED_CARD, SHIELDED, batching_label,
+                             run_arm, run_shielded_arm)
 from .provider import DOUBLE_SOURCE, ProviderLedger, ProviderSettings, ProviderSetup
 from .provider_double import ProviderDouble
 from .simulated_model import SimulatedInvestigator
@@ -114,6 +118,10 @@ def build_report(*, card: PriceCard = RECORDED_CARD, stable_prefix_tokens: int =
         native.append(_arm_entry(key, name, None, shapes_from_exchanges(record["provider_requests"]), {
             "verdict": record["verdict"], "termination": record["termination"]["status"],
             "host_tool_calls": [t["tool"] for t in record["tool_calls"] if t["status"] == "executed"]}, **common))
+    record = run_shielded_arm(model=model)  # arm S next to A and Core in every comparison table (#88)
+    native.append(_arm_entry(SHIELDED, ARM_NAMES[SHIELDED], None, shapes_from_exchanges(record["provider_requests"]), {
+        "verdict": record["verdict"], "termination": record["termination"]["status"],
+        "host_tool_calls": [t["tool"] for t in record["tool_calls"] if t["status"] == "executed"]}, **common))
     by_k = {}
     for k in KS:
         arms = []
@@ -180,13 +188,15 @@ def render(report: dict[str, Any]) -> str:
     def row(arm: dict[str, Any]) -> str:
         shares = ", ".join("-" if i == 0 else f"{s:.0%}" for i, s in enumerate(arm["shared_prefix_share"]))
         usd = arm["usd"]
-        return (f"{arm['arm']:<9} | {'all' if arm['k'] is None else arm['k']:>3} | {arm['requests']:>8} | "
+        k = arm["k"] if arm["k"] is not None else "1*" if arm["arm"] == SHIELDED else "all"
+        return (f"{arm['arm']:<9} | {k:>3} | {arm['requests']:>8} | "
                 f"{arm['max_tool_calls_per_response']:>14} | {shares:<22} | "
                 f"{arm.get('policy_decisions', 'none'):>16} | {_usd(usd[ASSUMPTIONS[0]]):>10} | "
                 f"{_usd(usd[ASSUMPTIONS[1]]):>11} | {_usd(usd[ASSUMPTIONS[2]]):>19}"
                 + ("" if arm["verdict"] == "PASS" else f"   NOTE: mechanism verdict {arm['verdict']} ({arm['termination']})"))
 
-    lines += ["=== native arms: the model chooses all three reads (no policy) ===", header]
+    lines += ["=== arms where the agent keeps its own loop (no policy). A and A': the model chooses all three "
+              "reads. S: the host reads two first ===", header]
     lines += [row(a) for a in report["native"]]
     for k, arms in report["turnwise_by_k"].items():
         lines += ["", f"=== k = {k}: the model chooses {k} of the three reads; the policy's playbook reads "
@@ -204,6 +214,8 @@ def render(report: dict[str, Any]) -> str:
     lines += [f"  Reading: {check['reading']}.", "",
               "'calls/response' is the most tool calls any one model response carried. Under B a model call carries "
               "none: it can only propose one, as text.",
+              "S is the shielded native agent; '1*' means its host rules read two of the three first, by the "
+              "evidence contract, not by a policy.",
               "Under B' every tool call came back to the policy as a proposal; the policy adopted it and the host "
               "executed it. No model call executed anything.",
               "Nothing here measures answer quality, real cost, real latency, or how a real model behaves."]
