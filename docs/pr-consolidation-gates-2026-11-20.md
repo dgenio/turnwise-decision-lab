@@ -45,3 +45,18 @@ Freeze a quality/non-inferiority margin, critical safety ceilings, efficiency th
 - A paid attempt needs explicit owner authorization for its specific model, cap and dispatch, verification that the provider account can serve the model, and strict stop after the first rate-limit response.
 - Close superseded PRs only after checking that their unique tests/invariants and documentation have been preserved or explicitly abandoned with rationale.
 - **GO** only with comparable quality and bounded major/critical failures at the pre-agreed thresholds; otherwise **HOLD**, **SHRINK** to an evidenced smaller component, or **STOP**. A negative result is publishable evidence.
+
+## Execution note (2026-11-21)
+
+The dispositions above were carried out on 2026-11-20. The decisions and gates above are unchanged; this note records the outcome.
+
+| PR | Outcome | Where its value went |
+|---|---|---|
+| #67, #68 | Merged | Receipt-content gate and whole-request input bound. Review fixes that missed their merge (wrong-service payloads, field types, fail-closed unknown roles; `run_matrix` bound wiring, reasoning-echo charging) landed in #71 |
+| #65 | Closed, superseded by #69 | #69 (merged) carries all #65 commits plus an integration fix for #64's host evidence gate; #74 proposes the remaining hardening (validated selection reused, manifest typing) |
+| #37, #44, #46 | Closed unmerged, archived | Unique adversarial cases ported onto the canonical host and ledger in #70 (write authority, direct-execute bypass, L56-style targets, concurrent admission, usage overrun) and #72 |
+| #31 | Closed unmerged, archived | #68/#71 enforce a conservative request-input bound; exact tokenizer and handoff accounting stay open in #16 |
+| #6, #38 | Closed unmerged, archived as frozen exhibits | Evidence unchanged at the recorded SHAs; quality gates #5 and #9 stay open |
+| #60 | Closed without merging or dispatch | Provider capacity unverified; the consumed `-001` authorization stays consumed. A second attempt needs a new PR and explicit owner authorization |
+
+Recovery SHAs for every archived branch are in [#75](https://github.com/dgenio/turnwise-decision-lab/issues/75); the branches were kept. Every merge into `main` above went through the owner's ruleset bypass, since GitHub cannot record a self-approval. For #70 and #71 the owner authorized this for gate-passing PRs, and each carries a merge-record comment listing the checks run. Known canonical-parser limits found while porting are tracked in #12; none executes a write.
