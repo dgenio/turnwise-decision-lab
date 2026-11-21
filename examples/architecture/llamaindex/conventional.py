@@ -95,8 +95,8 @@ def run_conventional(task: str, llm: Any, *, model_label: str, max_iterations: i
     rows = conventional_rows(turns, host.receipts, receipt_for_call=receipt_for_call,
                              controller="LLM (inside the FunctionAgent workflow)", loop_name="the agent workflow")
     return RunResult(
-        title=("A+P checklist-prompted native agent" if checklist else
-               "Conventional agent -- LlamaIndex (FunctionAgent + FunctionTool)"),
+        title=("A+P checklist-prompted native agent" if checklist else "Conventional agent")
+              + " -- LlamaIndex (FunctionAgent + FunctionTool)",
         model_label=model_label, task=task, status="completed (FunctionAgent response)",
         answer=final.response.content or "", rows=rows,
         notes=["the workflow ends when the LLM answers without a tool call; no host check of the answer",

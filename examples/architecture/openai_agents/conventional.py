@@ -66,8 +66,8 @@ def run_conventional(task: str, model: Any, *, model_label: str, max_turns: int 
     rows = conventional_rows(turns, host.receipts, receipt_for_call=receipt_for_call,
                              controller="LLM (inside the SDK Runner loop)", loop_name="the SDK Runner")
     return RunResult(
-        title=("A+P checklist-prompted native agent" if checklist else
-               "Conventional agent -- OpenAI Agents SDK (Agent + Runner.run_sync + function tools)"),
+        title=("A+P checklist-prompted native agent" if checklist else "Conventional agent")
+              + " -- OpenAI Agents SDK (Agent + Runner.run_sync + function tools)",
         model_label=model_label, task=task, status="completed (SDK final_output)",
         answer=str(result.final_output), rows=rows,
         notes=["the SDK ends the run when the model answers without a tool call; no host check of the answer",

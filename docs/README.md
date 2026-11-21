@@ -38,6 +38,7 @@ Start with the [README](../README.md). For what is current, held or historical, 
 | [../reports/trained-routing-synthetic.md](../reports/trained-routing-synthetic.md) | Historical (v0.4) | Route-label benchmark: rules 38/40, Naive Bayes 29/40 |
 | [evaluation-plan.md](evaluation-plan.md) | Proposed (next gate) | What v0.5 established and what the next experiment must measure |
 | [quality-constrained-efficiency-v06.md](quality-constrained-efficiency-v06.md) | Proposed (draft protocol, not pre-registered) | Comparator ladder and metrics for a real-model study |
+| [checklist-prompt-null.md](checklist-prompt-null.md) | Implemented and tested (offline mechanism only) | The A+P null of [#43](https://github.com/dgenio/turnwise-decision-lab/issues/43): the same native agent with one frozen, hash-pinned evidence checklist appended to its prompt; prospective study not run |
 | [benchmark-parity-contract.md](benchmark-parity-contract.md) | Implemented and tested (static preflight) | Checking that arms get equal access before comparing them |
 | [enterprise-synthetic-scenarios.md](enterprise-synthetic-scenarios.md) | Proposed | Candidate synthetic enterprise case families |
 
