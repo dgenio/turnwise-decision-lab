@@ -1,3 +1,5 @@
+> **Note (2026-11-21).** The notes below are the historical v0.4 and v0.5 release notes, accurate for their dates and left unchanged. No release has been cut since; current status is in [docs/release-status.md](docs/release-status.md). Two gates are still open: the v0.6 release gate [#5](https://github.com/dgenio/turnwise-decision-lab/issues/5) is on **HOLD**, and the prospective evidence gate [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9) (capable heavy-only baseline, independent held-out data, measured cost and latency) has **not been run**. No quality, cost or latency benefit has been established. In the v0.5 results table, "Visible failures" mixes two outcomes of the frozen report (`reports/arena.json`): for v0.4 rules the 5 are false holds (`false_hold`), and for both joint rows the 2 are dropped action requests (`action_dropped`), which is how the README labels them.
+
 # Turnwise Decision Lab: v0.5 (2026-11-18)
 
 **Outcome-scored, counterfactual routing experiment. No model was called.**

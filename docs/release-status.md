@@ -29,7 +29,7 @@ Closed without merging (superseded or research-archived): #6, #7, #10, #26, #27,
 
 `.github/workflows/tests.yml`, on every push and PR:
 
-- **`test`** (Python 3.10, 3.12): the full unittest suite (framework tests skip), including hash pins of frozen inputs and a no-weights/no-secrets check; a pinned pyflakes-level `ruff` lint; then regenerates the v0.4/v0.5 reports and pages listed in `AGENTS.md` and fails on any byte difference.
+- **`test`** (Python 3.10, 3.12): the full unittest suite (framework tests skip), including hash pins of frozen inputs, a no-weights/no-secrets check and an offline check that every internal link and anchor resolves; a pinned pyflakes-level `ruff` lint; then regenerates the v0.4/v0.5 reports and pages listed in `AGENTS.md` and fails on any byte difference.
 - **`architecture-examples`** (Python 3.11, 3.12): installs the pinned `openai-agents==0.25.0`, `llama-index-core==0.14.26` and `llama-index-llms-openai==0.9.0`, runs architecture tests with any skip counted as a failure and network proxied to a dead port, regenerates byte-identical `sample_output/`, and rehearses the four provider paths against a local simulated HTTP provider without any paid inference.
 
 CI proves reproducibility and control-flow properties. It does not test real inference, quality, cost or latency.
