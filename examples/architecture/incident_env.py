@@ -76,17 +76,37 @@ TOOLS_BY_ID: dict[str, ToolSpec] = {t.id: t for t in TOOLS}
 
 # Versioned, domain-specific evidence roles. They describe minimum observable
 # receipt coverage, NOT causal accuracy or gold benchmark labels.
-_CAUSAL_QUESTION = re.compile(
-    r"\b(explain|caus(?:e|ed|es|al)|why|because|responsible|behind|due\s+to|"
-    r"linked\s+to|contribut(?:e|ed|es))\b", re.IGNORECASE)
-_STATUS_QUESTION = re.compile(r"\b(healthy|health|status|up|down)\b", re.IGNORECASE)
+#
+# ONE definition of "causal" and "status" questions, shared by the host's evidence
+# gate, the demonstration policy and the simulated model, so paraphrases of one
+# question cannot get different evidence requirements or routing (adversarial
+# findings ADV-004/005/007). A question is causal if it uses causal wording, or if
+# it relates a change (deploy, config, release...) to a symptom (errors, latency,
+# incident...): "Did the checkout deployment increase error rates?" is causal.
+_CAUSAL_WORDING = re.compile(
+    r"\b(explain|caus(?:e|ed|es|al|ing)|why|because|responsible|behind|due\s+to|"
+    r"linked\s+to|contribut(?:e|ed|es|ing))\b", re.IGNORECASE)
+_CHANGE_WORDING = re.compile(
+    r"\b(deploy\w*|release[ds]?|rollouts?|config\w*|upgrade[ds]?|migrations?|changes?)\b", re.IGNORECASE)
+_SYMPTOM_WORDING = re.compile(
+    r"\b(errors?|latency|incidents?|outages?|failures?|failing|timeouts?|5xx|degrad\w*)\b", re.IGNORECASE)
+_STATUS_WORDING = re.compile(r"\b(healthy|health|status|up|down)\b", re.IGNORECASE)
+
+
+def is_causal_question(text: str) -> bool:
+    return bool(_CAUSAL_WORDING.search(text)
+                or (_CHANGE_WORDING.search(text) and _SYMPTOM_WORDING.search(text)))
+
+
+def is_status_question(text: str) -> bool:
+    return bool(_STATUS_WORDING.search(re.sub(r"status\s+page", "", text, flags=re.IGNORECASE)))
 
 
 def required_evidence_roles(question: str) -> tuple[str, ...]:
     """Minimum receipt roles before a generated answer may be accepted."""
-    if _CAUSAL_QUESTION.search(question):
+    if is_causal_question(question):
         return ("symptom", "change")
-    if _STATUS_QUESTION.search(question):
+    if is_status_question(question):
         return ("current_state",)
     return ()
 

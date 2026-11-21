@@ -27,6 +27,8 @@ from typing import Any, Iterable
 
 from turnwise_lab.world import named_services
 
+from .incident_env import is_causal_question, is_status_question
+
 SIMULATED_LABEL = "SIMULATED model (deterministic stand-in; no inference performed)"
 
 # The evidence this simulated investigator wants before answering each kind of question.
@@ -34,8 +36,6 @@ _NEEDS = {
     "diagnostic": ("error_trend", "recent_deploys", "validate_config"),
     "status": ("service_health",),
 }
-_DIAGNOSTIC = re.compile(r"\b(explain|cause[ds]?|why|because|responsible|behind)\b", re.IGNORECASE)
-_STATUS = re.compile(r"\b(healthy|health|status|up|down)\b", re.IGNORECASE)
 _ROLLBACK = re.compile(r"\b(roll\s*back|revert)\b", re.IGNORECASE)
 _FACT_WORDS = {"severity": "severity", "commander": "incident_commander", "started": "incident_start",
                "status page": "status_page", "incident id": "incident_id"}
@@ -120,13 +120,13 @@ class SimulatedInvestigator:
 
 # ---------------------------------------------------------------- helpers
 def _intent(task: str) -> str:
-    if _ROLLBACK.search(task) and not _DIAGNOSTIC.search(task):
+    if _ROLLBACK.search(task) and not is_causal_question(task):
         return "rollback"
     if any(w in task.lower() for w in _FACT_WORDS):
         return "fact"
-    if _DIAGNOSTIC.search(task):
+    if is_causal_question(task):
         return "diagnostic"
-    if _STATUS.search(task):
+    if is_status_question(task):
         return "status"
     return "other"
 
