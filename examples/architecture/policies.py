@@ -69,8 +69,12 @@ class TriagePolicy:
         # 4. React to the latest model observation. The model proposes; the policy decides.
         note = ""
         if isinstance(last, ModelOutcome):
-            if last.provider_rate_limited:
-                return Decision(Op.HOLD, "provider returned HTTP 429", message="Provider unavailable for this attempt.")
+            if last.provider_failed:
+                # No implicit retry: calling again would repeat a request the provider already failed (an HTTP 429,
+                # an HTTP error, a timeout). Without this, the model budget acted as a retry loop (four failed
+                # calls where the native agent stopped after one).
+                why = "provider returned HTTP 429" if last.provider_rate_limited else f"{last.id}: the provider call failed"
+                return Decision(Op.HOLD, why + "; not retried", message="Provider unavailable for this attempt.")
             if last.kind == "answer_candidate":
                 return Decision(Op.FINISH, f"{last.id} is an answer candidate; ask the host to accept it",
                                 candidate=last.id)
