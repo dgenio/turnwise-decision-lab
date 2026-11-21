@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 import textwrap
 from dataclasses import dataclass, field
-from typing import Iterable, Mapping, Sequence
+from typing import Mapping, Sequence
 
 from .incident_env import Receipt
 
@@ -75,7 +75,7 @@ def conventional_rows(turns: Sequence[Sequence[NativeTurnItem]], receipts: Seque
             elif item.kind == "tool_call":
                 receipt = by_id.get(receipt_for_call.get(item.call_id, ""))
                 host = ("no host receipt: the framework did not invoke the tool" if receipt is None
-                        else _host_text(receipt))
+                        else host_text(receipt))
                 obs = "" if receipt is None else receipt.summary()
                 rows.append(TraceRow(str(i), controller, f"tool call {item.tool}({_args(item.arguments)})", host,
                                      f"{obs} -> appended to the conversation; the LLM decides again".lstrip(" ->"),
@@ -101,11 +101,7 @@ def status_tag(receipt: Receipt | None) -> str:
     return "" if receipt.executed else " [" + {"held_for_approval": "held"}.get(receipt.status, receipt.status) + "]"
 
 
-def host_text(receipt: Receipt) -> str:
-    return _host_text(receipt)
-
-
-def _host_text(r: Receipt) -> str:
+def host_text(r: Receipt) -> str:
     return {"executed": f"validated and executed -> {r.id}",
             "held_for_approval": f"validated; HELD for human approval (not executed) -> {r.id}",
             "rejected": f"REJECTED -> {r.id}: {r.reason}",
@@ -161,12 +157,3 @@ def render_side_by_side(left: RunResult, right: RunResult, *, col: int = 58) -> 
         out.append(f"{x[:col]:<{col}} | {y[:col]}")
     out.append(f"{'  result: ' + left.status:<{col}} |   result: {right.status}")
     return "\n".join(out)
-
-
-def summarize_controllers(rows: Iterable[TraceRow]) -> dict[str, int]:
-    """How many operations each controller chose (policy / LLM / native agent)."""
-    counts: dict[str, int] = {}
-    for row in rows:
-        key = row.controller.split(" (")[0]
-        counts[key] = counts.get(key, 0) + 1
-    return counts

@@ -1,6 +1,7 @@
 """Offline provider-ledger configuration gate; no provider transport or credentials."""
 from __future__ import annotations
 
+import os
 import unittest
 
 try:
@@ -10,6 +11,8 @@ try:
     )
     HAVE_PROVIDER = True
 except ImportError:
+    if os.environ.get("TURNWISE_REQUIRE_FRAMEWORKS") == "1":
+        raise
     HAVE_PROVIDER = False
 
 
@@ -69,6 +72,21 @@ class ProviderLimitConfigurationTests(unittest.TestCase):
         self.assertGreater(ledger.spend_bound_usd(), 0)
         self.assertLess(ledger.spend_bound_usd(), 1)
 
+
+    def test_after_a_429_the_ledger_itself_refuses_to_send_anything_else(self):
+        # The matrix and the policy also stop after a 429; this pins the ledger's own refusal, the last line
+        # of defence for any caller that keeps going.
+        def request():
+            return httpx2.Request("POST", "https://provider-double.invalid/v1/responses",
+                                  json={"model": "offline-test", "max_output_tokens": 2000, "input": []})
+        ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=5)
+        first = request()
+        ledger.admit(first)
+        ledger.receive(httpx2.Response(429, json={"error": {"message": "rate limit"}}, request=first))
+        with self.assertRaises(ProviderCapReached) as ctx:
+            ledger.admit(request())
+        self.assertIn("429", str(ctx.exception))
+        self.assertEqual((len(ledger.exchanges), len(ledger.refused)), (1, 1))
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,11 +1,15 @@
 """Guard the ordering of the one-shot boundary and the public evidence projection."""
 import importlib.util
 import json
+import os
 from pathlib import Path
 import unittest
 
 
 ROOT = Path(__file__).resolve().parents[1]
+HAVE_HTTPX2 = importlib.util.find_spec("httpx2") is not None
+if not HAVE_HTTPX2 and os.environ.get("TURNWISE_REQUIRE_FRAMEWORKS") == "1":
+    raise ImportError("httpx2 is required when TURNWISE_REQUIRE_FRAMEWORKS=1")
 
 
 class WorkflowTests(unittest.TestCase):
@@ -26,7 +30,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual([line.strip() for line in upload.splitlines() if line.strip().startswith("path:")],
                          ["path: ${{ runner.temp }}/turnwise-summary.json"])
 
-    @unittest.skipUnless(importlib.util.find_spec("httpx2"), "needs pinned framework dependencies")
+    @unittest.skipUnless(HAVE_HTTPX2, "needs pinned framework dependencies")
     def test_summary_ignores_private_content_and_marks_missing_evidence(self):
         from examples.architecture.actions_summary import summarize
         from examples.architecture.provider import REAL_SOURCE, DOUBLE_SOURCE
@@ -45,7 +49,7 @@ class WorkflowTests(unittest.TestCase):
         self.assertEqual(rows[1]["admitted_requests"], 1)
         self.assertTrue(all(r["verdict"] == "INCONCLUSIVE" for r in rows))
 
-    @unittest.skipUnless(importlib.util.find_spec("httpx2"), "needs pinned framework dependencies")
+    @unittest.skipUnless(HAVE_HTTPX2, "needs pinned framework dependencies")
     def test_summary_preserves_only_known_error_codes_and_labels_skipped_arms(self):
         import httpx2
         from examples.architecture.actions_summary import summarize

@@ -63,7 +63,7 @@ pip install -r examples/architecture/requirements.txt
 python -m examples.architecture.run_demo --brief
 ```
 
-Committed output ([`sample_output/all-scenarios-brief.txt`](examples/architecture/sample_output/all-scenarios-brief.txt); CI fails if it changes):
+Its side-by-side view (the first block of the committed [`sample_output/all-scenarios-brief.txt`](examples/architecture/sample_output/all-scenarios-brief.txt); CI fails if it changes):
 
 ```text
 === Side by side: who chose each operation ===
@@ -90,7 +90,7 @@ There are two kinds of evidence on `main`: the architecture demo above, which sh
 
 **v0.5 in brief.** v0.5 predates the per-step design: it tested *per-turn* routers, each deciding once per user message whether a turn needs a model, a tool or a workflow. 46 synthetic incident turns in 10 sessions were replayed through seven routing designs. Every tool and workflow really ran; no model was called, and a model path was scored correct if the needed evidence was available (an assumption that favours model calls). The "joint router" combines the path decision with session state (memory of earlier turns, for follow-ups) and route-aware context selection.
 
-| Design | Correct* | Model calls | Silent wrong answers | Visible failures |
+| Design | Correct* | Model calls | Silent wrong answers | Dropped action requests |
 |---|---:|---:|---:|---:|
 | Tool-calling agent on every turn (correct by assumption) | 46/46 | 78 | 0 | 0 |
 | Joint router: session state + route-aware context | 38/46 | 20 | 6 | 2 |
@@ -110,14 +110,14 @@ Explore every turn under every design in the **[interactive explorer](https://dg
 <summary>v0.5 integrity measures, caveats and smaller findings</summary>
 
 - **Integrity.** Hypotheses were committed before any code ([`d46b085`](https://github.com/dgenio/turnwise-decision-lab/commit/d46b085)); routers and sessions were frozen before the first scored run ([`49775f7`](https://github.com/dgenio/turnwise-decision-lab/commit/49775f7)). The one post-freeze change, a scoring fix, is disclosed in the report. A test proves no router can read the labels (`needs`, `family`, `mode`, `action`), and another pins the hypothesis verdicts.
-- **Exchange rate.** The joint router saves about 7 model calls per extra failure; without state, about 12. If a visible failure costs as much as 3 model calls, the joint router beats the always-agent only while a silent wrong answer costs less than 8.7 model calls (29 without state). The explorer lets you set both weights.
+- **Exchange rate.** The joint router saves about 7 model calls per extra failure; without state, about 12. If a dropped action request (a "visible failure" in the explorer's weights) costs as much as 3 model calls, the joint router beats the always-agent only while a silent wrong answer costs less than 8.7 model calls (29 without state). The explorer lets you set both weights.
 - **Smaller measured facts.** Tool schemas make up 72% of the always-agent's input characters. The median turn goes from 2 sequential model calls to 0 under the joint router.
 - **Explorer caveat.** The alternative-path captions are illustrative, derived from gold labels, not executed counterfactuals. The strategy cells are actual offline replays.
 - **Weaknesses.** One author wrote everything, and the sessions have now been seen. Matching and retrieval are deliberately lexical. 46 turns show mechanisms, not rates with confidence intervals. Model-tier routing was not evaluated.
 
 </details>
 
-**All evidence layers at a glance** (details in [release status](docs/release-status.md)):
+**Main evidence layers at a glance** (the complete list, including the host safety gates and the #55 instruction-module exhibit, is in [release status](docs/release-status.md)):
 
 | Evidence | Status | What it shows |
 |---|---|---|
@@ -180,7 +180,7 @@ python -m turnwise_lab.arena
 python -m turnwise_lab.explorer
 ```
 
-The arena rewrites `reports/arena.json` and `reports/arena.md`; the explorer rebuilds `demo/index.html`. CI regenerates every committed report and page and fails on a single byte of difference. Without the SDKs installed, the framework-specific architecture tests are skipped.
+The arena rewrites `reports/arena.json` and `reports/arena.md`; the explorer rebuilds `demo/index.html`. CI regenerates the reports and pages listed in [AGENTS.md](AGENTS.md#setup-and-commands) and fails on a single byte of difference. Without the SDKs installed, the framework-specific architecture tests are skipped.
 
 ## Contributing
 

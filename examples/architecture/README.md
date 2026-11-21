@@ -245,7 +245,7 @@ The offline demo replaces each framework's *model object* with a test double (`S
 - `--provider openai` refuses to start without an explicit `--model`, positive prices, `OPENAI_API_KEY` and an `--authorize-usd` that covers the planned worst case.
 - In every mode it refuses model ids that a pinned framework does not know, and settings the two frameworks would send differently: a temperature for a model LlamaIndex treats as reasoning, a reasoning effort for one it does not, or a non-reasoning model without an explicit temperature.
 
-The proposed paid run is in the [decision packet](../../docs/live-smoke-decision-packet.md).
+The plan and outcome of the first paid run (HTTP 429, inconclusive) are in the [decision packet](../../docs/live-smoke-decision-packet.md).
 
 Compatibility findings from building this. Each one is fixed or guarded, and covered by a test:
 
@@ -316,7 +316,7 @@ No efficiency comparison is made.
 - **The policy is hand-written** for this synthetic domain. It is a stand-in for a learned or decision-service policy (Jev/System One is not used). Simple host rules may do as well, which is the open research question in [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9).
 - **`FINISH` checks cited receipt provenance and a small host-side evidence-role contract, not truth.** In this synthetic incident domain, a causal question requires cited symptom and change reads for each named service, while a status question requires cited current-state evidence. This prevents some premature exits but is neither semantic entailment nor independent answer correctness. The native conventional baseline does not use B's FINISH contract; Level C must include A+G (the same host exit gate) to isolate the effect of per-step control.
 - The write-intent parser and the side-effect claim screen are keyword rules. They fail closed (they refuse more than necessary) but are not semantic checks.
-- CI blocks the network only for clients that honour `HTTP(S)_PROXY` (pointed at a dead port). Only the two frameworks are pinned; their dependencies are not.
+- CI blocks the network only for clients that honour `HTTP(S)_PROXY` (pointed at a dead port). Only the three packages in `requirements.txt` are pinned; their dependencies are not (the owner-dispatched paid workflow installs the fully hash-pinned `requirements-actions-py312.txt`).
 - Single-turn tasks only. There are no multi-turn referents and no approve-and-resume flow.
 - **Deferred from [#49](https://github.com/dgenio/turnwise-decision-lab/issues/49):**
   - null arms: simple host rules + the native agent, and a checklist-prompted native agent ([#43](https://github.com/dgenio/turnwise-decision-lab/issues/43));

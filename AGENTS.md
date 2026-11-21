@@ -77,7 +77,13 @@ python -m turnwise_lab.evaluate --output reports/synthetic-contract-replay.json
 git diff --exit-code -- reports demo
 ```
 
-This is the same sequence as the `test` job in `.github/workflows/tests.yml`; if they ever differ, the workflow wins.
+Lint, pinned as in CI:
+
+```bash
+python -m pip install ruff==0.14.6 && python -m ruff check .
+```
+
+Together these are the `test` job in `.github/workflows/tests.yml`; if they ever differ, the workflow wins. Not regenerated: `reports/trained-routing-synthetic.json` (it records wall-clock timings, so CI writes it to `/tmp`) and the hand-written `reports/*.md` records.
 
 CI (`.github/workflows/tests.yml`) runs the full suite on Python 3.10/3.12, regenerates every report and page as above and requires byte-identical output, and runs the architecture job on 3.11/3.12 with the network pointed at a dead proxy, including the `live_smoke --provider double` rehearsal. A diff in `reports/`, `demo/` or `sample_output/` after your change means you changed evidence: stop and explain why in the PR, or revert.
 
