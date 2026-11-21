@@ -156,6 +156,37 @@ class OptInRuntimeTests(unittest.TestCase):
         self.assertFalse(ok)  # ...but it cannot stand in for a referent the user named
         self.assertIn("unresolved service target", why)
 
+    def test_the_validated_selection_is_the_one_sent_even_if_the_selector_changes(self):
+        """Ported from session 01DBLHMGQbB1XHvfyByVFSQ4's review of #69: no check-then-recompute."""
+        calls = []
+
+        def drifting(decision):
+            calls.append(decision)
+            return ("investigate-cause",) if len(calls) == 1 else ("prepare-user-update",)
+
+        port = OfflineModelPort()
+        rt = ScopedContextRuntime(IncidentHost(TASKS["investigate"]), TriagePolicy(), port,
+                                  requested_modules=drifting)
+        rt.run()
+        first = [m["id"] for m in port.packets[0][1]["instruction_modules"]]
+        self.assertIn("investigate-cause", first)
+        self.assertNotIn("prepare-user-update", first)
+
+    def test_malformed_manifest_types_fail_closed_not_with_type_errors(self):
+        base = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
+        unhashable = json.loads(json.dumps(base))
+        unhashable["blocks"][0]["id"] = ["host-authority"]
+        stringly = json.loads(json.dumps(base))
+        stringly["blocks"][0]["applies_to"] = "CALL_HEAVY"
+        numeric = json.loads(json.dumps(base))
+        numeric["blocks"][2]["depends_on"] = [7]
+        for variant in (unhashable, stringly, numeric):
+            with self.subTest(variant=variant["blocks"][0]["id"]), tempfile.TemporaryDirectory() as tmp:
+                path = Path(tmp) / "manifest.json"
+                path.write_text(json.dumps(variant), encoding="utf-8")
+                with self.assertRaises(ModuleSelectionError):
+                    load_manifest(path)
+
     def test_ambiguous_referent_must_clarify(self):
         result, runtime, port = run_case("unknown", "What do the runbooks say about it?",
                                          QueryExtractionPolicy())
