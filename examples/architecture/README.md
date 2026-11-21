@@ -100,6 +100,12 @@ Also print arm S, the shielded native agent ([what it is](#arm-s-the-shielded-na
 python -m examples.architecture.run_demo --shielded
 ```
 
+Also print B', the same loop with a native-intercept model port ([what it is](#b-the-native-intercept-model-port-an-ablation-of-how-the-model-is-asked); OpenAI Agents SDK only):
+
+```bash
+python -m examples.architecture.run_demo --native-intercept
+```
+
 **By default nothing leaves your machine.** The frameworks run for real: the SDK `Runner`, function-tool dispatch, structured-output parsing and LlamaIndex's agent workflow. Only the model is replaced, by each framework's own offline test double: `agents.testing.ScriptedModel` and LlamaIndex's `MockFunctionCallingLLM`. Their replies come from [`simulated_model.py`](simulated_model.py), a small deterministic investigator. It reacts only to what the framework actually passes it: instructions, the task, tool results, or the Turnwise context packet. Every trace says `SIMULATED`, and no output claims inference happened.
 
 `run_demo` is offline only; `--live` now refuses and points to the bounded smoke test below. **Real-provider runs go only through [`live_smoke.py`](live_smoke.py)**, which by default rehearses against a local provider double (free, offline):
@@ -339,6 +345,16 @@ What the offline tests show, with the simulated model:
 
 What this does **not** show: that arm S is as good as Turnwise Core with a real model, or better. The model is simulated and ignores instructions, the fixtures share an author with the arm, and a real model may omit, invent or over-cite receipt ids. What arm S gives up is stated plainly: no per-step choice of a light or heavy model, and less control over what the model sees at each step. The comparison belongs to [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9). Ported from the unmerged branch `experiment/sonnet55-strong-simple-null` and re-derived against `main`; that branch's recorded table predates later host changes and is not copied here.
 
+### B': the native-intercept model port (an ablation of how the model is asked)
+
+Arm B asks the model for one typed `StepOutcome` with no tools attached. That gives the property the hypothesis needs, *nothing a model emits is executed without a policy decision and host validation*, but it also bundles four other differences from arm A: one proposal per call, a fresh packet instead of a conversation, tools described as text, and a tool call written as JSON in a string. A difference between A and B therefore mixes "who controls" with "how the model is asked" ([#87](https://github.com/dgenio/turnwise-decision-lab/issues/87)).
+
+B' keeps the policy, the host and the loop of arm B and changes only the model call. The model gets the provider's real `tools` field and an appended conversation. **Every tool call in its response comes back to the policy as a proposal; the model call executes none of them.** The policy's adoption is validated and executed by the host as in arm B, and a call it does not adopt is answered `declined by policy: <reason>`. On the OpenAI Agents SDK the step agent's tools are inert and marked `needs_approval=True`, so the SDK itself pauses before any tool runs.
+
+**B' is labelled as an ablation, not as Turnwise Core.** Invariant 2 in `AGENTS.md` says a model step "runs with no tools", and B' sends a `tools` field. Whether to reword that invariant is the owner's decision and has not been made here.
+
+`python -m examples.architecture.intercept_structure` (offline, provider double) compares A, A', B and B' when the model chooses k = 1, 2 or 3 of the task's three reads. With the simulated model, arm B needs k + 1 requests; B' needs k + 1 if the model asks for one tool per response and 2 if it asks for all of them; and B' repeats 67% to 89% of its previous request against 43% to 60% for B. Under #87's pre-declared outcomes this is **inconclusive offline**: whether a model batches is something only a real model can show, so both ports go forward as arms. **Simulated and structural**, not a measurement, and silent on quality. Method, table and limits: [the dated note](../../docs/native-intercept-ablation-2026-11-21.md).
+
 ## Limitations: what this does not establish
 
 - **No quality, cost or latency claim.** The printed counts are operation counts for one simulated run. They are not measurements, and a count of model calls is not a cost (see [Counts are not cost](#counts-are-not-cost)). Turnwise adds policy decisions and host checks that a native agent does not have.
@@ -364,7 +380,8 @@ What this does **not** show: that arm S is as good as Turnwise Core with a real 
 | `turnwise_core.py` | Typed contracts (`Op`, `Decision`, `ModelOutcome`, `Snapshot`), host validation of decisions, and the bounded loop |
 | `policies.py` | `TriagePolicy` (Turnwise Core) and `HandoffPolicy` (contrast only) |
 | `simulated_model.py` | Offline stand-in for model replies, the same in both architectures |
-| `step_schema.py` | `StepOutcome`, the typed result of one model step |
+| `step_schema.py` | `StepOutcome`, the typed result of one model step; `StepAnswer`, the typed final reply of the B' port |
+| `native_intercept.py`, `openai_agents/native_intercept.py`, `intercept_structure.py` | B', the native-intercept model port: the Turnwise Core loop with a real tools field, every tool call returned to the policy as a proposal, and the offline k = 1, 2, 3 table. An ablation; **not the canonical arm B** |
 | `shielded_native.py`, `cited_answer.py`, `openai_agents/shielded.py` | Arm S, the shielded native agent: host rules, the unmodified agent loop, a host exit gate on a typed cited answer. A null arm; **not Turnwise Core** |
 | `openai_agents/`, `llamaindex/` | `conventional.py` (A), `turnwise.py` (B), `models.py` (simulated model, or a bounded provider model) |
 | `trace.py`, `run_demo.py` | Per-step controller traces and the offline CLI |
@@ -381,5 +398,6 @@ Tests:
 - [`tests/test_architecture_action_integrity.py`](../../tests/test_architecture_action_integrity.py): stdlib only. Unexecuted-action claims, write mentions that are not requests, write-target authority (an L56-style regression), the typed verification protocol, the pinned contract version, and a seeded randomized test that hostile policies and model replies cannot break the host invariants.
 - [`tests/test_architecture_openai_agents.py`](../../tests/test_architecture_openai_agents.py) and [`tests/test_architecture_llamaindex.py`](../../tests/test_architecture_llamaindex.py): run in the `architecture-examples` CI job, where a missing framework fails the job instead of skipping.
 - [`tests/test_architecture_provider_readiness.py`](../../tests/test_architecture_provider_readiness.py): the provider classes against the provider double, and the smoke harness. It runs in the same job, which also rehearses `live_smoke --provider double`.
+- [`tests/test_architecture_native_intercept.py`](../../tests/test_architecture_native_intercept.py): B'. With a fake port (stdlib only, main CI job): nothing runs without a policy decision and host validation, parallel proposals, declined calls, budgets. On the real SDK and the provider double (`architecture-examples` job): the approval seam, the fixed tools field, the appended conversation and the k = 1, 2, 3 report.
 - [`tests/test_architecture_cost_accounting.py`](../../tests/test_architecture_cost_accounting.py): billing units and request-shape arithmetic (stdlib only, main CI job), and the cost-structure report against the provider double (`architecture-examples` job).
 - [`tests/test_architecture_shielded_native.py`](../../tests/test_architecture_shielded_native.py): arm S. Host rules and the exit gate (stdlib only, main CI job); the native loop, host authority, the bounded return to the agent and failures on the real SDK loop (`architecture-examples` job).

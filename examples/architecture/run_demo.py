@@ -4,6 +4,7 @@
     python -m examples.architecture.run_demo --framework llamaindex
     python -m examples.architecture.run_demo --scenario all --handoff
     python -m examples.architecture.run_demo --shielded              # also arm S: the shielded native agent
+    python -m examples.architecture.run_demo --native-intercept      # also B': the native-intercept port (ablation)
 
 Offline: the frameworks run for real, the model is SIMULATED, and nothing is
 sent over the network. Real-provider runs go only through the bounded smoke
@@ -47,10 +48,12 @@ LIVE_REDIRECT = ("run_demo is offline only. Real-provider runs go through the bo
 
 
 SHIELDED_ONLY = "Arm S (the shielded native agent) is implemented for the OpenAI Agents SDK pair only."
+INTERCEPT_ONLY = "B' (the native-intercept model port) is implemented for the OpenAI Agents SDK pair only."
 
 
 def run_pair(framework: str, task: str, *, live: bool = False, handoff: bool,
-             checklist_null: bool = False, shielded: bool = False) -> list[RunResult]:
+             checklist_null: bool = False, shielded: bool = False,
+             native_intercept: bool = False) -> list[RunResult]:
     """Fresh models and a fresh host for every run, so runs cannot influence each other. Simulated model only."""
     if live:
         raise SystemExit(LIVE_REDIRECT)
@@ -71,6 +74,12 @@ def run_pair(framework: str, task: str, *, live: bool = False, handoff: bool,
         from .openai_agents.shielded import run_shielded
         m = choose()
         results.append(run_shielded(task, m.heavy, model_label=m.label)[0])
+    if native_intercept:  # B': the same loop and policy; the model is asked through a real tools field (ablation)
+        if framework != "openai-agents":
+            raise SystemExit(INTERCEPT_ONLY)
+        from .openai_agents.native_intercept import run_native_intercept
+        m = choose()
+        results.append(run_native_intercept(task, m.heavy, m.light, model_label=m.label)[0])
     return results
 
 
@@ -101,6 +110,9 @@ def main(argv: list[str] | None = None) -> None:
     parser.add_argument("--shielded", action="store_true",
                         help="also run arm S, the shielded native agent: host rules, the unmodified agent loop, a "
                              "host exit gate (OpenAI Agents SDK only; NOT Turnwise Core; offline, not an efficacy result)")
+    parser.add_argument("--native-intercept", action="store_true",
+                        help="also run B', the Turnwise Core loop with a native-intercept model port: an ablation of "
+                             "how the model is asked (OpenAI Agents SDK only; offline, not an efficacy result)")
     parser.add_argument("--brief", action="store_true", help="print only the side-by-side controller view")
     parser.add_argument("--live", action="store_true",
                         help="not supported here: real-provider runs go through examples.architecture.live_smoke")
@@ -111,22 +123,30 @@ def main(argv: list[str] | None = None) -> None:
     frameworks = list(FRAMEWORKS) if args.framework == "all" else [args.framework]
     if args.shielded and frameworks != ["openai-agents"]:  # before anything is run
         raise SystemExit(SHIELDED_ONLY)
+    if args.native_intercept and frameworks != ["openai-agents"]:
+        raise SystemExit(INTERCEPT_ONLY)
     scenarios = list(TASKS) if args.scenario == "all" else [args.scenario]
     blocks: list[str] = []
     for framework in frameworks:
         for scenario in scenarios:
             results = run_pair(framework, TASKS[scenario], handoff=args.handoff,
-                               checklist_null=args.checklist_null, shielded=args.shielded)
+                               checklist_null=args.checklist_null, shielded=args.shielded,
+                               native_intercept=args.native_intercept)
             parts = [header(framework, scenario)]
             if not args.brief:
                 parts += [render(r) for r in results]
             parts.append(render_side_by_side(results[0], results[1]))
+            extras = results[2 + int(args.handoff):]  # in run_pair's order: A+P, S, B'
             if args.brief and args.shielded:
-                s = results[-1]
+                s = extras[int(args.checklist_null)]
                 parts.append("S shielded native agent (SIMULATED, NOT Turnwise Core, no efficacy claim): "
                              f"{s.status}; " + "; ".join(f"{k}={v}" for k, v in s.counts.items()))
+            if args.brief and args.native_intercept:
+                b2 = extras[-1]
+                parts.append("B' native-intercept port (SIMULATED, ablation, no efficacy claim): "
+                             f"{b2.status}; " + "; ".join(f"{k}={v}" for k, v in b2.counts.items()))
             if args.brief and args.checklist_null:
-                null = results[-2] if args.shielded else results[-1]
+                null = extras[0]
                 parts.append(f"A+P checklist-prompted native null (SIMULATED, no efficacy claim): "
                              f"{null.status}; model_calls={null.counts['model_calls']}; "
                              f"host_tool_requests={null.counts['host_tool_requests']}")

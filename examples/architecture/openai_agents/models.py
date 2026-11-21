@@ -73,6 +73,14 @@ def simulated_model(brain: SimulatedInvestigator, tier: str, max_calls: int) -> 
     def respond(call):  # agents.testing.ModelCall -> output items
         counter["n"] += 1
         items = call.input if isinstance(call.input, list) else [{"role": "user", "content": call.input}]
+        if call.output_schema is not None and call.output_schema.name() == "StepAnswer":
+            # A Turnwise step asked through the native tools field (the B' ablation): tool calls are proposals.
+            task, results = _task_and_all_results(items)
+            turn = brain.intercept_turn(task=task, tool_results=results, tools=[t.name for t in call.tools])
+            if isinstance(turn, list):
+                return [function_call(a.tool, a.arguments, call_id=f"call_{tier}_{counter['n']}_{k}")
+                        for k, a in enumerate(turn)]
+            return [assistant_message(json.dumps(turn), item_id=f"msg_{tier}_{counter['n']}")]
         typed_native = call.output_schema is not None and bool(call.tools)  # arm S: tools AND a typed final answer
         if call.output_schema is not None and not typed_native:  # a Turnwise step: one typed StepOutcome
             packet = json.loads(_text(_first_user(items)))
@@ -100,6 +108,16 @@ def _text(item: Any) -> str:
     if isinstance(content, str):
         return content
     return "".join(part.get("text", "") for part in content if isinstance(part, dict))
+
+
+def _task_and_all_results(items: list[Any]) -> tuple[str, list[str]]:
+    """The task (first line of the first user message) and every host result in the conversation: receipt lines
+    in any user message (the first message, later HOST RESULTS messages) and the outputs of answered calls."""
+    task = _text(_first_user(items)).split("\n")[0]
+    results = [line for i in items if isinstance(i, dict) and i.get("role") == "user"
+               for line in _text(i).split("\n")[1:] if line.startswith("{")]
+    results += [str(i["output"]) for i in items if isinstance(i, dict) and i.get("type") == "function_call_output"]
+    return task, results
 
 
 def _task_and_prior_receipts(text: str) -> tuple[str, list[str]]:
