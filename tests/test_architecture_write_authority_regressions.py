@@ -62,6 +62,7 @@ NOT_A_REQUEST = (
     "Roll back checkout and also payments.",
     "Roll back checkout plus payments.",
     "Roll back checkout as well as payments.",
+    "Roll back checkout & payments.",
 )
 
 EXACT_REQUESTS = (
@@ -74,6 +75,14 @@ EXACT_REQUESTS = (
     ("Roll back checkout and also check payments health", {"checkout"}),
     ("Roll back checkout, then check payments health", {"checkout"}),
     ("Check payments health. Roll back checkout.", {"checkout"}),
+    # courtesy and notification continuations are not second targets (review of #77: these were refused)
+    ("Roll back checkout, please.", {"checkout"}),
+    ("Roll back checkout, thanks.", {"checkout"}),
+    ("Roll back checkout, now.", {"checkout"}),
+    ("Roll back checkout and let me know.", {"checkout"}),
+    ("Roll back checkout and notify me when done.", {"checkout"}),
+    ("Roll back checkout and confirm.", {"checkout"}),
+    ("Roll back checkout and keep me posted.", {"checkout"}),
 )
 
 

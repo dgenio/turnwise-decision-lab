@@ -132,6 +132,7 @@ class DroppedWriteMentions(unittest.TestCase):
             "Roll back checkout plus payments.",
             "Roll back checkout as well as payments.",
             "Roll back checkout, and payments.",
+            "Roll back checkout & payments.",
         ):
             with self.subTest(task=task):
                 host = IncidentHost(task)
