@@ -234,6 +234,25 @@ _LATER_WITHDRAWAL = re.compile(
 )
 
 
+# The first word after a coordinator ("and", "or", "plus", "&", "as well as", a comma) that follows a
+# rollback target. Unless it is a known non-target continuation, the clause may name a second target
+# ("roll back checkout and payments", "... and inventory"), so it gets no authority at all.
+_COORDINATED_NEXT_WORD = re.compile(
+    r"\s*(?:(?:and|or|plus|as\s+well\s+as)\b|&|,(?:\s*(?:and|or)\b)?)\s*"
+    r"(?:(?:then|also|please)\s+)*(?:the\s+)?"
+    r"(?:(?:latest|last|most\s+recent)\s+)?(\w+)\b",
+    re.IGNORECASE)
+# Words that start a separate read or a courtesy/notification phrase, never a second rollback target.
+# A word outside this set fails closed (no hold), so only add words that cannot name a service.
+_NON_TARGET_CONTINUATIONS = frozenset({
+    # independent reads
+    "check", "inspect", "explain", "summarize", "tell", "show", "get", "read", "find", "verify", "list",
+    "report", "compare", "investigate", "look",
+    # courtesy, acknowledgement and notification
+    "please", "thanks", "thank", "now", "let", "notify", "confirm", "keep", "ping",
+})
+
+
 def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
     """Writes the *user's own request* explicitly asks for, as (tool, service).
 
@@ -257,6 +276,15 @@ def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
         targets = named_services(match.group(1))
         if not targets:
             continue
+        # A second write verb or a coordinated bare target extends the action
+        # beyond this one-word extraction. Refuse even UNKNOWN extra targets:
+        # "roll back checkout and inventory" must not silently hold checkout.
+        # Keep an independent read ("and check payments health") eligible.
+        remainder = clause[match.end():]
+        second_write = re.search(r"\b(?:roll\s*back|roll-back|revert)\b", remainder, re.IGNORECASE)
+        coordinated = _COORDINATED_NEXT_WORD.match(remainder)
+        if second_write or (coordinated and coordinated.group(1).lower() not in _NON_TARGET_CONTINUATIONS):
+            continue  # ambiguous/multiple action targets: visible NOT REQUESTED, no hold
         # User retraction later in the same turn must invalidate the request.
         # Ambiguous scope fails closed rather than manufacturing an approval.
         if _LATER_WITHDRAWAL.search(user_request[segment.end():]):
