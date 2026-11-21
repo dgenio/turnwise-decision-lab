@@ -82,6 +82,11 @@ def load_manifest(path: Path = MANIFEST_PATH) -> Manifest:
         entries = data["blocks"]
         if not isinstance(entries, list) or not entries:
             raise ModuleSelectionError("manifest requires a nonempty blocks list")
+        if any(not isinstance(e, dict) or not all(isinstance(e.get(k), list)
+                                                  for k in ("applies_to", "depends_on", "conflicts_with"))
+               for e in entries):
+            raise ModuleSelectionError("each block must be an object with list-valued "
+                                       "applies_to, depends_on and conflicts_with")
         blocks = tuple(
             Block(
                 id=e["id"], text=e["text"], source=e["source"], applies_to=tuple(e["applies_to"]),
@@ -93,13 +98,17 @@ def load_manifest(path: Path = MANIFEST_PATH) -> Manifest:
         if isinstance(exc, ModuleSelectionError):
             raise
         raise ModuleSelectionError(f"invalid module manifest: {exc}") from exc
+    # Type-check every id before hashing it: a non-string id must fail closed, not raise TypeError.
+    if any(not isinstance(b.id, str) or not _ID.fullmatch(b.id) for b in blocks):
+        raise ModuleSelectionError("invalid module id")
+    if any(not all(isinstance(x, str) for x in (*b.applies_to, *b.depends_on, *b.conflicts_with))
+           for b in blocks):
+        raise ModuleSelectionError("operations, dependencies and conflicts must be lists of strings")
     ids = [b.id for b in blocks]
     if len(ids) != len(set(ids)):
         raise ModuleSelectionError("duplicate module ids")
     by_id = {b.id: b for b in blocks}
     for b in blocks:
-        if not isinstance(b.id, str) or not _ID.fullmatch(b.id):
-            raise ModuleSelectionError("invalid module id")
         if not isinstance(b.text, str) or not b.text.strip():
             raise ModuleSelectionError(f"{b.id}: empty text")
         if not isinstance(b.source, str) or not b.source.strip():
