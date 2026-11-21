@@ -2,6 +2,8 @@
 
 **Status: Experimentally measured (re-priced public trajectories, no inference by this repo).** Run on 2026-11-21 under [PROTOCOL.md](PROTOCOL.md), which was committed before the script and before this run. Issue: [#86](https://github.com/dgenio/turnwise-decision-lab/issues/86). Every token figure is an estimate (`ceil(characters / 4)`); the trajectories carry no provider usage. Every share is a hindsight ceiling, not a saving anyone achieved.
 
+> **Note, 2026-11-21.** [Amendment 1](PROTOCOL-AMENDMENT-1.md) adds τ²-bench, a coding set and the tier ceiling, under a protocol frozen before its own script and run. Results: [RESULTS-AMENDMENT-1.md](RESULTS-AMENDMENT-1.md) (combined verdict SHRINK). The findings below are unchanged.
+
 ## Verdict
 
 **SHRINK**, by the frozen decision rule: in every domain the batching ceiling is at least as large as the strict oracle D0 (airline 1.5% against 0.0%, retail 4.0% against 0.3%).
@@ -116,6 +118,8 @@ Two things follow, as observations and not as tested claims:
 ## Post-freeze changes
 
 **None.** `PROTOCOL.md` and `headroom.py` are unchanged since the commits that precede the evaluation run (`716eb35` and `675177b`). The commit that adds this file adds only results, the exploratory script and documentation. That ordering can be checked only while those three commits are kept apart: a squash merge would erase it.
+
+**Update (2026-11-21, review before merge; no result changed).** A fourth commit adds one input check to `headroom.py`: it refuses to run when a domain's `tau_bench/envs/<domain>/tools/` directory holds no tool definitions. Without it, a clone containing only `historical_trajectories/` (the four pinned files) ran, gave every domain 0 tool-definition tokens, a smaller stable prefix and different cost shares, and listed nothing under `tool_definition_problems`. The reviewer hit exactly that before fetching the full repository. On a full clone at `59a200c`, `results.json` and `exploratory.json` reproduce byte for byte with the committed files, before and after this change, on Python 3.12 and 3.13. The protocol and every definition it fixes are unchanged.
 
 Choices the protocol left open, all made in `675177b` before the evaluation run and pinned by `tests/test_stage0_headroom.py`:
 

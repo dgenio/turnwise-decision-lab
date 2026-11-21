@@ -197,14 +197,28 @@ class DataHandlingTests(unittest.TestCase):
         self.assertGreater(total, 0)
         self.assertEqual(problems, ["retail/odd.py: ValueError"])
 
+    def test_an_incomplete_clone_without_tool_definitions_is_refused(self):
+        # Review finding: with only historical_trajectories/ present, every domain silently got 0 tool-definition
+        # tokens and different cost shares, and nothing was listed under tool_definition_problems.
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "historical_trajectories").mkdir()
+            with self.assertRaisesRegex(SystemExit, "no tool definitions"):
+                h.load(Path(tmp), "eval")
+
     def test_a_file_with_a_different_hash_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp) / "historical_trajectories"
             directory.mkdir()
             for name in h.FILES:
                 (directory / name).write_text("[]")
+            for domain in h.DOMAINS:  # a tool definition per domain, so the hash check is the refusal under test
+                tools = Path(tmp) / "tau_bench" / "envs" / domain / "tools"
+                tools.mkdir(parents=True)
+                (tools / "get_x.py").write_text(
+                    "class GetX:\n    @staticmethod\n    def get_info():\n        return {'name': 'get_x'}\n")
             with self.assertRaises(SystemExit) as raised:
                 h.load(Path(tmp), "eval")
+        self.assertIn("SHA-256", str(raised.exception))
         self.assertIn("refusing to run", str(raised.exception))
 
 
