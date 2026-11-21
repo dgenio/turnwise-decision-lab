@@ -197,6 +197,14 @@ class DataHandlingTests(unittest.TestCase):
         self.assertGreater(total, 0)
         self.assertEqual(problems, ["retail/odd.py: ValueError"])
 
+    def test_an_incomplete_clone_without_tool_definitions_is_refused(self):
+        # Review finding: with only historical_trajectories/ present, every domain silently got 0 tool-definition
+        # tokens and different cost shares, and nothing was listed under tool_definition_problems.
+        with tempfile.TemporaryDirectory() as tmp:
+            (Path(tmp) / "historical_trajectories").mkdir()
+            with self.assertRaisesRegex(SystemExit, "no tool definitions"):
+                h.load(Path(tmp), "eval")
+
     def test_a_file_with_a_different_hash_is_refused(self):
         with tempfile.TemporaryDirectory() as tmp:
             directory = Path(tmp) / "historical_trajectories"

@@ -117,6 +117,8 @@ Two things follow, as observations and not as tested claims:
 
 **None.** `PROTOCOL.md` and `headroom.py` are unchanged since the commits that precede the evaluation run (`716eb35` and `675177b`). The commit that adds this file adds only results, the exploratory script and documentation. That ordering can be checked only while those three commits are kept apart: a squash merge would erase it.
 
+**Update (2026-11-21, review before merge; no result changed).** A fourth commit adds one input check to `headroom.py`: it refuses to run when a domain's `tau_bench/envs/<domain>/tools/` directory holds no tool definitions. Without it, a clone containing only `historical_trajectories/` (the four pinned files) ran, gave every domain 0 tool-definition tokens, a smaller stable prefix and different cost shares, and listed nothing under `tool_definition_problems`. The reviewer hit exactly that before fetching the full repository. On a full clone at `59a200c`, `results.json` and `exploratory.json` reproduce byte for byte with the committed files, before and after this change, on Python 3.12 and 3.13. The protocol and every definition it fixes are unchanged.
+
 Choices the protocol left open, all made in `675177b` before the evaluation run and pinned by `tests/test_stage0_headroom.py`:
 
 - Text written next to a deleted tool call leaves the transcript; only the call and its result stay. This raises every oracle.

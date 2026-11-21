@@ -216,6 +216,12 @@ def load(root: Path, split: str) -> tuple[list[Trajectory], dict[str, Any]]:
     directory = root / "historical_trajectories"
     tools, problems = {}, []
     for domain in DOMAINS:
+        tool_dir = root / "tau_bench" / "envs" / domain / "tools"
+        if not any(path.name != "__init__.py" for path in tool_dir.glob("*.py")):
+            # Post-freeze input check (no result changed): without it, an incomplete clone gave every domain
+            # 0 tool-definition tokens, a smaller stable prefix and different cost shares, with nothing listed.
+            raise SystemExit(f"{domain}: no tool definitions under {tool_dir}; --tau-bench-root must be a full "
+                             "clone at the pinned commit; refusing to run")
         tools[domain], issues = tool_definition_tokens(root, domain)
         problems += issues
     out: list[Trajectory] = []
