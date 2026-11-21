@@ -619,6 +619,46 @@ class LiveSmokeHarnessTests(unittest.TestCase):
                     self.assertEqual(last["termination"]["status"], "held")
                     self.assertEqual(last["policy_observed_outcome_ids"][-1], last["typed_outcomes"][-1]["id"])
 
+    def test_a_429_after_successful_responses_still_makes_the_attempt_inconclusive(self):
+        # The Turnwise arm ends at a host-validated HOLD and passes every mechanism check, so only the
+        # matrix-level 429 rule stops this cut-short attempt from being reported as PASS.
+        double = ProviderDouble(faults=[None, "http_429"])
+        report = live_smoke.run_matrix(ProviderSettings(MODEL), double=double,
+                                       configs=(("openai-agents", "turnwise"),))
+        rec = report["configs"][0]
+        self.assertEqual([r["status"] for r in rec["provider_requests"]], [200, 429])
+        self.assertEqual(rec["termination"]["status"], "held")
+        self.assertNotIn("fail", {c["result"] for c in rec["checks"]})
+        self.assertEqual(report["stop_reason"], "provider_http_429")
+        self.assertEqual(report["verdict"], "INCONCLUSIVE")
+
+    def test_a_crashed_run_is_inconclusive_even_when_every_recorded_check_passes(self):
+        # With no runtime to inspect, the Turnwise-specific checks cannot run; the error alone must keep the
+        # verdict from being PASS.
+        from examples.architecture.openai_agents import turnwise
+        real_run = turnwise.run_turnwise
+
+        def crash_after_running(*args, **kwargs):
+            real_run(*args, **kwargs)
+            raise RuntimeError("adapter crashed after the run")
+
+        with mock.patch.object(turnwise, "run_turnwise", crash_after_running):
+            report = live_smoke.run_matrix(ProviderSettings(MODEL), double=ProviderDouble(),
+                                           configs=(("openai-agents", "turnwise"),))
+        rec = report["configs"][0]
+        self.assertTrue(rec["provider_requests"])
+        self.assertEqual({c["result"] for c in rec["checks"]} - {"pass", "n/a"}, set())
+        self.assertIn("adapter crashed after the run", rec["error"])
+        self.assertEqual((rec["verdict"], report["verdict"]), ("INCONCLUSIVE", "INCONCLUSIVE"))
+
+    def test_a_non_default_output_bound_runs_end_to_end(self):
+        # Regression: the preflight built its ledger with the default bound (2000) while the settings carried
+        # the requested one, so any other --max-output-tokens crashed before the rehearsal started.
+        code, out, err = self._main(["--provider", "double", "--max-output-tokens", "1000"])
+        self.assertEqual(code, 0, err)
+        self.assertIn("max_output_tokens 1000", out)
+        self.assertIn("VERDICT: PASS", out)
+
     def test_provider_failures_are_inconclusive_and_the_matrix_continues(self):
         report = live_smoke.run_matrix(ProviderSettings(MODEL), double=ProviderDouble(faults=["http_500"]))
         verdicts = [r["verdict"] for r in report["configs"]]
