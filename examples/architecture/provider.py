@@ -38,6 +38,7 @@ from typing import Any
 
 import httpx2
 
+from .cost_accounting import canonical_request_text, shared_prefix_len
 from .turnwise_core import ModelCallFailed, RunHalt
 
 REAL_SOURCE = "REAL provider inference (OpenAI Responses API)"
@@ -113,6 +114,9 @@ class Exchange:
     response: dict[str, Any] = field(default_factory=dict)
     usage: dict[str, int] = field(default_factory=dict)
     elapsed_ms: int | None = None
+    # Request shape for cache-aware accounting (cost_accounting.py): length of the canonical request text, and how
+    # much of it is an exact prefix of the previous request admitted by this ledger. Text lengths, not tokens.
+    structure: dict[str, int] = field(default_factory=dict)
 
     def refusal(self) -> str | None:
         return next((o["refusal"] for o in self.response.get("output", []) if o.get("type") == "refusal"), None)
@@ -145,6 +149,7 @@ class ProviderLedger:
         self.refused: list[str] = []  # requests that were never sent, and why
         self._lock = threading.Lock()
         self._started: dict[int, float] = {}
+        self._previous_text = ""  # canonical text of the last admitted request, for prefix-reuse accounting
 
     # -- accounting
     def usage_totals(self) -> dict[str, int]:
@@ -206,6 +211,10 @@ class ProviderLedger:
                 self.refused.append(why)
                 raise ProviderCapReached(why + "; the request was NOT sent")
             exchange = Exchange(len(self.exchanges) + 1, request.url.host, request.url.path, summary, bound)
+            text = canonical_request_text(request.content)
+            exchange.structure = {"request_chars": len(text),
+                                  "shared_prefix_chars": shared_prefix_len(self._previous_text, text)}
+            self._previous_text = text
             self.exchanges.append(exchange)
             request.extensions["turnwise_exchange"] = exchange.n
             self._started[exchange.n] = time.monotonic()
