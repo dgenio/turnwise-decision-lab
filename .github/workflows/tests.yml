@@ -53,7 +53,15 @@ jobs:
           OPENAI_API_KEY: ''
           HTTP_PROXY: http://127.0.0.1:9
           HTTPS_PROXY: http://127.0.0.1:9
-        run: python -m unittest discover -s tests -p 'test_architecture*.py' -v
+        shell: bash
+        run: |
+          python -m unittest discover -s tests -p 'test_architecture*.py' -v 2>&1 | tee "$RUNNER_TEMP/architecture-tests.log"
+          # Every framework is installed here, so a skip means a test guard is wrong, whichever file it is in.
+          if grep -q "skipped=" "$RUNNER_TEMP/architecture-tests.log"; then
+            echo "::error::architecture tests were skipped although every framework is installed"
+            grep -E " skipped '|skipped=" "$RUNNER_TEMP/architecture-tests.log"
+            exit 1
+          fi
       - name: Run the demo; committed sample output must be byte-identical
         env:
           OPENAI_API_KEY: ''

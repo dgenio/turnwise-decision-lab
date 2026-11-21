@@ -380,6 +380,76 @@ class NoEvaluationInputsTests(unittest.TestCase):
         self.assertEqual((first.rows, first.answer), (second.rows, second.answer))
 
 
+class HostRefusesForTheRightReasonTests(unittest.TestCase):
+    """Each host check, on its own: a decision that only that check can refuse, and the reason it gives.
+
+    The run-level tests above assert that a bad decision is REJECTED. Several host checks overlap (an
+    uncited answer also fails the evidence gate), so a test that only looks for "REJECTED" keeps passing
+    when one check is deleted. Mutation testing found seven such checks; these cases pin each one.
+    """
+
+    def setUp(self):
+        # A finished investigation: executed receipts r1-r3, model outcomes m1 (proposal) and m2 (answer).
+        _, self.rt, self.host, _ = run(budget=Budget(max_tool_calls=3))
+        self.step = len(self.rt.rows)
+
+    def candidate(self, cited, shown):
+        outcome = ModelOutcome(f"m{len(self.rt.outcomes) + 1}", "heavy_model", "answer_candidate",
+                               "The deploy plausibly explains it.", cited=cited, shown=shown)
+        self.rt.outcomes.append(outcome)
+        return outcome.id
+
+    def assert_refused(self, decision, reason):
+        ok, why = self.rt.host_validates(decision, self.step)
+        self.assertFalse(ok, decision)
+        self.assertIn(reason, why)
+
+    def test_a_well_formed_decision_is_accepted(self):
+        # Guards the cases below against passing because the fixture refuses everything.
+        model_step = Decision(Op.CALL_HEAVY, "reason over the evidence", context=("r1", "r2"),
+                              may_propose=("service_health",))
+        self.assertEqual(self.rt.host_validates(model_step, self.step), (True, ""))
+        finish = Decision(Op.FINISH, "accept", candidate=self.candidate(("r1", "r2"), ("r1", "r2")))
+        self.assertEqual(self.rt.host_validates(finish, self.step), (True, ""))
+
+    def test_a_decision_must_state_its_reason(self):
+        self.assert_refused(Decision(Op.CALL_HEAVY, "  ", context=("r1",)), "must state its reason")
+
+    def test_the_runtime_tool_budget_binds_before_the_hosts_own_cap(self):
+        # Budget(max_tool_calls=3) is spent; the host's own cap (8) would still let this run.
+        self.assert_refused(Decision(Op.CALL_TOOL, "one more read", target="service_health",
+                                     arguments={"service": "checkout"}), "tool budget exhausted")
+
+    def test_model_context_may_only_name_executed_host_receipts(self):
+        rejected = self.host.execute("error_trend", {"service": "mars"}, proposed_by="turnwise_policy")
+        self.assertEqual(rejected.status, "rejected")
+        for context in (("r1", "r99"), ("r1", rejected.id)):
+            with self.subTest(context=context):
+                self.assert_refused(Decision(Op.CALL_HEAVY, "reason", context=context),
+                                    "context may only contain executed host receipts")
+
+    def test_the_model_may_only_be_offered_registered_tools(self):
+        self.assert_refused(Decision(Op.CALL_HEAVY, "reason", context=("r1",), may_propose=("delete_database",)),
+                            "may_propose lists an unregistered tool")
+
+    def test_finish_needs_citations(self):
+        self.assert_refused(Decision(Op.FINISH, "accept", candidate=self.candidate((), ("r1", "r2"))),
+                            "cites no host evidence")
+
+    def test_finish_citations_must_be_executed_receipts_the_model_was_shown(self):
+        # r1 and r2 satisfy the evidence-role gate, so only the citation check can refuse these.
+        rejected = self.host.execute("error_trend", {"service": "mars"}, proposed_by="turnwise_policy")
+        for cited, shown in ((("r1", "r2"), ("r1",)), (("r1", "r2", rejected.id), ("r1", "r2", rejected.id))):
+            with self.subTest(cited=cited, shown=shown):
+                self.assert_refused(Decision(Op.FINISH, "accept", candidate=self.candidate(cited, shown)),
+                                    "which are not executed receipts it was shown")
+
+    def test_hold_and_clarify_must_say_what_is_missing(self):
+        for op in (Op.HOLD, Op.CLARIFY):
+            with self.subTest(op=op):
+                self.assert_refused(Decision(op, "stop", message="   "), "must say what is missing")
+
+
 class HandoffContrastTests(unittest.TestCase):
     def test_handoff_transfers_control_and_the_trace_says_so(self):
         def native_agent(task_text, max_turns):
