@@ -226,7 +226,8 @@ def summarize_facts(tool: str, facts: Mapping[str, Any]) -> str:
 
 # ---------------------------------------------------------------- the host
 _ROLLBACK_REQUEST = re.compile(
-    r"^\s*(?:please\s+)?(?:roll\s+back|revert)\s+(?:the\s+)?(?:(?:latest|last|most\s+recent)\s+)?(\w+)\b",
+    # "Rollback"/"roll-back" spellings mean the same imperative as "roll back" (ADV-001).
+    r"^\s*(?:please\s+)?(?:roll\s*-?\s*back|revert)\s+(?:the\s+)?(?:(?:latest|last|most\s+recent)\s+)?(\w+)\b",
     re.IGNORECASE)
 # Anything that makes the request negated, conditional, hedged or quoted disqualifies it.
 _NOT_A_PLAIN_REQUEST = re.compile(
@@ -282,9 +283,16 @@ def requested_writes(user_request: str) -> frozenset[tuple[str, str]]:
         if _LATER_WITHDRAWAL.search(user_request[segment.end():]):
             return frozenset()
         found.update(("rollback_deploy", svc) for svc in targets)
+    # A same-turn negation of the same target ("Roll back checkout. Never roll back checkout.") contradicts
+    # the request: the host reports it NOT REQUESTED instead of asking a human to approve it (ADV-008).
+    for segment in re.finditer(r"[^.!?;\n]+(?:[.!?;\n]+|$)", user_request):
+        clause = segment.group(0)
+        if _WRITE_MENTION.search(clause) and _NEGATION.search(clause):
+            found -= {w for w in found if w[1] in named_services(clause)}
     return frozenset(found)
 
 
+_NEGATION = re.compile(r"\b(?:not|no|never|don'?t|do\s+not)\b", re.IGNORECASE)
 # Any mention of a rollback, whatever the phrasing ("can you roll it back?", "needs to be rolled back").
 _WRITE_MENTION = re.compile(r"\b(?:roll(?:s|ed|ing)?\s+(?:\w+\s+)?back|roll-?backs?|revert(?:s|ed|ing)?)\b",
                             re.IGNORECASE)

@@ -181,6 +181,27 @@ class DroppedWriteMentions(unittest.TestCase):
 class ActionTargetAuthority(unittest.TestCase):
     """#39/#40/#41: a write target comes only from the user's own plain request, never from other text."""
 
+    def test_rollback_spellings_get_the_same_disposition(self):
+        """ADV-001: "Rollback ..." is the same imperative as "Roll back ..."."""
+        for task in ("Rollback the latest checkout deployment.", "Roll-back checkout.", "Roll back checkout."):
+            with self.subTest(task=task):
+                host = IncidentHost(task)
+                self.assertEqual(host.requested_writes, {("rollback_deploy", "checkout")})
+                result = TurnwiseRuntime(host, TriagePolicy(), SimulatedPort()).run()
+                self.assertEqual(result.status, "held")
+                self.assertEqual(result.writes_executed, 0)
+
+    def test_same_turn_contradiction_is_not_turned_into_an_approval_request(self):
+        """ADV-008: a request the user negates in the same message is reported, never held."""
+        host = IncidentHost("Roll back checkout. Never roll back checkout.")
+        self.assertEqual(host.requested_writes, frozenset())
+        self.assertEqual(host.execute("rollback_deploy", {"service": "checkout"}, proposed_by="llm").status,
+                         "rejected")
+        self.assertIn("NOT REQUESTED", host.action_record())
+        # a negation about a DIFFERENT service leaves the plain request intact
+        self.assertEqual(requested_writes("Roll back checkout. Don't roll back payments."),
+                         {("rollback_deploy", "checkout")})
+
     def test_l56_style_unknown_target_never_retargets_to_a_mentioned_service(self):
         task = "Roll back inventory, and tell me who has checkout."
         host = IncidentHost(task)
