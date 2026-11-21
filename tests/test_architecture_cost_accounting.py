@@ -196,7 +196,9 @@ class CostStructureReportTests(unittest.TestCase):
         self.assertIn("SIMULATED", self.report["label"])
         for framework in self.module.FRAMEWORKS:
             arms = self.arms(framework)
-            self.assertEqual(list(arms), ["A", "A'", "B"])
+            # Arm S (the shielded native agent, #88) exists for the OpenAI Agents SDK pair only.
+            extra = ["S"] if framework in self.module.SHIELDED_FRAMEWORKS else []
+            self.assertEqual(list(arms), ["A", "A'", "B"] + extra)
             self.assertEqual({a["verdict"] for a in arms.values()}, {"PASS"}, framework)
 
     def test_the_report_says_how_each_native_arm_issued_tool_calls_and_the_batched_arm_really_batches(self):
@@ -225,7 +227,8 @@ class CostStructureReportTests(unittest.TestCase):
             rows = self.report["frameworks"][framework]["costs"]
             self.assertEqual({r["assumption"] for r in rows}, set(ASSUMPTIONS))
             for row in rows:
-                self.assertEqual(set(row["usd"]), {"A", "A'", "B"})
+                extra = {"S"} if framework in self.module.SHIELDED_FRAMEWORKS else set()
+                self.assertEqual(set(row["usd"]), {"A", "A'", "B"} | extra)
                 self.assertTrue(all(v is not None and v > 0 for v in row["usd"].values()), row)
                 self.assertEqual(row["min_cacheable_tokens"] is None, row["assumption"] == NO_CACHING)
             base = {r["assumption"]: r for r in rows

@@ -50,6 +50,9 @@ class NativeAction:
     tool: str | None = None
     arguments: dict[str, Any] | None = None
     text: str = ""
+    # answer only: the receipts the answer relied on. Sent only when the agent's final output type asks for
+    # citations (arm S); a plain-text native answer carries none, exactly as before.
+    cited: tuple[str, ...] = ()
 
 
 class SimulatedInvestigator:
@@ -110,8 +113,8 @@ class SimulatedInvestigator:
                 return NativeAction("tool_call", tool, {"service": svc})
         if self.rogue_write and "rollback_deploy" not in attempted and "rollback_deploy" in available:
             return NativeAction("tool_call", "rollback_deploy", {"service": svc})
-        text, _ = _compose(intent, svc, evidence)
-        return NativeAction("answer", text=text)
+        text, cited = _compose(intent, svc, evidence)
+        return NativeAction("answer", text=text, cited=tuple(cited))
 
     # ------------------------------------------- one Turnwise-controlled model step
     def typed_step(self, packet: dict[str, Any]) -> dict[str, Any]:

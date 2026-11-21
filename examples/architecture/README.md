@@ -94,6 +94,12 @@ python -m examples.architecture.run_demo --framework llamaindex
 python -m examples.architecture.run_demo --framework all --scenario all --handoff
 ```
 
+Also print arm S, the shielded native agent ([what it is](#arm-s-the-shielded-native-agent-a-null-not-turnwise-core); OpenAI Agents SDK only):
+
+```bash
+python -m examples.architecture.run_demo --shielded
+```
+
 **By default nothing leaves your machine.** The frameworks run for real: the SDK `Runner`, function-tool dispatch, structured-output parsing and LlamaIndex's agent workflow. Only the model is replaced, by each framework's own offline test double: `agents.testing.ScriptedModel` and LlamaIndex's `MockFunctionCallingLLM`. Their replies come from [`simulated_model.py`](simulated_model.py), a small deterministic investigator. It reacts only to what the framework actually passes it: instructions, the task, tool results, or the Turnwise context packet. Every trace says `SIMULATED`, and no output claims inference happened.
 
 `run_demo` is offline only; `--live` now refuses and points to the bounded smoke test below. **Real-provider runs go only through [`live_smoke.py`](live_smoke.py)**, which by default rehearses against a local provider double (free, offline):
@@ -310,7 +316,28 @@ No efficiency comparison is made.
 
 ### Counts are not cost
 
-The side-by-side counts operations. A provider bills fresh input, cache reads, cache writes and output, and a model may ask for several tools in one response. `python -m examples.architecture.cost_structure` (offline, provider double) reports what each arm sends and prices it under three billing assumptions, for three arms: the conventional agent (**A**), the same agent when the simulated model batches its evidence reads (**A'**), and Turnwise Core (**B**). On this scenario Turnwise Core's requests are larger and repeat less of their prefix, and whether it comes out cheaper than **A** depends on the billing assumption; it is not cheaper than **A'** under any of them. This is **simulated and structural**: synthetic token counts and arithmetic, not a cost measurement. Snapshot, method and limits: [cache-aware accounting](../../docs/cost-accounting-2026-11-21.md).
+The side-by-side counts operations. A provider bills fresh input, cache reads, cache writes and output, and a model may ask for several tools in one response. `python -m examples.architecture.cost_structure` (offline, provider double) reports what each arm sends and prices it under three billing assumptions, for the conventional agent (**A**), the same agent when the simulated model batches its evidence reads (**A'**), Turnwise Core (**B**) and, for the OpenAI Agents SDK pair, the shielded native agent (**S**). On this scenario Turnwise Core's requests are larger and repeat less of their prefix, and whether it comes out cheaper than **A** depends on the billing assumption; it is not cheaper than **A'** under any of them. This is **simulated and structural**: synthetic token counts and arithmetic, not a cost measurement. Snapshot, method and limits: [cache-aware accounting](../../docs/cost-accounting-2026-11-21.md).
+
+### Arm S: the shielded native agent (a null, not Turnwise Core)
+
+`AGENTS.md` requires "simple host rules + the same capable agent" next to any Turnwise Core comparison. Arm S makes that null executable ([#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)). **The agent keeps its own loop and chooses every operation.** The host acts only at the boundaries:
+
+| Where | What the host does | Model call |
+|---|---|---|
+| Before the agent | Holds a write the user asked for; answers a pure record question from the verified record; asks back when a service-scoped question names no service; reads the evidence its own contract (`required_evidence_roles`) already requires | None |
+| During the loop | `IncidentHost.execute` validates every tool call the agent makes, exactly as in arm A | The agent's own |
+| At exit | Checks the finished answer against host receipts. A rejected answer goes back to the agent with the reason, once by default, and is otherwise withheld | One more run of the agent per return |
+
+The agent is the same `build_agent(...)` as arm A. By default only its **final output type** changes, to `CitedAnswer` (text plus receipt ids), so the exit gate can check citations the way `FINISH` checks a model's. `shielded_native.py` imports no policy, runtime, snapshot or decision type; a test enforces that.
+
+What the offline tests show, with the simulated model:
+
+- On the showcase, arm S returns the same answer as arms A and B with the same two model calls and three reads as Turnwise Core. Here the difference between A and B is reproduced by the host reading what it already requires.
+- A conclusion that cites nothing is withheld when the answer is typed, and accepted when it is plain text. Turnwise Core holds it. The typed final answer closes that gap without a per-step controller.
+- **A shared limit:** an answer that cites every receipt and uses none passes both arm S and Turnwise Core. Citation checks are provenance only, in either architecture.
+- A model-proposed write is rejected by the host inside the native loop. A provider failure is a named failure after one call.
+
+What this does **not** show: that arm S is as good as Turnwise Core with a real model, or better. The model is simulated and ignores instructions, the fixtures share an author with the arm, and a real model may omit, invent or over-cite receipt ids. What arm S gives up is stated plainly: no per-step choice of a light or heavy model, and less control over what the model sees at each step. The comparison belongs to [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9). Ported from the unmerged branch `experiment/sonnet55-strong-simple-null` and re-derived against `main`; that branch's recorded table predates later host changes and is not copied here.
 
 ## Limitations: what this does not establish
 
@@ -323,7 +350,7 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 - CI blocks the network only for clients that honour `HTTP(S)_PROXY` (pointed at a dead port). Only the three packages in `requirements.txt` are pinned; their dependencies are not (the owner-dispatched paid workflow installs the fully hash-pinned `requirements-actions-py312.txt`).
 - Single-turn tasks only. There are no multi-turn referents and no approve-and-resume flow.
 - **Deferred from [#49](https://github.com/dgenio/turnwise-decision-lab/issues/49):**
-  - null arms: simple host rules + the native agent, and a checklist-prompted native agent ([#43](https://github.com/dgenio/turnwise-decision-lab/issues/43));
+  - the executed comparison against the null arms. Both now exist offline as mechanisms: simple host rules + the native agent is [arm S](#arm-s-the-shielded-native-agent-a-null-not-turnwise-core), and the checklist-prompted native agent is `--checklist-null` ([#43](https://github.com/dgenio/turnwise-decision-lab/issues/43));
   - a follow-up/retargeting scenario;
   - prompt and schema inventory parity tooling;
   - reuse of the v0.6 runtime in [#47](https://github.com/dgenio/turnwise-decision-lab/pull/47).
@@ -338,12 +365,13 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 | `policies.py` | `TriagePolicy` (Turnwise Core) and `HandoffPolicy` (contrast only) |
 | `simulated_model.py` | Offline stand-in for model replies, the same in both architectures |
 | `step_schema.py` | `StepOutcome`, the typed result of one model step |
+| `shielded_native.py`, `cited_answer.py`, `openai_agents/shielded.py` | Arm S, the shielded native agent: host rules, the unmodified agent loop, a host exit gate on a typed cited answer. A null arm; **not Turnwise Core** |
 | `openai_agents/`, `llamaindex/` | `conventional.py` (A), `turnwise.py` (B), `models.py` (simulated model, or a bounded provider model) |
 | `trace.py`, `run_demo.py` | Per-step controller traces and the offline CLI |
 | `provider.py` | `ProviderLedger` (request and spend caps before sending, a record of every request and response) and the settings shared by both frameworks |
 | `provider_double.py` | Deterministic Responses API stand-in, with scriptable faults (SIMULATED) |
 | `live_smoke.py` | The bounded four-configuration smoke test: rehearsal by default, paid only with explicit authorisation |
-| `cost_accounting.py`, `cost_structure.py` | Billing units with explicit unknowns (`turnwise-billing/v1`), request-shape accounting, and the offline three-arm cost-structure report (SIMULATED, structural) |
+| `cost_accounting.py`, `cost_structure.py` | Billing units with explicit unknowns (`turnwise-billing/v1`), request-shape accounting, and the offline cost-structure report for arms A, A', B and S (SIMULATED, structural) |
 | `sample_output/`, `regenerate_samples.sh` | Committed offline output, checked by CI |
 | `instruction_modules.v1.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
 
@@ -353,4 +381,5 @@ Tests:
 - [`tests/test_architecture_action_integrity.py`](../../tests/test_architecture_action_integrity.py): stdlib only. Unexecuted-action claims, write mentions that are not requests, write-target authority (an L56-style regression), the typed verification protocol, the pinned contract version, and a seeded randomized test that hostile policies and model replies cannot break the host invariants.
 - [`tests/test_architecture_openai_agents.py`](../../tests/test_architecture_openai_agents.py) and [`tests/test_architecture_llamaindex.py`](../../tests/test_architecture_llamaindex.py): run in the `architecture-examples` CI job, where a missing framework fails the job instead of skipping.
 - [`tests/test_architecture_provider_readiness.py`](../../tests/test_architecture_provider_readiness.py): the provider classes against the provider double, and the smoke harness. It runs in the same job, which also rehearses `live_smoke --provider double`.
-- [`tests/test_architecture_cost_accounting.py`](../../tests/test_architecture_cost_accounting.py): billing units and request-shape arithmetic (stdlib only, main CI job), and the three-arm cost-structure report against the provider double (`architecture-examples` job).
+- [`tests/test_architecture_cost_accounting.py`](../../tests/test_architecture_cost_accounting.py): billing units and request-shape arithmetic (stdlib only, main CI job), and the cost-structure report against the provider double (`architecture-examples` job).
+- [`tests/test_architecture_shielded_native.py`](../../tests/test_architecture_shielded_native.py): arm S. Host rules and the exit gate (stdlib only, main CI job); the native loop, host authority, the bounded return to the agent and failures on the real SDK loop (`architecture-examples` job).

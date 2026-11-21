@@ -14,7 +14,10 @@ Three arms per framework, with the same task, tools, host and simulated model:
 * **A**   the conventional agent; the simulated model asks for one tool per response;
 * **A'**  the same agent when the model asks for its evidence reads in ONE response
           (parallel tool calls, which tool-calling APIs support);
-* **B**   the same agent under Turnwise Core.
+* **B**   the same agent under Turnwise Core;
+* **S**   the same agent, shielded: host rules and evidence reads first, then the unmodified
+          agent loop, then a host exit gate on its typed, cited answer. The agent keeps control,
+          so this is NOT Turnwise Core. OpenAI Agents SDK only (#88).
 
 What this is not: a measurement. Token counts are the double's synthetic
 ``bytes // 4``, replies are simulated, and a real model may batch differently or
@@ -29,7 +32,7 @@ import sys
 from dataclasses import asdict
 from typing import Any
 
-from .cost_accounting import (ASSUMPTIONS, NO_CACHING, STRUCTURAL_LABEL, PriceCard, RequestShape,
+from .cost_accounting import (ASSUMPTIONS, NO_CACHING, STRUCTURAL_LABEL, PriceCard, RequestShape, billing_totals,
                               breakeven_cache_read_multiplier, shapes_from_exchanges, structural_cost)
 from .provider import DOUBLE_SOURCE, ProviderLedger, ProviderSettings, ProviderSetup
 from .provider_double import ProviderDouble
@@ -39,7 +42,10 @@ FRAMEWORKS = ("openai-agents", "llamaindex")
 BATCHED = "A'"
 # (key, architecture run by live_smoke.run_config, simulated model batches its evidence reads?)
 ARMS = (("A", "conventional", False), (BATCHED, "conventional", True), ("B", "turnwise", False))
-ARM_NAMES = {"A": "conventional agent", BATCHED: "conventional agent, batched reads", "B": "Turnwise Core"}
+SHIELDED = "S"
+SHIELDED_FRAMEWORKS = ("openai-agents",)  # arm S exists for this pair only
+ARM_NAMES = {"A": "conventional agent", BATCHED: "conventional agent, batched reads", "B": "Turnwise Core",
+             SHIELDED: "shielded native agent (the agent keeps control; NOT Turnwise Core)"}
 # The price card this repository recorded for its proposed smoke model. Operator-supplied; verify before reuse.
 RECORDED_CARD = PriceCard(2.00, 0.10, 2.50, 10.00,
                           source="docs/live-smoke-decision-packet.md (gpt-6.1-sol; prices read 2026-11-19)")
@@ -56,6 +62,33 @@ def run_arm(framework: str, architecture: str, *, batch_reads: bool, model: str)
                             max_output_tokens=settings.max_output_tokens)
     double = ProviderDouble(SimulatedInvestigator(batch_reads=batch_reads))
     return run_config(framework, architecture, ProviderSetup(settings, ledger, double.transport()))
+
+
+def run_shielded_arm(*, model: str) -> dict[str, Any]:
+    """Arm S on the showcase against a fresh provider double. It is not a smoke-matrix configuration, so it is
+    run here and graded on mechanism only: a host-accepted answer, no executed write, no refused request."""
+    from .incident_env import TASKS, IncidentHost
+    from .live_smoke import NATIVE_LIMIT, SCENARIO, request_cap
+    from .openai_agents.models import choose_models
+    from .openai_agents.shielded import run_shielded
+
+    settings = ProviderSettings(model=model)
+    ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=request_cap("conventional"),
+                            max_output_tokens=settings.max_output_tokens)
+    double = ProviderDouble(SimulatedInvestigator())
+    m = choose_models(provider=ProviderSetup(settings, ledger, double.transport()))
+    host = IncidentHost(TASKS[SCENARIO])
+    result, report = run_shielded(TASKS[SCENARIO], m.heavy, model_label=m.label, max_turns=NATIVE_LIMIT,
+                                  model_settings=m.settings, host=host)
+    passed = result.status == "finished" and not host.write_ledger and not ledger.refused
+    return {"provider_requests": [asdict(e) for e in ledger.exchanges],
+            "tool_calls": [{"receipt": r.id, "tool": r.tool, "arguments": r.arguments, "status": r.status,
+                            "proposed_by": r.proposed_by} for r in host.receipts],
+            "termination": {"status": result.status}, "error": report.failure,
+            "verdict": "PASS" if passed else "FAIL", "usage": ledger.usage_totals(),
+            "billing": billing_totals([e.usage for e in ledger.exchanges], basis="synthetic: provider double"),
+            "exit_gate": {"checks": len(report.verdicts), "returns": report.exit_returns,
+                          "declared_citations": None if report.cited is None else list(report.cited)}}
 
 
 def batching_label(shapes: list[RequestShape]) -> str:
@@ -79,7 +112,8 @@ def cost_rows(arms: dict[str, list[RequestShape]], card: PriceCard, stable_prefi
                 rows.append({"stable_prefix_tokens": stable, "assumption": assumption,
                              "min_cacheable_tokens": None if assumption == NO_CACHING else minimum, "usd": usd,
                              "b_vs_a_pct": _pct(usd.get("B"), usd.get("A")),
-                             "b_vs_a_batched_pct": _pct(usd.get("B"), usd.get(BATCHED))})
+                             "b_vs_a_batched_pct": _pct(usd.get("B"), usd.get(BATCHED)),
+                             "b_vs_s_pct": _pct(usd.get("B"), usd.get(SHIELDED))})
     return rows
 
 
@@ -94,8 +128,12 @@ def build_report(frameworks: tuple[str, ...] = FRAMEWORKS, *, card: PriceCard = 
                               "min_cacheable_tokens": min_cacheable_tokens, "frameworks": {}}
     for framework in frameworks:
         arms, shapes_by_arm = [], {}
-        for key, architecture, batch in ARMS:
-            record = run_arm(framework, architecture, batch_reads=batch, model=model or DOUBLE_DEFAULT_MODEL)
+        specs = ARMS + (((SHIELDED, "shielded", False),) if framework in SHIELDED_FRAMEWORKS else ())
+        for key, architecture, batch in specs:
+            if key == SHIELDED:
+                record = run_shielded_arm(model=model or DOUBLE_DEFAULT_MODEL)
+            else:
+                record = run_arm(framework, architecture, batch_reads=batch, model=model or DOUBLE_DEFAULT_MODEL)
             shapes = shapes_from_exchanges(record["provider_requests"])
             shapes_by_arm[key] = shapes
             arms.append({
@@ -138,15 +176,17 @@ def render(report: dict[str, Any]) -> str:
         multiplier = data["breakeven_cache_read_multiplier_b_vs_a"]
         lines += ["", f"=== {framework}: the same shapes under each billing assumption (USD, arithmetic) ===",
                   f"{'stable prefix':>13} | {'assumption':<66} | {'min cacheable':>13} | "
-                  f"{'A':>9} {'A-batched':>9} {'B':>9} | {'B vs A':>7} {'B vs A-b':>8}"]
+                  f"{'A':>9} {'A-batched':>9} {'B':>9} {'S':>9} | {'B vs A':>7} {'B vs A-b':>8} {'B vs S':>7}"]
         for row in data["costs"]:
             minimum = row["min_cacheable_tokens"]
             usd = row["usd"]
             lines.append(
                 f"{row['stable_prefix_tokens']:>13} | {row['assumption']:<66} | "
                 f"{'n/a' if minimum is None else 'ignored' if minimum == 0 else minimum:>13} | "
-                f"{_usd(usd.get('A')):>9} {_usd(usd.get(BATCHED)):>9} {_usd(usd.get('B')):>9} | "
-                f"{_signed(row['b_vs_a_pct']):>7} {_signed(row['b_vs_a_batched_pct']):>8}")
+                f"{_usd(usd.get('A')):>9} {_usd(usd.get(BATCHED)):>9} {_usd(usd.get('B')):>9} "
+                f"{_usd(usd[SHIELDED]) if SHIELDED in usd else 'not run':>9} | "
+                f"{_signed(row['b_vs_a_pct']):>7} {_signed(row['b_vs_a_batched_pct']):>8} "
+                f"{_signed(row['b_vs_s_pct']) if SHIELDED in usd else 'not run':>7}")
         if multiplier is not None:
             lines.append(f"Input-only break-even: B's input costs less than A's only if a cache read costs more than "
                          f"{multiplier:.2f}x the fresh input price (no write premium, minimum ignored).")
@@ -156,6 +196,8 @@ def render(report: dict[str, Any]) -> str:
               "'min cacheable' is a provider's minimum cacheable prompt length; below it nothing is read from cache.",
               "Latency is not modelled: fewer round trips is a real advantage over a sequential agent and none over "
               "one that batches.",
+              "S is the shielded native agent (host rules, the unmodified agent loop, a host exit gate); it is "
+              "'not run' where that arm is not implemented.",
               "Nothing here measures answer quality, real cost or real latency."]
     return "\n".join(lines)
 

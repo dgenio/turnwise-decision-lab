@@ -140,3 +140,9 @@ python -m examples.architecture.cost_structure
 ```
 
 Use `--cached-input-usd-per-mtok`, `--cache-write-usd-per-mtok`, `--min-cacheable-tokens` and `--stable-prefix-tokens` to change the assumptions.
+
+## Note added later on 2026-11-21: arm S
+
+The snapshot above is unchanged. Since [#88](https://github.com/dgenio/turnwise-decision-lab/issues/88) the report also prints arm **S**, the shielded native agent (host rules, the unmodified agent loop, a host exit gate; the agent keeps control, so it is not Turnwise Core), for the OpenAI Agents SDK pair. Same label and limits: simulated replies, synthetic token counts, arithmetic.
+
+On the same scenario and package versions, arm S sends 2 requests of 3,788 and 4,384 characters, and the second repeats 86% of the first. Turnwise Core (B) comes out between 2% and 44% above S across the rows of the table: +23% with no caching, +43% with discounted cache reads and no minimum, +13% at a 5,000-token stable prefix and +4% at 20,000 with cache reads discounted. As with every row above, the direction is what the arithmetic gives for this one simulated scenario, not a measured cost.
