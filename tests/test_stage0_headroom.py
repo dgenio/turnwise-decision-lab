@@ -211,8 +211,14 @@ class DataHandlingTests(unittest.TestCase):
             directory.mkdir()
             for name in h.FILES:
                 (directory / name).write_text("[]")
+            for domain in h.DOMAINS:  # a tool definition per domain, so the hash check is the refusal under test
+                tools = Path(tmp) / "tau_bench" / "envs" / domain / "tools"
+                tools.mkdir(parents=True)
+                (tools / "get_x.py").write_text(
+                    "class GetX:\n    @staticmethod\n    def get_info():\n        return {'name': 'get_x'}\n")
             with self.assertRaises(SystemExit) as raised:
                 h.load(Path(tmp), "eval")
+        self.assertIn("SHA-256", str(raised.exception))
         self.assertIn("refusing to run", str(raised.exception))
 
 
