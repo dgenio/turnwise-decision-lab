@@ -174,10 +174,6 @@ class ProviderLedger:
                                         e.usage.get("output_tokens", 0)))
                    for e in self.exchanges)
 
-    def last_refusal(self) -> str | None:
-        with self._lock:
-            return self.exchanges[-1].refusal() if self.exchanges else None
-
     # -- the hooks
     def admit(self, request: httpx2.Request) -> None:
         with self._lock:

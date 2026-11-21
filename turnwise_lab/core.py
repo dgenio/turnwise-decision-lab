@@ -22,7 +22,6 @@ class Source:
     summary: str
     body: str
     sensitivity: str = "public"  # public | internal | restricted
-    authority: int = 1
 
 
 @dataclass(frozen=True)
