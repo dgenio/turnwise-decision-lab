@@ -13,6 +13,7 @@ Start with the [README](../README.md). For what is current, held or historical, 
 | [comparators.md](comparators.md) | Snapshot 2026-11-18 | Prior art, routers and native features, name collision |
 | [adaptive-agent-execution-pattern.md](adaptive-agent-execution-pattern.md) | Proposed (related, earlier framing) | Framework-neutral "AAE" pattern; the per-step hypothesis is now the primary research object |
 | [architecture-fit-audit-2026-11-18.md](architecture-fit-audit-2026-11-18.md) | Historical audit + 2026-11-19 owner decision | Why Turnwise Core (policy keeps control) and `HANDOFF_AGENT` (native agent takes control) are separate architectures |
+| [research-audit-2026-11-21/](research-audit-2026-11-21/README.md) | Historical external research (2026-11-21); AI-authored, partly re-checked; not evidence produced by this repository | Five reports behind the red-team review [#94](https://github.com/dgenio/turnwise-decision-lab/issues/94): orchestration prior art, model routing, tools and context, decision theory and evaluation science, commercial landscape |
 
 ## The code
 
