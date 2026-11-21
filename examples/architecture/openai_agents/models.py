@@ -73,7 +73,8 @@ def simulated_model(brain: SimulatedInvestigator, tier: str, max_calls: int) -> 
     def respond(call):  # agents.testing.ModelCall -> output items
         counter["n"] += 1
         items = call.input if isinstance(call.input, list) else [{"role": "user", "content": call.input}]
-        if call.output_schema is not None:  # a Turnwise step: answer with one typed StepOutcome
+        typed_native = call.output_schema is not None and bool(call.tools)  # arm S: tools AND a typed final answer
+        if call.output_schema is not None and not typed_native:  # a Turnwise step: one typed StepOutcome
             packet = json.loads(_text(_first_user(items)))
             return [assistant_message(json.dumps(brain.typed_step(packet)), item_id=f"msg_{tier}_{counter['n']}")]
         task, prior = _task_and_prior_receipts(_text(_first_user(items)))
@@ -82,6 +83,9 @@ def simulated_model(brain: SimulatedInvestigator, tier: str, max_calls: int) -> 
                                    tools=[t.name for t in call.tools])
         if action.kind == "tool_call":
             return [function_call(action.tool, action.arguments, call_id=f"call_{tier}_{counter['n']}")]
+        if typed_native:  # the same answer as a CitedAnswer: its text and the receipts it relied on
+            body = json.dumps({"text": action.text, "cited_receipts": list(action.cited)})
+            return [assistant_message(body, item_id=f"msg_{tier}_{counter['n']}")]
         return [assistant_message(action.text, item_id=f"msg_{tier}_{counter['n']}")]
 
     return ScriptedModel([ModelStep.respond(respond) for _ in range(max_calls)])

@@ -12,13 +12,15 @@ build real requests, and parse responses in the provider's wire format, with no
 network and no credentials. What the reply *says* comes from the same
 ``SimulatedInvestigator`` as the offline demo:
 
-* a request with ``text.format.type == "json_schema"`` is one Turnwise step:
+* a request with ``text.format.type == "json_schema"`` and no tools is one Turnwise step:
   the user message is the context packet, and the reply is a ``StepOutcome`` JSON text;
 * any other request is a native tool-calling turn: the reply is one
   ``function_call`` item or a final message. A brain built with
   ``batch_reads=True`` returns several ``function_call`` items in one response
   (parallel tool calls), which is what the batched-native arm of
-  ``cost_structure.py`` uses.
+  ``cost_structure.py`` uses. A native turn that also asks for a typed output
+  (tools *and* ``json_schema``: the shielded native agent, arm S) ends with its
+  answer as a ``CitedAnswer`` JSON text instead of plain text.
 
 ``faults`` scripts provider misbehaviour, one entry per request (``None`` =
 normal), to show that each failure is visible: see ``FAULTS``. Every response
@@ -87,8 +89,10 @@ class ProviderDouble:
                                                 for i in body.get("input", []))):
             # The real API behaves like this: items are not persisted when store=false.
             return _error(404, "Item with id 'rs_…' not found. Items are not persisted when `store` is set to false.")
-        step = ((body.get("text") or {}).get("format") or {}).get("type") == "json_schema"
-        output = self._typed_step(body, n, fault) if step else self._native_turn(body, n, fault)
+        typed = ((body.get("text") or {}).get("format") or {}).get("type") == "json_schema"
+        # A typed output with no tools is one Turnwise step. With tools it is a native agent with a typed final answer.
+        step = typed and not body.get("tools")
+        output = self._typed_step(body, n, fault) if step else self._native_turn(body, n, fault, typed_final=typed)
         status = "completed"
         incomplete = None
         if fault == "incomplete":
@@ -123,9 +127,12 @@ class ProviderDouble:
                        "arguments_json": json.dumps({"service": "checkout"}), "cited_receipts": []}
         return [_message(n, text=json.dumps(outcome))]
 
-    def _native_turn(self, body: dict[str, Any], n: int, fault: str | None) -> list[dict[str, Any]]:
+    def _native_turn(self, body: dict[str, Any], n: int, fault: str | None, *,
+                     typed_final: bool = False) -> list[dict[str, Any]]:
         if fault == "refusal":
             return [_message(n, refusal="I can't help with that request.")]
+        if fault == "not_json" and typed_final:
+            return [_message(n, text="Sure! The deploy probably caused it.")]
         if fault == "bad_arguments":
             return [_function_call(n, "error_trend", '{"service": checkout')]
         if fault == "unknown_tool":
@@ -146,6 +153,8 @@ class ProviderDouble:
         if actions[0].kind == "tool_call":
             # One function_call item per action: more than one only when the brain batches reads.
             return [_function_call(n, a.tool, json.dumps(a.arguments), k) for k, a in enumerate(actions)]
+        if typed_final:  # the same answer as a CitedAnswer: its text and the receipts it relied on
+            return [_message(n, text=json.dumps({"text": actions[0].text, "cited_receipts": list(actions[0].cited)}))]
         return [_message(n, text=actions[0].text)]
 
 
