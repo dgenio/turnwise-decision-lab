@@ -21,11 +21,12 @@ from pydantic import BaseModel, Field, create_model
 
 from turnwise_lab.world import SERVICES
 
-from ..incident_env import AGENT_INSTRUCTIONS, TOOLS, HostSession, IncidentHost, ToolSpec
+from ..checklist_null import native_instructions
+from ..incident_env import TOOLS, HostSession, IncidentHost, ToolSpec
 from ..trace import NativeTurnItem, RunResult, conventional_rows, receipt_id_from_output
 
 
-def build_agent(llm: Any, session: HostSession) -> FunctionAgent:
+def build_agent(llm: Any, session: HostSession, *, checklist: bool = False) -> FunctionAgent:
     """The agent both variants share: same system prompt, same tools, same LLM.
 
     ``streaming=False``: one complete LLM response per step, like the Agents SDK's ``Runner.run_sync``. This
@@ -34,7 +35,7 @@ def build_agent(llm: Any, session: HostSession) -> FunctionAgent:
     return FunctionAgent(
         name="incident_investigator",
         description="Investigates incidents with read tools.",
-        system_prompt=AGENT_INSTRUCTIONS,
+        system_prompt=native_instructions(checklist=checklist),
         tools=[_function_tool(spec, session) for spec in TOOLS],
         llm=llm,
         streaming=False,
@@ -86,17 +87,20 @@ async def run_agent(agent: FunctionAgent, user_msg: str,
 
 
 def run_conventional(task: str, llm: Any, *, model_label: str, max_iterations: int = 10,
-                     host: IncidentHost | None = None) -> RunResult:
+                     host: IncidentHost | None = None, checklist: bool = False) -> RunResult:
     """``host`` may be passed in so a caller can still read its receipts if the run raises."""
     host = host or IncidentHost(task)
-    agent = build_agent(llm, HostSession(host, actor="llm"))
+    agent = build_agent(llm, HostSession(host, actor="llm"), checklist=checklist)
     final, turns, receipt_for_call = asyncio.run(run_agent(agent, task, max_iterations))
     rows = conventional_rows(turns, host.receipts, receipt_for_call=receipt_for_call,
                              controller="LLM (inside the FunctionAgent workflow)", loop_name="the agent workflow")
     return RunResult(
-        title="Conventional agent -- LlamaIndex (FunctionAgent + FunctionTool)",
+        title=("A+P checklist-prompted native agent" if checklist else "Conventional agent")
+              + " -- LlamaIndex (FunctionAgent + FunctionTool)",
         model_label=model_label, task=task, status="completed (FunctionAgent response)",
         answer=final.response.content or "", rows=rows,
-        notes=["the workflow ends when the LLM answers without a tool call; no host check of the answer", host.action_record()],
+        notes=["the workflow ends when the LLM answers without a tool call; no host check of the answer",
+               host.action_record()] + (["A+P: frozen prompt guidance only; simulated result is NOT efficacy evidence"]
+                                       if checklist else []),
         counts={"model_calls": len(turns), "host_tool_requests": len(host.receipts)},
         writes_executed=len(host.write_ledger))

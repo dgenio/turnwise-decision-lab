@@ -118,13 +118,31 @@ class DroppedWriteMentions(unittest.TestCase):
         self.assertFalse(any(r.status == "held_for_approval" for r in host.receipts))
         self.assertTrue(any("NOT REQUESTED" in note for note in result.notes))
 
-    def test_second_service_in_a_request_is_reported_not_dropped_or_held(self):
-        task = "Roll back checkout and payments."
-        host = IncidentHost(task)
-        self.assertEqual(host.requested_writes, {("rollback_deploy", "checkout")})
-        self.assertEqual(host.execute("rollback_deploy", {"service": "payments"}, proposed_by="llm").status,
-                         "rejected")
-        self.assertIn("NOT REQUESTED", host.action_record())
+    def test_multiple_action_targets_fail_closed_instead_of_authorizing_the_first(self):
+        # Previously "Roll back checkout and payments" held checkout while describing the
+        # same clause as NOT REQUESTED; a partial hold is an unsafe interpretation.
+        for task in (
+            "Roll back checkout and payments.",
+            "Roll back checkout, payments and auth.",
+            "Roll back checkout or payments.",
+            "Roll back checkout and revert payments.",
+            "Roll back checkout and roll back payments.",
+            "Roll back checkout and inventory.",
+            "Roll back checkout and also payments.",
+            "Roll back checkout plus payments.",
+            "Roll back checkout as well as payments.",
+            "Roll back checkout, and payments.",
+            "Roll back checkout & payments.",
+        ):
+            with self.subTest(task=task):
+                host = IncidentHost(task)
+                self.assertEqual(host.requested_writes, frozenset())
+                self.assertTrue(unrecognized_write_mentions(task))
+                self.assertIn("NOT REQUESTED", host.action_record())
+                for svc in ("checkout", "payments"):
+                    self.assertEqual(host.execute("rollback_deploy", {"service": svc},
+                                                  proposed_by="llm").status, "rejected")
+                self.assertEqual(host.write_ledger, [])
 
     def test_plain_requests_and_unrelated_tasks_carry_no_extra_note(self):
         for task in TASKS.values():

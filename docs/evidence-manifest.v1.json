@@ -1,0 +1,192 @@
+{
+  "schema": "turnwise.evidence-manifest/1",
+  "scope": "main_only",
+  "purpose": "Inspectably distinguish pinned original records from rerunnable derived output. This document does not certify model inference, correctness or quality.",
+  "immutable": [
+    {
+      "path": "docs/preregistration-v0.5.md",
+      "kind": "preregistration",
+      "sha256": "8ebeea35d314d430c360ddb3203bfc51c6bcb8d9269d76921890859fb4a75f0c",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "fixtures/sessions.json",
+      "kind": "authored_synthetic_fixture",
+      "sha256": "6cc1377592627d2e811108c02c5437d6eda4c685a87327048023b8e6e585a625",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "fixtures/scenarios.json",
+      "kind": "authored_synthetic_fixture",
+      "sha256": "0f0cacfe8047620963e5d68ec4562ae98216dc3b7f86eedfb88ac75b9842fe2e",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "fixtures/route_train.jsonl",
+      "kind": "authored_synthetic_fixture",
+      "sha256": "121c22365d00ec9d7e8fb895cc4ec133ec62be10d83faa088b826696898a870d",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "fixtures/route_test.jsonl",
+      "kind": "authored_synthetic_fixture",
+      "sha256": "be72dd7f506cfdbd1db40eba46e309904d145cbc31fba9100143f74793acfc07",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "turnwise_lab/world.py",
+      "kind": "frozen_world_code",
+      "sha256": "be62292baf56c04ef87304d9e6165e70811b17eb2371e3abebc4fcd7b9c60f8a",
+      "validation": "sha256_in_offline_ci"
+    },
+    {
+      "path": "reports/live-smoke-44520205372.md",
+      "kind": "historical_paid_attempt_inconclusive",
+      "sha256": "4d175437a8e014427c448f664843b3206260f3178defd35adf435ded7723837e",
+      "validation": "sha256_in_offline_ci"
+    }
+  ],
+  "regenerated": [
+    {
+      "path": "reports/arena.json",
+      "generator": "python -m turnwise_lab.arena",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "reports/arena.md",
+      "generator": "python -m turnwise_lab.arena",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/index.html",
+      "generator": "python -m turnwise_lab.explorer",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "reports/live-local-run.json",
+      "generator": "python -m turnwise_lab.live_demo --output reports/live-local-run.json",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "reports/trained-routing-synthetic.md",
+      "generator": "python -m turnwise_lab.benchmark --output /tmp/trained.json --markdown reports/trained-routing-synthetic.md",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/showcase.json",
+      "generator": "python -m turnwise_lab.showcase --json-out demo/showcase.json --html-out demo/planning-contract.html",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/planning-contract.html",
+      "generator": "python -m turnwise_lab.showcase --json-out demo/showcase.json --html-out demo/planning-contract.html",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/live-local-run.json",
+      "generator": "python -m scripts.render_local_demo",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "demo/local-run.html",
+      "generator": "python -m scripts.render_local_demo",
+      "evidence_type": "offline_render",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "reports/synthetic-contract-replay.json",
+      "generator": "python -m turnwise_lab.evaluate --output reports/synthetic-contract-replay.json",
+      "evidence_type": "offline_synthetic",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "examples/architecture/sample_output/openai-agents.txt",
+      "generator": "examples/architecture/regenerate_samples.sh",
+      "evidence_type": "simulated_sdk",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "examples/architecture/sample_output/llamaindex.txt",
+      "generator": "examples/architecture/regenerate_samples.sh",
+      "evidence_type": "simulated_sdk",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    },
+    {
+      "path": "examples/architecture/sample_output/all-scenarios-brief.txt",
+      "generator": "examples/architecture/regenerate_samples.sh",
+      "evidence_type": "simulated_sdk",
+      "validation": "byte_identical_git_diff_in_offline_ci"
+    }
+  ],
+  "historical_unverified_by_regeneration": [
+    {
+      "path": "reports/trained-routing-synthetic.json",
+      "reason": "v0.4 historical timed benchmark JSON; CI intentionally writes current replay to /tmp/trained.json instead"
+    },
+    {
+      "path": "reports/synthetic-contract-replay.md",
+      "reason": "historical narrative; not among outputs regenerated and compared by current CI"
+    }
+  ],
+  "archived_unmerged_research": [
+    {
+      "pr": 6,
+      "commit": "06379175ff419d42d875da5d71e0ed257986ebe5",
+      "status": "HOLD: 0/7 decision-driven investigations; no capable baseline"
+    },
+    {
+      "pr": 31,
+      "commit": "2dc300c369dd33d838add175dbfa5f2d2829ff0c",
+      "status": "HOLD: experimental exact-prompt-budget implementation not ported wholesale"
+    },
+    {
+      "pr": 37,
+      "commit": "4d9987b591e14afbf2988d73c844028264e2d79c",
+      "status": "HOLD: experimental P0 host mechanisms; compatible tests selectively ported"
+    },
+    {
+      "pr": 38,
+      "commit": "e3bde98e1e0a00bbe87148dcf26d9efefff9397e",
+      "status": "HOLD/SHRINK: locked synthetic exit-gate study; no capable baseline"
+    },
+    {
+      "pr": 44,
+      "commit": "0ca03991ee6be6dc9bd06b3aeacbf3650fc199ad",
+      "status": "HOLD: experimental remote spend ledger not a provider billing cap"
+    },
+    {
+      "pr": 46,
+      "commit": "1a2fe83ec83193a2b5c1ab118a2741cc95bf2a96",
+      "status": "HOLD: experimental write-provenance host not merged; tests ported"
+    },
+    {
+      "pr": 60,
+      "commit": "b91ec2e671de57b9acf67df65d8090be6c39f704",
+      "status": "HOLD: unconsumed draft second authorization; NOT approved for dispatch"
+    }
+  ],
+  "limitations": [
+    "A content hash proves bytes only, not correctness, source trust or independent replication.",
+    "Regeneration verifies deterministic offline replay/rendering, never live model-inference reproduction.",
+    "Archived commits are recovery identifiers; the current main CI does not execute or independently verify archived branch results.",
+    "The consumed paid smoke recorded HTTP 429 and no model outputs; billed spend is unknown.",
+    "There is no independently adjudicated prospective quality/non-inferiority or end-to-end economic result."
+  ],
+  "experimental_verification": {
+    "v0_5_authored_synthetic_replay": "verified_by_offline_CI",
+    "v0_6_v0_7_independent_inference_reproduction": "not_run_in_main_CI",
+    "first_paid_smoke": "inconclusive_http_429_no_model_outputs",
+    "independent_outcome_adjudication": "not_run",
+    "provider_cost_and_latency": "unknown",
+    "prospective_non_inferiority": "not_run",
+    "historical_rubric_and_reviewer_provenance": "see_archived_commits_not_independently_validated_here"
+  }
+}

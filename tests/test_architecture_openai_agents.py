@@ -61,6 +61,36 @@ class ConventionalAgentIsANativeSDKAgentTests(unittest.TestCase):
         self.assertTrue(result.answer.startswith("Plausibly yes."))
         self.assertEqual(result.writes_executed, 0)
 
+    def test_checklist_null_changes_only_the_native_prompt(self):
+        from examples.architecture.checklist_null import native_instructions
+
+        m = choose_models()
+        baseline = build_agent(m.heavy)
+        prompted = build_agent(m.heavy, checklist=True)
+        self.assertEqual(baseline.instructions, AGENT_INSTRUCTIONS)
+        self.assertEqual(prompted.instructions, native_instructions(checklist=True))
+        self.assertEqual([t.name for t in baseline.tools], [t.name for t in prompted.tools])
+        self.assertIs(baseline.model, prompted.model)
+        self.assertEqual(baseline.model_settings, prompted.model_settings)
+
+        result = run_conventional(TASKS["investigate"], m.heavy, model_label=m.label, checklist=True)
+        self.assertTrue(result.title.startswith("A+P"))
+        self.assertTrue(m.heavy.calls)
+        self.assertTrue(all(c.system_instructions == native_instructions(checklist=True)
+                            for c in m.heavy.calls))
+        self.assertEqual(result.writes_executed, 0)
+
+    def test_opt_in_demo_adds_a_separate_a_plus_p_arm(self):
+        from examples.architecture.run_demo import run_pair
+
+        ordinary = run_pair("openai-agents", TASKS["investigate"], handoff=False)
+        with_null = run_pair("openai-agents", TASKS["investigate"], handoff=False, checklist_null=True)
+        self.assertEqual(len(ordinary), 2)
+        self.assertEqual(len(with_null), 3)
+        self.assertEqual([r.title for r in with_null[:2]], [r.title for r in ordinary])
+        self.assertTrue(with_null[2].title.startswith("A+P"))
+        self.assertEqual(with_null[2].writes_executed, 0)
+
     def test_trace_shows_text_beside_a_tool_call_without_calling_it_a_final_answer(self):
         from agents.testing import assistant_message, function_call
 

@@ -13,9 +13,11 @@ pinned:
 
 These are developer-authored mechanism regressions, written after reading the original failures; they
 are not held-out evidence and do not show that the lexical parser generalises. Rollback mentions the
-parser does not accept as a plain request (a rollback clause after a read clause, a second service in one
-clause) are never held; since #72 the host action record lists them as NOT REQUESTED, which
-``test_architecture_action_integrity.py`` covers. Whether to hold them instead is open in issue #12.
+parser does not accept as a plain request (a rollback clause after a read clause, multiple
+action targets in one clause) receive no authority; since #72 the host action record lists
+them as NOT REQUESTED. A multi-target clause must not silently hold only its first target.
+``test_architecture_action_integrity.py`` covers this. Whether and how to explicitly
+support compound actions remains open in the #12/#24 research backlog.
 """
 from __future__ import annotations
 
@@ -52,6 +54,15 @@ NOT_A_REQUEST = (
     # no resolvable target
     "roll it back",
     "roll back inventory service, and check checkout health",
+    "Roll back checkout and payments.",
+    "Roll back checkout or payments.",
+    "Roll back checkout, payments and auth.",
+    "Roll back checkout and revert payments.",
+    "Roll back checkout and inventory.",
+    "Roll back checkout and also payments.",
+    "Roll back checkout plus payments.",
+    "Roll back checkout as well as payments.",
+    "Roll back checkout & payments.",
 )
 
 EXACT_REQUESTS = (
@@ -61,7 +72,17 @@ EXACT_REQUESTS = (
     # compound action + read: only the action clause names the target (L56 class)
     ("Roll back checkout and check search health", {"checkout"}),
     ("roll back checkout, then check payments health", {"checkout"}),
+    ("Roll back checkout and also check payments health", {"checkout"}),
+    ("Roll back checkout, then check payments health", {"checkout"}),
     ("Check payments health. Roll back checkout.", {"checkout"}),
+    # courtesy and notification continuations are not second targets (review of #77: these were refused)
+    ("Roll back checkout, please.", {"checkout"}),
+    ("Roll back checkout, thanks.", {"checkout"}),
+    ("Roll back checkout, now.", {"checkout"}),
+    ("Roll back checkout and let me know.", {"checkout"}),
+    ("Roll back checkout and notify me when done.", {"checkout"}),
+    ("Roll back checkout and confirm.", {"checkout"}),
+    ("Roll back checkout and keep me posted.", {"checkout"}),
 )
 
 
