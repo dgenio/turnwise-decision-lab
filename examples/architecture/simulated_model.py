@@ -62,10 +62,31 @@ class SimulatedInvestigator:
 
     name = "simulated-capable-model"
 
-    def __init__(self, *, rogue_write: bool = False):
+    def __init__(self, *, rogue_write: bool = False, batch_reads: bool = False):
         self.rogue_write = rogue_write
+        # False (the default everywhere): one tool call per native turn, as before. True: every evidence read
+        # still missing is requested in the SAME response, as tool-calling APIs allow. Only the wire-level
+        # provider double uses it (``native_turn``), for the batched-native arm of the cost-structure report.
+        self.batch_reads = batch_reads
 
     # ------------------------------------------------ native tool-calling loop
+    def native_turn(self, *, instructions: str, task: str, tool_results: Iterable[str],
+                    tools: Iterable[str]) -> list[NativeAction]:
+        """One native turn as a list of actions: several tool calls in one response, or a single action.
+
+        Without ``batch_reads`` this is exactly ``[native_step(...)]``. With it, when the next action is an
+        evidence read, all the evidence reads this investigator still wants are returned together. Anything
+        else (a write, an answer, a clarification) stays a single action.
+        """
+        results, offered = list(tool_results), list(tools)
+        first = self.native_step(instructions=instructions, task=task, tool_results=results, tools=offered)
+        needs = _NEEDS.get(_intent(task), ())
+        if not self.batch_reads or first.kind != "tool_call" or first.tool not in needs:
+            return [first]
+        attempted = {r["tool"] for r in (_parse_result(x) for x in results) if r}
+        return [NativeAction("tool_call", tool, dict(first.arguments or {}))
+                for tool in needs if tool not in attempted and tool in set(offered)]
+
     def native_step(self, *, instructions: str, task: str, tool_results: Iterable[str],
                     tools: Iterable[str]) -> NativeAction:
         """One turn of a conventional agent: call another tool, or answer."""

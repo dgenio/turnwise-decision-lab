@@ -33,7 +33,7 @@ The operations: `DIRECT` answers from a host-verified record with no model or to
 
 ### Why consider this?
 
-Many agent steps need no reasoning: a verified fact, a read tool, a workflow that already exists. If a generative model chooses every step, every step pays for generative control and exposes the full tool catalogue and conversation. A cheap policy might avoid some of that while keeping the capable model for the steps that need it. Whether that saves anything once the policy's own cost and failures are counted is **the open question this lab exists to answer**.
+Many agent steps need no reasoning: a verified fact, a read tool, a workflow that already exists. If a generative model chooses every step, every step pays for generative control and exposes the full tool catalogue and conversation. A cheap policy might avoid some of that while keeping the capable model for the steps that need it. Whether that saves anything once the policy's own cost and failures are counted is **the open question this lab exists to answer**. Prompt caching and batched tool calls already remove much of what a skipped model call would save, so the answer has to be measured in billed cost, not in model calls ([cache-aware accounting](docs/cost-accounting-2026-11-21.md)).
 
 The policy is a pluggable interface (`Policy.decide(snapshot) -> Decision`). Today's implementation is hand-written rules, which makes it close to the "host rules" null below. The research question is whether a learned model, a cheap LLM or a decision service such as Jev behind that interface does better than plain rules, or whether rules are enough.
 
@@ -80,7 +80,7 @@ A: Conventional agent                                      | B: Turnwise Core
 
 At A3 the model's request for `validate_config` simply runs. At B3 the same request comes back to the policy as data, and at B4 the policy adopts it (`m1` is that first model outcome) because it is a registered read not yet done. An unrequested `rollback_deploy` proposal is declined by the policy, and refused by the host even under a policy that adopts everything; both are covered in [`tests/test_architecture_core.py`](tests/test_architecture_core.py).
 
-**How to read this.** The SDK code paths are real (`Runner.run_sync`, `FunctionTool`, `FunctionAgent`, `structured_predict`). **The model is simulated**: a deterministic stand-in written by the same author as the policy, and this showcase step was authored to produce a proposal. The trace demonstrates *control flow*, not reasoning quality, cost or latency. Real-provider paths now have a bounded rehearsal against a **simulated HTTP provider** (PR #54), and a first owner-authorized paid smoke was attempted on 2026-11-19, but **HTTP 429 prevented every model output**. No real-model behavior has been established. Use `python -m examples.architecture.live_smoke` for the free rehearsal; `run_demo --live` refuses and directs you to the bounded harness.
+**How to read this.** The SDK code paths are real (`Runner.run_sync`, `FunctionTool`, `FunctionAgent`, `structured_predict`). **The model is simulated**: a deterministic stand-in written by the same author as the policy, and this showcase step was authored to produce a proposal. The trace demonstrates *control flow*, not reasoning quality, cost or latency. In particular, "4 model responses against 2" is an operation count, not a cost: the simulated model asks for one tool per response, and under prompt caching the comparison changes sign with the billing assumption ([cache-aware accounting](docs/cost-accounting-2026-11-21.md), simulated and structural). Real-provider paths now have a bounded rehearsal against a **simulated HTTP provider** (PR #54), and a first owner-authorized paid smoke was attempted on 2026-11-19, but **HTTP 429 prevented every model output**. No real-model behavior has been established. Use `python -m examples.architecture.live_smoke` for the free rehearsal; `run_demo --live` refuses and directs you to the bounded harness.
 
 Full walkthrough, per-step traces, parity notes and limitations: [`examples/architecture/README.md`](examples/architecture/README.md).
 
@@ -97,7 +97,7 @@ There are two kinds of evidence on `main`: the architecture demo above, which sh
 | Joint router without session state | 43/46 | 43 | 1 | 2 |
 | Oracle: cheapest correct path (upper bound) | 46/46 | 9 | 0 | 0 |
 
-\*Upper bound for every design that calls a model. Three more designs are in the [full report](reports/arena.md).
+\*Upper bound for every design that calls a model. Three more designs are in the [full report](reports/arena.md). "Model calls" here are counted calls, not billed cost: v0.5 produced no tokens, prices or cache accounting.
 
 - **There is headroom on this authored, lookup-heavy workload**: the oracle answers 37/46 turns with no model call. Real traffic may differ.
 - **"Completed" is not "correct"**: all 6 silent wrong answers carried a `completed` receipt. Session state solved follow-ups and also caused most silent errors.

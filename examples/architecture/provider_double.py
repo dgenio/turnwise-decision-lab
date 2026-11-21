@@ -15,7 +15,10 @@ network and no credentials. What the reply *says* comes from the same
 * a request with ``text.format.type == "json_schema"`` is one Turnwise step:
   the user message is the context packet, and the reply is a ``StepOutcome`` JSON text;
 * any other request is a native tool-calling turn: the reply is one
-  ``function_call`` item or a final message.
+  ``function_call`` item or a final message. A brain built with
+  ``batch_reads=True`` returns several ``function_call`` items in one response
+  (parallel tool calls), which is what the batched-native arm of
+  ``cost_structure.py`` uses.
 
 ``faults`` scripts provider misbehaviour, one entry per request (``None`` =
 normal), to show that each failure is visible: see ``FAULTS``. Every response
@@ -135,14 +138,15 @@ class ProviderDouble:
             return [_function_call(n, "search_docs", json.dumps({"query": query}))]
         items = [i for i in body.get("input", []) if isinstance(i, dict)]
         tools = [t.get("name") for t in body.get("tools") or [] if isinstance(t, dict)]
-        action = self.brain.native_step(
+        actions = self.brain.native_turn(
             instructions=_instructions(body), task=_user_text(body).split("\n")[0],
             tool_results=[str(i.get("output")) for i in items if i.get("type") == "function_call_output"]
                          + [line for line in _user_text(body).split("\n")[1:] if line.startswith("{")],
             tools=tools)
-        if action.kind == "tool_call":
-            return [_function_call(n, action.tool, json.dumps(action.arguments))]
-        return [_message(n, text=action.text)]
+        if actions[0].kind == "tool_call":
+            # One function_call item per action: more than one only when the brain batches reads.
+            return [_function_call(n, a.tool, json.dumps(a.arguments), k) for k, a in enumerate(actions)]
+        return [_message(n, text=actions[0].text)]
 
 
 # ---------------------------------------------------------------- request parsing
@@ -173,8 +177,9 @@ def _message(n: int, *, text: str | None = None, refusal: str | None = None) -> 
     return {"type": "message", "id": f"msg_double_{n}", "role": "assistant", "status": "completed", "content": [part]}
 
 
-def _function_call(n: int, name: str, arguments: str) -> dict[str, Any]:
-    return {"type": "function_call", "id": f"fc_double_{n}", "call_id": f"call_double_{n}", "name": name,
+def _function_call(n: int, name: str, arguments: str, k: int = 0) -> dict[str, Any]:
+    suffix = f"{n}" if k == 0 else f"{n}_{k}"  # the first call of a response keeps the historical id
+    return {"type": "function_call", "id": f"fc_double_{suffix}", "call_id": f"call_double_{suffix}", "name": name,
             "arguments": arguments, "status": "completed"}
 
 
