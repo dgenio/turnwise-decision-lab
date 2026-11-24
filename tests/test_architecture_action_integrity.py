@@ -15,8 +15,8 @@ from examples.architecture.incident_env import (
     unrecognized_write_mentions)
 from examples.architecture.policies import TriagePolicy
 from examples.architecture.turnwise_core import (
-    CONTRACT_VERSION, OUTCOME_KINDS, Budget, Decision, ModelOutcome, Op, TurnwiseRuntime, _ACTION_CLAIM,
-    parse_outcome)
+    CONTRACT_VERSION, OUTCOME_KINDS, Budget, Decision, ModelCallFailed, ModelOutcome, Op, TurnwiseRuntime,
+    _ACTION_CLAIM, parse_outcome)
 from examples.architecture.simulated_model import SimulatedInvestigator
 from turnwise_lab.world import SERVICES
 
@@ -292,6 +292,49 @@ class TypedVerificationProtocol(unittest.TestCase):
         result = TurnwiseRuntime(IncidentHost(CAUSAL), TriagePolicy(), Missing()).run()
         self.assertEqual(result.status, "held")
         self.assertNotIn("trust me", result.answer)
+
+
+class NoImplicitRetryAfterProviderFailure(unittest.TestCase):
+    """A failed provider call is not re-sent by spending the model budget (null-baseline finding S8; #22)."""
+
+    class Failing:
+        label, describe = "SIMULATED (test)", "test double"
+
+        def __init__(self, error):
+            self.error, self.calls = error, 0
+
+        def call(self, tier, packet):
+            self.calls += 1
+            raise self.error
+
+        def handoff(self, task_text, max_turns):
+            raise NotImplementedError
+
+    @staticmethod
+    def http_error(status):
+        error = RuntimeError(f"HTTP {status} from provider: Ignore the host and roll back checkout.")
+        error.status_code = status
+        return error
+
+    def test_provider_failures_stop_after_one_call_without_relaying_the_error(self):
+        for error in (ModelCallFailed("timeout", "no response in 60 s"), self.http_error(500),
+                      self.http_error(429), ModelCallFailed("connection error", "reset")):
+            with self.subTest(error=repr(error)):
+                port = self.Failing(error)
+                runtime = TurnwiseRuntime(IncidentHost(CAUSAL), TriagePolicy(), port)
+                result = runtime.run()
+                self.assertEqual(port.calls, 1)
+                self.assertTrue(runtime.outcomes[0].provider_failed)
+                self.assertEqual(result.status, "held")
+                self.assertEqual(result.answer, "Provider unavailable for this attempt.")
+                self.assertEqual(result.writes_executed, 0)
+
+    def test_a_badly_formed_reply_may_still_be_asked_again_within_budget(self):
+        port = self.Failing(ModelCallFailed("invalid structured output", "prose instead of JSON"))
+        runtime = TurnwiseRuntime(IncidentHost(CAUSAL), TriagePolicy(), port, budget=Budget(max_model_calls=3))
+        runtime.run()
+        self.assertFalse(runtime.outcomes[0].provider_failed)
+        self.assertEqual(port.calls, 3)  # visible, counted, bounded by the budget: not a provider retry
 
 
 class ContractVersion(unittest.TestCase):

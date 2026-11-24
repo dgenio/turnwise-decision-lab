@@ -219,7 +219,7 @@ The offline demo replaces each framework's *model object* with a test double (`S
    - one provider request per `CALL_HEAVY`.
 3. **A provider-format tool proposal returns to the policy.** It becomes the next snapshot's latest observation with no new host receipt. The tool runs only after a policy decision that adopts it. A function call returned to a tool-less step executes nothing.
 4. **The policy decides; the host validates.** A model write proposal is declined by `TriagePolicy`. If a naive policy adopts it, the host rejects it.
-5. **Failures are visible.** Every fault becomes an `invalid` observation with a category (refusal, invalid structured output, incomplete response, provider error HTTP n, timeout) and is never accepted. In A, provider errors raise. Each failed call is exactly one request.
+5. **Failures are visible.** Every fault becomes an `invalid` observation with a category (refusal, invalid structured output, incomplete response, provider error HTTP n, timeout) and is never accepted. In A, provider errors raise. Each failed call is exactly one request. A provider or transport failure (HTTP error, timeout, connection error) is also flagged `provider_failed` by the runtime, and `TriagePolicy` then holds instead of spending its model budget on re-sending the failed request; before this, B made four failed calls where A stopped after one. A badly formed reply from a model that did answer may still be asked again, visibly and within budget.
 6. **Model output never authorises a side effect.** `requested_writes` is parsed from the user's text only. A user-requested rollback is held in all four configurations.
 7. **Limits.** The native loops stop at `max_turns` / `max_iterations` = 10, and the host caps tool executions at 8. Turnwise stops at `Budget.max_model_calls`. The ledger refuses requests over its request or spend cap *before sending*, and that halts a Turnwise run (it is not fed back to the policy).
 8. **Parity.** All four configurations send the same model id, `max_output_tokens` and temperature or reasoning effort. The native tool schemas agree. The remaining framework differences are asserted (see [Provider path](#provider-path-differences-observed-on-the-wire)).
@@ -308,9 +308,13 @@ How A's traces are built:
 
 No efficiency comparison is made.
 
+### Counts are not cost
+
+The side-by-side counts operations. A provider bills fresh input, cache reads, cache writes and output, and a model may ask for several tools in one response. `python -m examples.architecture.cost_structure` (offline, provider double) reports what each arm sends and prices it under three billing assumptions, for three arms: the conventional agent (**A**), the same agent when the simulated model batches its evidence reads (**A'**), and Turnwise Core (**B**). On this scenario Turnwise Core's requests are larger and repeat less of their prefix, and whether it comes out cheaper than **A** depends on the billing assumption; it is not cheaper than **A'** under any of them. This is **simulated and structural**: synthetic token counts and arithmetic, not a cost measurement. Snapshot, method and limits: [cache-aware accounting](../../docs/cost-accounting-2026-11-21.md).
+
 ## Limitations: what this does not establish
 
-- **No quality, cost or latency claim.** The printed counts are operation counts for one simulated run. They are not measurements. Turnwise adds policy decisions and host checks that a native agent does not have.
+- **No quality, cost or latency claim.** The printed counts are operation counts for one simulated run. They are not measurements, and a count of model calls is not a cost (see [Counts are not cost](#counts-are-not-cost)). Turnwise adds policy decisions and host checks that a native agent does not have.
 - **The simulated model is not a model.** It is deterministic and was written by the same author as the policy. Offline traces prove *control flow*, not reasoning ability.
 - **Real-model behaviour is still untested.** The provider classes are tested against a provider *double* that emulates the wire format and scripted faults (malformed outputs, refusals, errors). A real model may still make different tool choices or ignore the step contract, and the API may reject parameters that the double accepts. The [first authorized smoke](../../docs/live-smoke-decision-packet.md) returned HTTP 429 without outputs; another specifically authorized, capacity-verified run would be required to observe real-model behavior.
 - **The policy is hand-written** for this synthetic domain. It is a stand-in for a learned or decision-service policy (Jev/System One is not used). Simple host rules may do as well, which is the open research question in [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9).
@@ -339,6 +343,7 @@ No efficiency comparison is made.
 | `provider.py` | `ProviderLedger` (request and spend caps before sending, a record of every request and response) and the settings shared by both frameworks |
 | `provider_double.py` | Deterministic Responses API stand-in, with scriptable faults (SIMULATED) |
 | `live_smoke.py` | The bounded four-configuration smoke test: rehearsal by default, paid only with explicit authorisation |
+| `cost_accounting.py`, `cost_structure.py` | Billing units with explicit unknowns (`turnwise-billing/v1`), request-shape accounting, and the offline three-arm cost-structure report (SIMULATED, structural) |
 | `sample_output/`, `regenerate_samples.sh` | Committed offline output, checked by CI |
 | `instruction_modules.v1.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
 
@@ -348,3 +353,4 @@ Tests:
 - [`tests/test_architecture_action_integrity.py`](../../tests/test_architecture_action_integrity.py): stdlib only. Unexecuted-action claims, write mentions that are not requests, write-target authority (an L56-style regression), the typed verification protocol, the pinned contract version, and a seeded randomized test that hostile policies and model replies cannot break the host invariants.
 - [`tests/test_architecture_openai_agents.py`](../../tests/test_architecture_openai_agents.py) and [`tests/test_architecture_llamaindex.py`](../../tests/test_architecture_llamaindex.py): run in the `architecture-examples` CI job, where a missing framework fails the job instead of skipping.
 - [`tests/test_architecture_provider_readiness.py`](../../tests/test_architecture_provider_readiness.py): the provider classes against the provider double, and the smoke harness. It runs in the same job, which also rehearses `live_smoke --provider double`.
+- [`tests/test_architecture_cost_accounting.py`](../../tests/test_architecture_cost_accounting.py): billing units and request-shape arithmetic (stdlib only, main CI job), and the three-arm cost-structure report against the provider double (`architecture-examples` job).

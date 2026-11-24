@@ -46,6 +46,7 @@ from typing import Any
 
 from urllib.parse import urlparse
 
+from .cost_accounting import billing_totals
 from .incident_env import TASKS, TOOLS, IncidentHost
 from .provider import (ASSUMED_MAX_INPUT_TOKENS, DOUBLE_SOURCE, REAL_SOURCE, Prices, ProviderLedger,
                        ProviderSettings, ProviderSetup, classify_from_wire)
@@ -128,6 +129,9 @@ def run_config(framework: str, architecture: str, setup: ProviderSetup) -> dict[
         "error": error,
         "writes_executed": len(host.write_ledger),
         "usage": ledger.usage_totals(),
+        # The same usage in billing units (fresh input, cache reads, cache writes, output), unknown as None (#85).
+        "billing": billing_totals([e.usage for e in ledger.exchanges],
+                                  basis="synthetic: provider double" if setup.simulated else "provider-reported"),
         "reported_cost_usd": ledger.reported_cost_usd(),
         "spend_bound_usd": ledger.spend_bound_usd(),
         "elapsed_s": round(time.monotonic() - started, 2),
