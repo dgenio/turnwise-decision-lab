@@ -4,8 +4,8 @@
 
 ## What is actually new
 
-- Pre-authored JSON manifest at `examples/architecture/instruction_modules.v1.json`, version `turnwise.action-modules.v1`. Each module has an ID, explicit operation applicability, fixed instruction text, dependency IDs, conflict IDs, mandatory flag and deterministic priority. The complete manifest bytes and each included block's text are SHA-256 hashed in the audit. Only the checked-in manifest supplies instruction text.
-- `context_modules.py` validates references, cycles, conflicting declarations and operations, then compiles mandatory dependency closures first. **Mandatory overflow is rejected; it never silently drops required blocks.** Requested optional modules are selected by priority, with conflicting/oversized omissions explicitly recorded.
+- Pre-authored JSON manifest at `examples/architecture/instruction_modules.v2.json`, version `turnwise.action-modules.v2`. Each module has exactly an ID, the model operations it applies to, a mandatory flag, fixed instruction text and its provenance. The complete manifest bytes and each included block's text are SHA-256 hashed in the audit. Only the checked-in manifest supplies instruction text.
+- `context_modules.py` validates the manifest, refusing unknown fields, and gives a model operation its mandatory blocks, then the requested ones in request order. **A selection that does not fit the byte limit is refused before any model call; no block is ever dropped silently.** Every block left out is recorded with its reason (`not_requested` or `different_operation`).
 - `scoped_runtime.py` is an *opt-in subclass* of the already merged `TurnwiseRuntime`. It checks module selection via the **existing host validation step before a model call**, then adds selected blocks to the next operation's *model input packet*. Its audit records both loaded and excluded instruction blocks, evidence receipts and tool proposal visibility.
 - Existing host action authorization, approval holds, step limits, response receipts and `FINISH` citation checks stay where they are. The policy still gets control after every model observation. The module selector cannot execute tools or authorize side effects.
 - Default native SDK and Turnwise paths, plus historical frozen files, are **unchanged**. This is a prospective probe, not an additional general agent framework.
@@ -14,7 +14,11 @@
 
 The byte budget is **only UTF-8 bytes of instruction-module texts**. It does **not** cover the system prompt, JSON packet, tool schemas, selected evidence, user text, provider chat templates or model tokenization. It must never be represented as a hard provider token limit or a cost saving. Full prompt/token budget and mandatory context overflow remain [#16](https://github.com/dgenio/turnwise-decision-lab/issues/16). The pre-authored blocks are passed as *packet data*, not privileged system instructions: a strong model is not guaranteed to comply. Host authority stays independent.
 
-The default selector uses the **next model operation**, plus whether that step proposes a tool: `CALL_HEAVY` → `investigate-cause`; `CALL_LIGHT` with proposal scope → `extract-arguments`; other `CALL_LIGHT` → `summarize-evidence`. The manifest also supports multiple requested modules (e.g., investigation **and** a user update) and conflicting modules, but **no claim is made that this selector chooses well**. No task-family semantic classifier is included.
+The default selector uses the **next model operation**, plus whether that step proposes a tool: `CALL_HEAVY` → `investigate-cause`; `CALL_LIGHT` with proposal scope → `extract-arguments`; other `CALL_LIGHT` → `summarize-evidence`. A selector may request several blocks, but none in this exhibit does, and **no claim is made that this selector chooses well**. No task-family semantic classifier is included.
+
+### Simplified on 2026-11-24 (manifest v2)
+
+The v1 manifest also declared block dependencies, mutual conflicts and priorities, and three blocks (`prepare-user-update`, `concise-mode`, `expanded-mode`) to exercise them. No path ever reached that machinery. Every dependency pointed at a block that was already mandatory, the three extra blocks were never requested, and the largest real selection (657 bytes, on the light extraction path) stayed below the 1024-byte limit. Dependency closure, cycle detection, conflict resolution, priority ordering and "drop an optional block on overflow" therefore ran only under their own tests. They were removed, with the three blocks. The five blocks that are used kept byte-identical text, and every model packet on the demo paths is unchanged, including each block's SHA-256; in the audit, only the manifest version and hash differ, and the excluded list no longer names the three removed blocks. Overflow now has one rule: refuse before the model call. The v1 manifest and selector are in git history (last at commit `e86eb43`). If a future study needs composition, add it with the first path that uses it.
 
 ## Three runnable traces
 
@@ -33,7 +37,7 @@ All use the existing **synthetic incident host** and a framework-free, **scripte
 
 The light path lets a model formulate exactly one free-text argument (a search query). It may **not** resolve a service referent: service targets are parsed by the host from the user's own words, and the host's `FINISH` evidence gate relies on that. An earlier version of this exhibit mapped the alias `check-out` to `checkout` via the model; once merged with the host evidence gate from PR #64 the host correctly refused to accept that answer ("unresolved service target"), and a regression now pins that a model-resolved alias ends in `CLARIFY`. A request with nothing to look up yields `CLARIFY`. The example does **not** show that a model was necessary or economically sensible for the query; a deterministic query template might do as well. The strong-tier label refers to the *chosen operation*, not proof of real capable-model reasoning.
 
-Developer regressions cover mandatory overflow, optional overflow, dependencies, conflicts, multi-label selection, manifest cycles, unknown names, no-model execution, missing referent, silent evidence omission, preserved default packet, and the continued host write gate. Their outcomes are development feedback, **not held-out research evidence**.
+Developer regressions cover overflow, request order and duplicates, malformed or unsupported manifests, unknown or incompatible names, sending only the host-validated selection, no-model execution, missing referent, silent evidence omission, preserved default packet, and the continued host write gate. Their outcomes are development feedback, **not held-out research evidence**.
 
 ### Minimal step-by-step mechanism traces (scripted, not measured)
 
@@ -50,14 +54,14 @@ LIGHT (runbook lookup; model formulates one free-text query):
   policy CALL_LIGHT [host-authority, receipt-grounding, summarize-evidence]
      evidence: r1; proposal tools: none
   scripted model -> answer_candidate cites r1 -> policy FINISH
-  excluded each time: unrequested optional modules, including the other
-     light task's instructions and every heavy-only module
+  excluded each time: the other light task's instructions (not_requested)
+     and the heavy-only module (different_operation)
 
 HEAVY (deployment diagnosis):
   policy CALL_TOOL error_trend -> host r1
   policy CALL_TOOL recent_deploys -> host r2
   policy CALL_HEAVY [host-authority, receipt-grounding, investigate-cause]
-     evidence: r1, r2; prepare-user-update NOT selected
+     evidence: r1, r2; both light-only modules excluded (different_operation)
   scripted model -> typed validate_config proposal
   policy CALL_WORKFLOW -> host executes registered read r3
   policy CALL_HEAVY with same modules + evidence r1/r2/r3

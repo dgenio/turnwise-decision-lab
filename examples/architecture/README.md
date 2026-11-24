@@ -345,7 +345,7 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 | `live_smoke.py` | The bounded four-configuration smoke test: rehearsal by default, paid only with explicit authorisation |
 | `cost_accounting.py`, `cost_structure.py` | Billing units with explicit unknowns (`turnwise-billing/v1`), request-shape accounting, and the offline three-arm cost-structure report (SIMULATED, structural) |
 | `sample_output/`, `regenerate_samples.sh` | Committed offline output, checked by CI |
-| `instruction_modules.v1.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
+| `instruction_modules.v2.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
 
 Tests:
 
