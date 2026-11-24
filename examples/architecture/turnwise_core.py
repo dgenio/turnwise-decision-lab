@@ -468,6 +468,13 @@ class TurnwiseRuntime:
         }
 
     def _result(self, status: str, answer: str) -> RunResult:
+        # #13: DIRECT and FINISH already refuse to end a run over an outstanding requested write. Every other
+        # ending (HOLD, CLARIFY, a host stop) keeps its message and gets a host-written disposition appended,
+        # so a request the user made is never dropped silently. The text comes from the host's own parse.
+        unsubmitted = self.host.unsubmitted_requested_writes()
+        if unsubmitted:
+            answer = (f"{answer}\n\nHost: you requested {'; '.join(unsubmitted)}. It was not submitted, so no "
+                      "approval request exists and nothing was executed.")
         notes = []
         for o in (o for o in self.outcomes if o.proposal):
             rid = self._adopted.get(o.id)

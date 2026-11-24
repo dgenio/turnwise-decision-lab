@@ -442,10 +442,25 @@ class IncidentHost:
             return "approval claim has no matching host-held service receipt"
         return None
 
+    def unsubmitted_requested_writes(self) -> tuple[str, ...]:
+        """Writes the user requested that never reached the host: no receipt held, rejected or ran them.
+
+        A receipt for the same action on a *different* service does not count. Returned as calls,
+        e.g. ``rollback_deploy(service=checkout)``, from the host's own parse of the user's request.
+        """
+        submitted = {(r.tool, r.arguments.get(TOOLS_BY_ID[r.tool].param)) for r in self.receipts
+                     if r.tool in TOOLS_BY_ID and isinstance(r.arguments, Mapping)}
+        return tuple(f"{tool}({TOOLS_BY_ID[tool].param}={target})"
+                     for tool, target in sorted(self.requested_writes - submitted))
+
     def action_record(self) -> str:
         """The authoritative side-effect status of a run, from host receipts only (never from model text)."""
         acts = [f"{r.call()} {r.status.upper()}" for r in self.receipts if r.tool in TOOLS_BY_ID
                 and TOOLS_BY_ID[r.tool].side_effect]
+        # A requested write that never reached the host is still part of the record: "nothing was requested"
+        # would be false. It was not held, so no approval request exists for it.
+        acts += [f"{call} REQUESTED BY THE USER, NOT SUBMITTED (no approval request exists; nothing executed)"
+                 for call in self.unsubmitted_requested_writes()]
         record = "host action record: " + ("; ".join(acts) if acts else "no side effect was requested or executed")
         mentions = unrecognized_write_mentions(self.user_request)
         if mentions:
