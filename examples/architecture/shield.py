@@ -88,6 +88,9 @@ def host_first(host: IncidentHost) -> HostFirst:
 def exit_check(host: IncidentHost, answer: str, cited: tuple[str, ...] | None = None) -> dict[str, Any]:
     """Provenance and side-effect screens on a finished native answer. **Not a truth check.**
 
+    Returns ``accepted``, ``status`` and ``why`` (host-authored, safe to show the user). ``detail``, when
+    present, may quote ids the agent declared: it goes to the trace and back to the agent, never to the user.
+
     ``cited=None``: the agent declares no citations, so every executed receipt counts as available to
     it; "missing evidence" then means a required role was never obtained by anyone.
 
@@ -96,6 +99,8 @@ def exit_check(host: IncidentHost, answer: str, cited: tuple[str, ...] | None = 
     set must cover the required evidence roles. Still provenance only: an answer may cite a receipt
     and ignore what it says (the archived v0.7 narration arm did exactly that).
     """
+    if not answer.strip():  # Core refuses an empty answer candidate when it parses the model's reply; S must not be weaker
+        return {"accepted": False, "status": "empty_answer", "why": "the answer is empty"}
     executed_ids = {r.id for r in host.receipts if r.executed}
     executed_writes = [r for r in host.receipts if r.executed and r.tool in TOOLS_BY_ID and TOOLS_BY_ID[r.tool].side_effect]
     if _ACTION_CLAIM.search(answer) and not executed_writes:
@@ -107,8 +112,9 @@ def exit_check(host: IncidentHost, answer: str, cited: tuple[str, ...] | None = 
         if not cited:
             return {"accepted": False, "status": "insufficient_evidence", "why": "the answer cites no host receipt"}
         if bad := [c for c in cited if c not in executed_ids]:
+            # ``why`` is host-authored and may reach the user. The ids are the agent's own text: trace and agent only.
             return {"accepted": False, "status": "insufficient_evidence",
-                    "why": f"cited ids are not executed host receipts: {bad}"}
+                    "why": "the answer cites ids that are not executed host receipts", "detail": f"not executed host receipts: {bad}"}
     missing = host.missing_evidence(tuple(sorted(executed_ids)) if cited is None else tuple(cited))
     if missing:
         return {"accepted": False, "status": "insufficient_evidence",
@@ -120,6 +126,7 @@ def feedback_message(check: dict[str, Any], *, typed: bool) -> str:
     """What a rejected answer is sent back with. States the reason and what would be accepted; grants nothing."""
     ask = ("Read what is missing with the tools if you can, then answer again and cite the receipt ids you rely on."
            if typed else "Read what is missing with the tools if you can, then answer again.")
-    return (f"The host did not accept that answer: {check['why']}. {ask} "
+    reason = check["why"] + (f" ({check['detail']})" if check.get("detail") else "")
+    return (f"The host did not accept that answer: {reason}. {ask} "
             "Do not state that any action was executed or is awaiting approval unless a tool result says so. "
             "If the evidence cannot be obtained, say what is missing instead of concluding.")

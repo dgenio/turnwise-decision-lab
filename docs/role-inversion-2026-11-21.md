@@ -65,6 +65,23 @@ Known behaviours of S, pinned by tests in [`tests/test_architecture_shielded.py`
 - A model that cites every receipt and ignores them passes the typed exit check. So does Core's `FINISH`.
 - A provider failure ends the run as a named failure after one call. Receipts are kept and nothing is retried.
 - Returning a reason to the agent grants nothing: a write proposed after a rejection is still rejected by the host.
+- A failed run reports the model requests it made, and an empty answer is never accepted (both added 2026-11-25, see below).
+
+## Added 2026-11-25: a second implementation of S exists, and what comparing the two found
+
+[PR #101](https://github.com/dgenio/turnwise-decision-lab/pull/101) implements the same issue. It was written separately, from the same issue text and the same predecessor branch, so the two are not independent in any statistical sense. The same 54 scripted cases were run against both (the four demo tasks, 13 further requests, each plain and typed, and 20 scripted model behaviours). 40 gave the same status, answer, receipts and counts. The 14 that differed come from three causes, and three defects were found, two of them in **both** implementations. Nothing here involves a real model.
+
+| Finding | Where | State in this change |
+|---|---|---|
+| A run that raises (provider failure, step limit, malformed typed output) reported `model_calls = 0` although one to three requests had been made. `AGENTS.md` asks for every call to be counted and for unmeasured values to be `unknown`, never `0`. The kill rule compares billed cost, so this undercounts S exactly where it fails | Both | Fixed: requests are counted as the SDK starts them (`RunHooks.on_llm_start`), so a failed run reports them |
+| An empty or whitespace-only answer was accepted as `finished`. Core refuses an empty answer candidate in `parse_outcome`, so S was the weaker gate here | Both | Fixed: status `empty_answer`; the answer goes back to the agent like any other rejection |
+| The reason shown to the user quoted receipt ids the agent had declared, which is agent-written text | This implementation only | Fixed: the user-facing reason is host-authored; declared ids go to the trace and back to the agent |
+| A negative feedback bound raised `AttributeError` after the host had already run its reads | #101 only | Not applicable here (`ValueError` before anything runs) |
+| The default simulated model does not speak the typed format, so `typed_citations=True` with it ends as `native_agent_failed` | This implementation only | Not changed. #101 teaches the simulated model and the provider double the typed format and makes typed the default |
+
+One behaviour is shared by typed S and by Core and is pinned by a test, not fixed: a record question that names a service ("What is the severity of the checkout incident?") has no host rule and no required evidence role. The unmodified agent and plain S answer it. Typed S refuses the answer for citing nothing, and Core ends `held` on the same request with the simulated model. A rule that every accepted answer cites a receipt makes a question with an empty evidence contract unanswerable unless the agent reads something it does not need.
+
+Not fixed, and not specific to S: the host's approval-claim screen on `main` matches "awaits approval" and "pending approval" but not "awaiting approval", so an answer that says a rollback "is awaiting human approval" when nothing is held passes in both implementations. The screen is documented as narrow and lexical.
 
 ## Kill rule (pre-declared in #88, copied unchanged)
 

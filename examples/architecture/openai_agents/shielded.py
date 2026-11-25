@@ -13,7 +13,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 from typing import Any, List
 
-from agents import ModelSettings, RunConfig, Runner, ToolCallOutputItem
+from agents import ModelSettings, RunConfig, RunHooks, Runner, ToolCallOutputItem
 from pydantic import BaseModel, Field
 
 from ..incident_env import HostSession, IncidentHost
@@ -32,6 +32,16 @@ class CitedAnswer(BaseModel):
         description="Ids of the host tool receipts the answer relies on (the 'receipt' field of tool results).")
 
 
+class _ModelCallCounter(RunHooks):
+    """Counts every model request the SDK starts, so a run that raises still reports the calls it made."""
+
+    def __init__(self) -> None:
+        self.started = 0
+
+    async def on_llm_start(self, context: Any, agent: Any, system_prompt: Any, input_items: Any) -> None:
+        self.started += 1
+
+
 @dataclass
 class ShieldRecord:
     """Everything a caller needs to count or audit an S run. Kept beside the printable ``RunResult``."""
@@ -39,7 +49,8 @@ class ShieldRecord:
     path: str  # host_write_rule | host_record | host_clarification | native_agent
     native_called: bool = False
     native_answers: list[str] = field(default_factory=list)  # every answer the agent gave, accepted or not
-    model_calls: int = 0  # model responses the SDK reports, summed over feedback rounds
+    model_calls: int = 0  # model requests the SDK started, summed over feedback rounds; a failed request counts
+    model_responses: int = 0  # model responses the SDK returned; lower than model_calls only when a run raised
     prefetched: tuple[str, ...] = ()
     exit_checks: list[dict[str, Any]] = field(default_factory=list)  # one per answer the agent gave
     feedback_rounds: int = 0  # how many rejected answers went back to the agent
@@ -69,15 +80,16 @@ def run_shielded(task: str, model: Any, *, model_label: str, typed_citations: bo
     agent = build_agent(model, model_settings, checklist=checklist)
     if typed_citations:
         agent = agent.clone(output_type=CitedAnswer)
-    session, config = HostSession(host, actor="llm"), RunConfig(tracing_disabled=True)
+    session, config, counter = HostSession(host, actor="llm"), RunConfig(tracing_disabled=True), _ModelCallCounter()
     turns: list[Any] = []
     receipt_for_call: dict[str, str] = {}
     agent_input: Any = first.message
     answer, check = "", {"accepted": False, "status": "native_agent_failed", "why": "the agent did not finish"}
     try:
         for round_no in range(max_feedback + 1):
-            result = Runner.run_sync(agent, agent_input, context=session, max_turns=max_turns, run_config=config)
-            record.model_calls += len(result.raw_responses)
+            result = Runner.run_sync(agent, agent_input, context=session, max_turns=max_turns, run_config=config,
+                                     hooks=counter)
+            record.model_calls, record.model_responses = counter.started, record.model_responses + len(result.raw_responses)
             turns += [_decision(response.output) for response in result.raw_responses]
             for item in result.new_items:
                 if isinstance(item, ToolCallOutputItem):
@@ -104,6 +116,7 @@ def run_shielded(task: str, model: Any, *, model_label: str, typed_citations: bo
             agent_input = result.to_input_list() + [{"role": "user", "content": feedback_message(check, typed=typed_citations)}]
     except Exception as exc:  # a failed run is a named status, never a success
         record.failure = f"{type(exc).__name__}: {' '.join(str(exc).split())[:200]}"
+        record.model_calls = counter.started  # the requests made before the failure are not zero
         rows.append(TraceRow("exit", "host (exit check)", "none: the agent did not finish", "no answer is claimed",
                              record.failure, short="host -> native agent failed"))
         return (_result(host, task, model_label, "native_agent_failed",
@@ -138,7 +151,8 @@ def _exit_row(check: dict[str, Any], *, returned: bool) -> TraceRow:
         return TraceRow("exit", "host (exit check)", "accept the answer", "receipts and claim screens passed",
                         check["why"], short="host -> accepted")
     then = "returned to the agent with this reason" if returned else "not sent; the run ends unresolved"
-    return TraceRow("exit", "host (exit check)", "reject the answer", check["status"], f"{check['why']} -> {then}",
+    why = check["why"] + (f" ({check['detail']})" if check.get("detail") else "")
+    return TraceRow("exit", "host (exit check)", "reject the answer", check["status"], f"{why} -> {then}",
                     short="host -> rejected" + (" (returned)" if returned else ""))
 
 
