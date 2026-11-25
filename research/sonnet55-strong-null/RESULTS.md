@@ -23,6 +23,8 @@ Revision 2 adds arm **E** (SSN whose native agent returns a typed, cited final a
 
 **Not run:** the v0.4/v0.5 report/demo regeneration sequence (no code it depends on changed); Python 3.10–3.12; LlamaIndex arms; `turnwise_lab.parity` on events (needs integer token counts these simulated arms cannot honestly provide); E against the provider double or a real provider (structured output plus tools on a real wire is untested). No real or paid provider call of any kind.
 
+**Note (2026-11-25):** the tests have since moved to `tests/test_architecture_strong_null.py`, so CI's `architecture-examples` job runs them with the pinned SDKs; run them with `TURNWISE_REQUIRE_FRAMEWORKS=1 python -m unittest tests.test_architecture_strong_null`. The command in the table above is how they were run when this record was written. No test or result changed in the move.
+
 ## Observed table
 
 `model` = heavy+light calls the scripted model object received; `tools` = host receipts (x executed / h held / r rejected); **bold** = a cell where the arm misses the arm-agnostic required behaviour or differs from C. B's figure in parentheses is its policy-call count. D is identical to C in every row (the simulated model ignores instructions), so it is shown once.

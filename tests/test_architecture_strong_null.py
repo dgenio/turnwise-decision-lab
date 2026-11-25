@@ -1,6 +1,9 @@
 """Behavioural tests for the Strong Simple Null. Real SDK loop and real IncidentHost; the model is simulated.
 
-    TURNWISE_REQUIRE_FRAMEWORKS=1 python -m unittest discover -s research/sonnet55-strong-null -p 'test_*.py'
+    TURNWISE_REQUIRE_FRAMEWORKS=1 python -m unittest tests.test_architecture_strong_null
+
+The code under test lives in research/sonnet55-strong-null/ (strong_null.py, run_comparison.py). This file
+sits in tests/ so CI's architecture-examples job runs it with the pinned SDKs.
 
 These are mechanism tests. They say nothing about answer quality, cost or latency under real inference.
 """
@@ -14,8 +17,9 @@ import unittest
 from pathlib import Path
 from unittest import mock
 
-HERE = Path(__file__).resolve().parent
-ROOT = HERE.parents[1]
+ROOT = Path(__file__).resolve().parents[1]
+HERE = ROOT / "research" / "sonnet55-strong-null"  # strong_null.py and run_comparison.py
+# run_comparison imports strong_null by bare name, so both are imported by name here too (one module object).
 for p in (ROOT, HERE):
     if str(p) not in sys.path:
         sys.path.insert(0, str(p))
