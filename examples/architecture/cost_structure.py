@@ -164,6 +164,32 @@ def aggregate_costs(reports: dict[str, dict[str, Any]], framework: str) -> list[
     return rows
 
 
+FRONT_DOOR_NOTE = (
+    "POST HOC, not pre-declared: A' with the host's no-model shortcuts. Wherever Turnwise Core sent no request "
+    "(the host answered from its own record, or held a write, before any model call), this row charges the "
+    "batched native agent nothing either, as if the same deterministic front door ran before it. Elsewhere it "
+    "charges A' as measured. It separates the saving from skipping the model entirely, which any agent behind "
+    "the same host rules could have, from the saving of per-step control while a model is in use.")
+
+
+def front_door_costs(reports: dict[str, dict[str, Any]], framework: str) -> tuple[list[dict[str, Any]], list[str]]:
+    """Per aggregated row: B against A' with the same no-model shortcuts (see FRONT_DOOR_NOTE)."""
+    scenarios = list(reports)
+    shortcut = {s for s in scenarios
+                if next(a for a in reports[s]["frameworks"][framework]["arms"] if a["arm"] == "B")["requests"] == 0}
+    rows = []
+    for i, row in enumerate(reports[scenarios[0]]["frameworks"][framework]["costs"]):
+        costs = [reports[s]["frameworks"][framework]["costs"][i]["usd"] for s in scenarios]
+        b = [c.get("B") for c in costs]
+        a_door = [0.0 if s in shortcut else c.get(BATCHED) for s, c in zip(scenarios, costs)]
+        b_sum = None if any(v is None for v in b) else sum(b)
+        a_sum = None if any(v is None for v in a_door) else sum(a_door)
+        rows.append({"stable_prefix_tokens": row["stable_prefix_tokens"], "assumption": row["assumption"],
+                     "min_cacheable_tokens": row["min_cacheable_tokens"], "usd_b": b_sum,
+                     "usd_a_batched_front_door": a_sum, "b_vs_a_batched_front_door_pct": _pct(b_sum, a_sum)})
+    return rows, sorted(shortcut)
+
+
 def falsifier_verdict(rows: list[dict[str, Any]]) -> dict[str, Any]:
     """Apply FALSIFIER_RULE to aggregated cost rows of one framework."""
     deciding = [r for r in rows if r["stable_prefix_tokens"] in REALISTIC_STABLE_PREFIX_TOKENS
@@ -191,7 +217,10 @@ def build_scenarios_report(frameworks: tuple[str, ...] = FRAMEWORKS, scenarios: 
     aggregate = {}
     for framework in frameworks:
         rows = aggregate_costs(reports, framework)
-        aggregate[framework] = {"costs": rows, "falsifier": falsifier_verdict(rows)}
+        door_rows, shortcut = front_door_costs(reports, framework)
+        aggregate[framework] = {"costs": rows, "falsifier": falsifier_verdict(rows),
+                                "front_door": {"note": FRONT_DOOR_NOTE, "no_model_scenarios": shortcut,
+                                               "costs": door_rows}}
     return {"label": STRUCTURAL_LABEL, "source": DOUBLE_SOURCE, "real_inference": False,
             "price_card": asdict(card), "min_cacheable_tokens": min_cacheable_tokens, "scenarios": list(scenarios),
             "falsifier_rule": FALSIFIER_RULE, "per_scenario": reports, "aggregate": aggregate}
@@ -272,6 +301,18 @@ def render_scenarios(report: dict[str, Any]) -> str:
         lines += ["", f"#85 falsifier, {framework}: {f['verdict']} (deciding rows, B vs A-batched: "
                   + ", ".join(f"{r['stable_prefix_tokens']} prefix / {r['assumption']}: {_signed(r['b_vs_a_batched_pct'])}"
                               for r in f["deciding_rows"]) + ")", ""]
+        door = data["front_door"]
+        lines += [door["note"], "Scenarios Turnwise Core handled with no model call: "
+                  + (", ".join(door["no_model_scenarios"]) or "none"),
+                  f"{'stable prefix':>13} | {'assumption':<66} | {'min cacheable':>13} | "
+                  f"{'A-b + door':>10} {'B':>9} | {'B vs it':>7}"]
+        for row in door["costs"]:
+            minimum = row["min_cacheable_tokens"]
+            lines.append(f"{row['stable_prefix_tokens']:>13} | {row['assumption']:<66} | "
+                         f"{'n/a' if minimum is None else 'ignored' if minimum == 0 else minimum:>13} | "
+                         f"{_usd(row['usd_a_batched_front_door']):>10} {_usd(row['usd_b']):>9} | "
+                         f"{_signed(row['b_vs_a_batched_front_door_pct']):>7}")
+        lines.append("")
     lines += ["Nothing here measures answer quality, real cost or real latency. Token counts are synthetic and every "
               "reply is simulated; a real model may batch differently or not at all."]
     return "\n".join(lines)

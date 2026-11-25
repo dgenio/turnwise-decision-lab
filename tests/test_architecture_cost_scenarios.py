@@ -9,8 +9,9 @@ from __future__ import annotations
 import unittest
 
 from examples.architecture.cost_accounting import CACHE_READS, CACHE_READS_AND_WRITES, NO_CACHING
-from examples.architecture.cost_structure import (BATCHED, FALSIFIER_RULE, FALSIFIER_THRESHOLD_PCT,
-                                                  REALISTIC_STABLE_PREFIX_TOKENS, aggregate_costs, falsifier_verdict)
+from examples.architecture.cost_structure import (BATCHED, FALSIFIER_RULE, FALSIFIER_THRESHOLD_PCT, FRONT_DOOR_NOTE,
+                                                  REALISTIC_STABLE_PREFIX_TOKENS, aggregate_costs, falsifier_verdict,
+                                                  front_door_costs)
 from examples.architecture.incident_env import TASKS
 
 
@@ -81,6 +82,29 @@ class AggregateTests(unittest.TestCase):
                    "two": self.report([((5_000, NO_CACHING, None), {"A": 1.0, BATCHED: 1.0, "B": 1.0})])}
         with self.assertRaises(ValueError):
             aggregate_costs(reports, "fw")
+
+
+class FrontDoorTests(unittest.TestCase):
+    """The post-hoc row: A' charged nothing exactly where Turnwise Core sent no request."""
+
+    @staticmethod
+    def report(b_requests, usd):
+        key = (5_000, CACHE_READS, 1024)
+        return {"frameworks": {"fw": {
+            "arms": [{"arm": "A", "requests": 2}, {"arm": BATCHED, "requests": 1}, {"arm": "B", "requests": b_requests}],
+            "costs": [{"stable_prefix_tokens": key[0], "assumption": key[1], "min_cacheable_tokens": key[2],
+                       "usd": usd}]}}}
+
+    def test_the_native_arm_is_spared_only_where_turnwise_sent_nothing(self):
+        reports = {"model": self.report(2, {"A": 4.0, BATCHED: 2.0, "B": 2.2}),
+                   "no_model": self.report(0, {"A": 3.0, BATCHED: 3.0, "B": 0.0})}
+        (row,), shortcut = front_door_costs(reports, "fw")
+        self.assertEqual(shortcut, ["no_model"])
+        self.assertEqual((row["usd_a_batched_front_door"], row["usd_b"]), (2.0, 2.2))
+        self.assertEqual(row["b_vs_a_batched_front_door_pct"], 10.0)
+
+    def test_the_row_is_labelled_post_hoc(self):
+        self.assertTrue(FRONT_DOOR_NOTE.startswith("POST HOC, not pre-declared"))
 
 
 if __name__ == "__main__":

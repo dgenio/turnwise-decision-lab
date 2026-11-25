@@ -312,6 +312,14 @@ No efficiency comparison is made.
 
 The side-by-side counts operations. A provider bills fresh input, cache reads, cache writes and output, and a model may ask for several tools in one response. `python -m examples.architecture.cost_structure` (offline, provider double) reports what each arm sends and prices it under three billing assumptions, for three arms: the conventional agent (**A**), the same agent when the simulated model batches its evidence reads (**A'**), and Turnwise Core (**B**). On this scenario Turnwise Core's requests are larger and repeat less of their prefix, and whether it comes out cheaper than **A** depends on the billing assumption; it is not cheaper than **A'** under any of them. This is **simulated and structural**: synthetic token counts and arithmetic, not a cost measurement. Snapshot, method and limits: [cache-aware accounting](../../docs/cost-accounting-2026-11-21.md).
 
+`--scenario all` runs the four demo scenarios and applies #85's pre-declared falsifier to their sum:
+- **As written, it fires in both frameworks.** Turnwise Core comes out 46–49% below the batched agent at realistic prefix sizes.
+- **The whole difference comes from two scenarios, `severity` and `rollback`.** In those, the host answers or holds the request without any model call.
+- **Where a model is used, Turnwise Core is not cheaper.** It is +2% to +8% on `investigate` and −4% to −5% on `status`.
+- **With the same front door, the gap disappears.** A post-hoc row charges the batched agent nothing where Turnwise sent nothing, and the difference falls to between −1% and +3%. The saving belongs to the host's no-model shortcuts, not to per-step control.
+
+Details: [four-scenario note](../../docs/cost-accounting-four-scenarios-2026-11-25.md).
+
 ## Limitations: what this does not establish
 
 - **No quality, cost or latency claim.** The printed counts are operation counts for one simulated run. They are not measurements, and a count of model calls is not a cost (see [Counts are not cost](#counts-are-not-cost)). Turnwise adds policy decisions and host checks that a native agent does not have.
