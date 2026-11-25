@@ -40,7 +40,7 @@ CI proves reproducibility and control-flow properties. It does not test real inf
 
 ## Not done
 
-- One **attempted** paid provider smoke on `main` hit HTTP 429 on all ten requests; no actual model output was obtained. There is still **no verified real-model behavior**, and no live decision model (Jev) or other router has been benchmarked.
+- The only paid provider attempt produced no model output (see the real-model provider readiness row above). There is still **no verified real-model behavior**, and no live decision model (Jev) or other router has been benchmarked.
 - No held-out sessions written by someone other than the author.
 - No measured answer quality, tokens, latency or price.
 
