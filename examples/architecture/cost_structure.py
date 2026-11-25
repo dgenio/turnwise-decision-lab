@@ -2,6 +2,7 @@
 
     python -m examples.architecture.cost_structure
     python -m examples.architecture.cost_structure --framework openai-agents --json-out cost-structure.json
+    python -m examples.architecture.cost_structure --scenario all     # the four demo scenarios and their aggregate
 
 "Model calls" is not a unit of cost. This command runs the showcase task against the
 local provider double (no network, no key, no inference) and reports what each
@@ -31,6 +32,7 @@ from typing import Any
 
 from .cost_accounting import (ASSUMPTIONS, NO_CACHING, STRUCTURAL_LABEL, PriceCard, RequestShape,
                               breakeven_cache_read_multiplier, shapes_from_exchanges, structural_cost)
+from .incident_env import TASKS
 from .provider import DOUBLE_SOURCE, ProviderLedger, ProviderSettings, ProviderSetup
 from .provider_double import ProviderDouble
 from .simulated_model import SimulatedInvestigator
@@ -46,16 +48,33 @@ RECORDED_CARD = PriceCard(2.00, 0.10, 2.50, 10.00,
 DEFAULT_STABLE_PREFIX_TOKENS = (0, 5_000, 20_000)
 DEFAULT_MIN_CACHEABLE_TOKENS = 1_024
 
+# ---- #85's pre-declared falsifier, made operational BEFORE any four-scenario number was computed.
+# Issue #85: "Falsified if the structural estimate at realistic prefix size shows B at least 15% below A' in
+# billed cost, aggregated over the four demo scenarios." The words "realistic prefix size" and "billed cost"
+# are fixed here as follows, and are not to be changed after seeing results:
+FALSIFIER_THRESHOLD_PCT = -15.0
+REALISTIC_STABLE_PREFIX_TOKENS = (5_000, 20_000)
+FALSIFIER_RULE = (
+    "Issue #85's pre-declared falsifier: H (Turnwise Core has no input-cost advantage over a batching native agent) "
+    "is falsified if, at realistic prefix size, B is at least 15% below A' in billed cost aggregated over the four "
+    "demo scenarios. Operationalised before the four-scenario numbers were computed: realistic prefix size means the "
+    "5,000- and 20,000-token stable-prefix rows; billed cost means both cache-aware assumptions with the minimum "
+    "cacheable length applied. Per framework, the verdict is FALSIFIED if B vs A' is at or below -15% in every one "
+    "of those rows, CONSISTENT if it is above -15% in every one, and MIXED otherwise. No-caching rows are reported "
+    "but do not decide.")
 
-def run_arm(framework: str, architecture: str, *, batch_reads: bool, model: str) -> dict[str, Any]:
-    """Run one arm of the showcase against a fresh provider double and return the smoke record."""
-    from .live_smoke import request_cap, run_config
+
+def run_arm(framework: str, architecture: str, *, batch_reads: bool, model: str,
+            scenario: str | None = None) -> dict[str, Any]:
+    """Run one arm of one demo scenario against a fresh provider double and return the smoke record."""
+    from .live_smoke import SCENARIO, request_cap, run_config
 
     settings = ProviderSettings(model=model)
     ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=request_cap(architecture),
                             max_output_tokens=settings.max_output_tokens)
     double = ProviderDouble(SimulatedInvestigator(batch_reads=batch_reads))
-    return run_config(framework, architecture, ProviderSetup(settings, ledger, double.transport()))
+    return run_config(framework, architecture, ProviderSetup(settings, ledger, double.transport()),
+                      scenario=scenario or SCENARIO)
 
 
 def batching_label(shapes: list[RequestShape]) -> str:
@@ -86,16 +105,18 @@ def cost_rows(arms: dict[str, list[RequestShape]], card: PriceCard, stable_prefi
 def build_report(frameworks: tuple[str, ...] = FRAMEWORKS, *, card: PriceCard = RECORDED_CARD,
                  stable_prefix_tokens: tuple[int, ...] = DEFAULT_STABLE_PREFIX_TOKENS,
                  min_cacheable_tokens: int = DEFAULT_MIN_CACHEABLE_TOKENS,
-                 model: str | None = None) -> dict[str, Any]:
+                 model: str | None = None, scenario: str | None = None) -> dict[str, Any]:
     from .live_smoke import DOUBLE_DEFAULT_MODEL, SCENARIO
 
-    report: dict[str, Any] = {"label": STRUCTURAL_LABEL, "scenario": SCENARIO, "source": DOUBLE_SOURCE,
+    scenario = scenario or SCENARIO
+    report: dict[str, Any] = {"label": STRUCTURAL_LABEL, "scenario": scenario, "source": DOUBLE_SOURCE,
                               "real_inference": False, "price_card": asdict(card),
                               "min_cacheable_tokens": min_cacheable_tokens, "frameworks": {}}
     for framework in frameworks:
         arms, shapes_by_arm = [], {}
         for key, architecture, batch in ARMS:
-            record = run_arm(framework, architecture, batch_reads=batch, model=model or DOUBLE_DEFAULT_MODEL)
+            record = run_arm(framework, architecture, batch_reads=batch, model=model or DOUBLE_DEFAULT_MODEL,
+                             scenario=scenario)
             shapes = shapes_from_exchanges(record["provider_requests"])
             shapes_by_arm[key] = shapes
             arms.append({
@@ -112,9 +133,68 @@ def build_report(frameworks: tuple[str, ...] = FRAMEWORKS, *, card: PriceCard = 
         report["frameworks"][framework] = {
             "arms": arms,
             "costs": cost_rows(shapes_by_arm, card, stable_prefix_tokens, min_cacheable_tokens),
+            # Undefined when an arm sends nothing (the host answered without a model): no price makes them equal.
             "breakeven_cache_read_multiplier_b_vs_a": _round(
-                breakeven_cache_read_multiplier(shapes_by_arm["A"], shapes_by_arm["B"]), 3)}
+                breakeven_cache_read_multiplier(shapes_by_arm["A"], shapes_by_arm["B"])
+                if shapes_by_arm["A"] and shapes_by_arm["B"] else None, 3)}
     return report
+
+
+# ------------------------------------------------------------- the four demo scenarios together
+def aggregate_costs(reports: dict[str, dict[str, Any]], framework: str) -> list[dict[str, Any]]:
+    """Sum each arm's structural USD over the scenarios, row by row (same stable prefix, assumption, minimum)."""
+    scenarios = list(reports)
+    base = reports[scenarios[0]]["frameworks"][framework]["costs"]
+    rows = []
+    for i, row in enumerate(base):
+        key = (row["stable_prefix_tokens"], row["assumption"], row["min_cacheable_tokens"])
+        usd: dict[str, float | None] = {}
+        for arm in ("A", BATCHED, "B"):
+            values = []
+            for s in scenarios:
+                other = reports[s]["frameworks"][framework]["costs"][i]
+                if (other["stable_prefix_tokens"], other["assumption"], other["min_cacheable_tokens"]) != key:
+                    raise ValueError(f"cost rows of scenario {s!r} do not line up with {scenarios[0]!r}")
+                values.append(other["usd"].get(arm))
+            usd[arm] = None if any(v is None for v in values) else sum(values)
+        rows.append({"stable_prefix_tokens": key[0], "assumption": key[1], "min_cacheable_tokens": key[2], "usd": usd,
+                     "b_vs_a_pct": _pct(usd["B"], usd["A"]), "b_vs_a_batched_pct": _pct(usd["B"], usd[BATCHED]),
+                     "per_scenario_b_vs_a_batched_pct": {
+                         s: reports[s]["frameworks"][framework]["costs"][i]["b_vs_a_batched_pct"] for s in scenarios}})
+    return rows
+
+
+def falsifier_verdict(rows: list[dict[str, Any]]) -> dict[str, Any]:
+    """Apply FALSIFIER_RULE to aggregated cost rows of one framework."""
+    deciding = [r for r in rows if r["stable_prefix_tokens"] in REALISTIC_STABLE_PREFIX_TOKENS
+                and r["assumption"] != NO_CACHING and r["min_cacheable_tokens"]]
+    values = [r["b_vs_a_batched_pct"] for r in deciding]
+    if not deciding or any(v is None for v in values):
+        verdict = "NOT EVALUABLE"
+    else:
+        hits = [v <= FALSIFIER_THRESHOLD_PCT for v in values]
+        verdict = "FALSIFIED" if all(hits) else "CONSISTENT" if not any(hits) else "MIXED"
+    return {"verdict": verdict, "threshold_pct": FALSIFIER_THRESHOLD_PCT,
+            "deciding_rows": [{"stable_prefix_tokens": r["stable_prefix_tokens"], "assumption": r["assumption"],
+                               "min_cacheable_tokens": r["min_cacheable_tokens"],
+                               "b_vs_a_batched_pct": r["b_vs_a_batched_pct"]} for r in deciding]}
+
+
+def build_scenarios_report(frameworks: tuple[str, ...] = FRAMEWORKS, scenarios: tuple[str, ...] = tuple(TASKS), *,
+                           card: PriceCard = RECORDED_CARD,
+                           stable_prefix_tokens: tuple[int, ...] = DEFAULT_STABLE_PREFIX_TOKENS,
+                           min_cacheable_tokens: int = DEFAULT_MIN_CACHEABLE_TOKENS,
+                           model: str | None = None) -> dict[str, Any]:
+    """One structural report per demo scenario, their per-row sums, and #85's falsifier applied to the sums."""
+    reports = {s: build_report(frameworks, card=card, stable_prefix_tokens=stable_prefix_tokens,
+                               min_cacheable_tokens=min_cacheable_tokens, model=model, scenario=s) for s in scenarios}
+    aggregate = {}
+    for framework in frameworks:
+        rows = aggregate_costs(reports, framework)
+        aggregate[framework] = {"costs": rows, "falsifier": falsifier_verdict(rows)}
+    return {"label": STRUCTURAL_LABEL, "source": DOUBLE_SOURCE, "real_inference": False,
+            "price_card": asdict(card), "min_cacheable_tokens": min_cacheable_tokens, "scenarios": list(scenarios),
+            "falsifier_rule": FALSIFIER_RULE, "per_scenario": reports, "aggregate": aggregate}
 
 
 def render(report: dict[str, Any]) -> str:
@@ -160,6 +240,43 @@ def render(report: dict[str, Any]) -> str:
     return "\n".join(lines)
 
 
+def render_scenarios(report: dict[str, Any]) -> str:
+    card = report["price_card"]
+    scenarios = report["scenarios"]
+    lines = ["Cost structure over the demo scenarios | " + report["source"], report["label"],
+             f"scenarios {', '.join(scenarios)} | price card: input ${card['input_per_mtok']:g}, cached input "
+             f"${card['cached_input_per_mtok']:g}, cache write ${card['cache_write_per_mtok']:g}, output "
+             f"${card['output_per_mtok']:g} per MTok ({card['source']})", "", report["falsifier_rule"], ""]
+    for framework, data in report["aggregate"].items():
+        lines += [f"=== {framework}: what each arm did, per scenario (requests; how the run ended; mechanism verdict) ==="]
+        for s in scenarios:
+            arms = {a["arm"]: a for a in report["per_scenario"][s]["frameworks"][framework]["arms"]}
+            cells = [f"{key} {arms[key]['requests']} req, {arms[key]['termination']}, {arms[key]['verdict']}"
+                     for key in ("A", BATCHED, "B")]
+            lines.append(f"{s:<12} | " + " | ".join(cells))
+        lines += ["(B with 0 requests: the host answered or held the request without a model call. A mechanism "
+                  "verdict of INCONCLUSIVE there only means no provider response was exercised.)", "",
+                  f"=== {framework}: summed over the {len(scenarios)} scenarios (USD, arithmetic) ===",
+                  f"{'stable prefix':>13} | {'assumption':<66} | {'min cacheable':>13} | "
+                  f"{'A':>9} {'A-batched':>9} {'B':>9} | {'B vs A':>7} {'B vs A-b':>8} | B vs A-b per scenario"]
+        for row in data["costs"]:
+            minimum = row["min_cacheable_tokens"]
+            usd = row["usd"]
+            per = ", ".join(f"{s} {_signed(v)}" for s, v in row["per_scenario_b_vs_a_batched_pct"].items())
+            lines.append(
+                f"{row['stable_prefix_tokens']:>13} | {row['assumption']:<66} | "
+                f"{'n/a' if minimum is None else 'ignored' if minimum == 0 else minimum:>13} | "
+                f"{_usd(usd.get('A')):>9} {_usd(usd.get(BATCHED)):>9} {_usd(usd.get('B')):>9} | "
+                f"{_signed(row['b_vs_a_pct']):>7} {_signed(row['b_vs_a_batched_pct']):>8} | {per}")
+        f = data["falsifier"]
+        lines += ["", f"#85 falsifier, {framework}: {f['verdict']} (deciding rows, B vs A-batched: "
+                  + ", ".join(f"{r['stable_prefix_tokens']} prefix / {r['assumption']}: {_signed(r['b_vs_a_batched_pct'])}"
+                              for r in f["deciding_rows"]) + ")", ""]
+    lines += ["Nothing here measures answer quality, real cost or real latency. Token counts are synthetic and every "
+              "reply is simulated; a real model may batch differently or not at all."]
+    return "\n".join(lines)
+
+
 def _pct(value: float | None, reference: float | None) -> float | None:
     return None if value is None or not reference else round(100 * (value / reference - 1), 1)
 
@@ -187,6 +304,8 @@ def _signed(value: float | None) -> str:
 def main(argv: list[str] | None = None) -> int:
     p = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     p.add_argument("--framework", choices=("all",) + FRAMEWORKS, default="all")
+    p.add_argument("--scenario", choices=(*TASKS, "all"), default="investigate",
+                   help="one demo scenario, or 'all' for every scenario plus their sum and #85's falsifier")
     p.add_argument("--input-usd-per-mtok", type=float, default=RECORDED_CARD.input_per_mtok)
     p.add_argument("--cached-input-usd-per-mtok", type=float, default=RECORDED_CARD.cached_input_per_mtok)
     p.add_argument("--cache-write-usd-per-mtok", type=float, default=RECORDED_CARD.cache_write_per_mtok)
@@ -207,14 +326,19 @@ def main(argv: list[str] | None = None) -> int:
             raise ValueError("token counts must be nonnegative, and at least one stable-prefix size is needed")
     except ValueError as exc:
         p.error(str(exc))
+    frameworks = FRAMEWORKS if args.framework == "all" else (args.framework,)
     try:
-        report = build_report(FRAMEWORKS if args.framework == "all" else (args.framework,), card=card,
-                              stable_prefix_tokens=stable, min_cacheable_tokens=args.min_cacheable_tokens)
+        if args.scenario == "all":
+            report = build_scenarios_report(frameworks, card=card, stable_prefix_tokens=stable,
+                                            min_cacheable_tokens=args.min_cacheable_tokens)
+        else:
+            report = build_report(frameworks, card=card, stable_prefix_tokens=stable,
+                                  min_cacheable_tokens=args.min_cacheable_tokens, scenario=args.scenario)
     except ImportError as exc:
         print(f"The cost-structure report runs the real SDK provider classes offline and needs them installed "
               f"({exc}).\n    pip install -r examples/architecture/requirements.txt", file=sys.stderr)
         return 2
-    print(render(report))
+    print(render_scenarios(report) if args.scenario == "all" else render(report))
     if args.json_out:
         with open(args.json_out, "w", encoding="utf-8") as handle:
             json.dump(report, handle, indent=2)
