@@ -33,9 +33,9 @@ from typing import Any
 from .cost_accounting import (ASSUMPTIONS, NO_CACHING, STRUCTURAL_LABEL, PriceCard, RequestShape,
                               breakeven_cache_read_multiplier, shapes_from_exchanges, structural_cost)
 from .incident_env import TASKS
-from .provider import DOUBLE_SOURCE, ProviderLedger, ProviderSettings, ProviderSetup
-from .provider_double import ProviderDouble
-from .simulated_model import SimulatedInvestigator
+
+# The provider ledger and double need the pinned SDK dependencies (httpx2); they are imported where an arm is run,
+# so the aggregation and #85's falsifier rule below stay importable, and testable, with the stdlib alone.
 
 FRAMEWORKS = ("openai-agents", "llamaindex")
 BATCHED = "A'"
@@ -68,6 +68,9 @@ def run_arm(framework: str, architecture: str, *, batch_reads: bool, model: str,
             scenario: str | None = None) -> dict[str, Any]:
     """Run one arm of one demo scenario against a fresh provider double and return the smoke record."""
     from .live_smoke import SCENARIO, request_cap, run_config
+    from .provider import DOUBLE_SOURCE, ProviderLedger, ProviderSettings, ProviderSetup
+    from .provider_double import ProviderDouble
+    from .simulated_model import SimulatedInvestigator
 
     settings = ProviderSettings(model=model)
     ledger = ProviderLedger(source=DOUBLE_SOURCE, max_requests=request_cap(architecture),
@@ -107,6 +110,7 @@ def build_report(frameworks: tuple[str, ...] = FRAMEWORKS, *, card: PriceCard = 
                  min_cacheable_tokens: int = DEFAULT_MIN_CACHEABLE_TOKENS,
                  model: str | None = None, scenario: str | None = None) -> dict[str, Any]:
     from .live_smoke import DOUBLE_DEFAULT_MODEL, SCENARIO
+    from .provider import DOUBLE_SOURCE
 
     scenario = scenario or SCENARIO
     report: dict[str, Any] = {"label": STRUCTURAL_LABEL, "scenario": scenario, "source": DOUBLE_SOURCE,
@@ -212,6 +216,8 @@ def build_scenarios_report(frameworks: tuple[str, ...] = FRAMEWORKS, scenarios: 
                            min_cacheable_tokens: int = DEFAULT_MIN_CACHEABLE_TOKENS,
                            model: str | None = None) -> dict[str, Any]:
     """One structural report per demo scenario, their per-row sums, and #85's falsifier applied to the sums."""
+    from .provider import DOUBLE_SOURCE
+
     reports = {s: build_report(frameworks, card=card, stable_prefix_tokens=stable_prefix_tokens,
                                min_cacheable_tokens=min_cacheable_tokens, model=model, scenario=s) for s in scenarios}
     aggregate = {}
