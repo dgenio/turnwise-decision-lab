@@ -149,7 +149,7 @@ See the [2026-11-20 integration gates](docs/pr-consolidation-gates-2026-11-20.md
 
 **How is this different from a model router?** A router picks a model once, then hands it control. Turnwise re-decides after every observation, including the model's own output.
 
-**Why not a better prompt, or fewer tools?** Both are legitimate baselines. A checklist-prompted native agent ([#43](https://github.com/dgenio/turnwise-decision-lab/issues/43)) and native tool search are required comparators, not straw men.
+**Why not a better prompt, or fewer tools?** Both are legitimate baselines. A checklist-prompted native agent ([#43](https://github.com/dgenio/turnwise-decision-lab/issues/43)) and native tool search are required comparators, not straw men. So is the **shielded native agent** (arm S, [#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)): the same agent in its own loop, with the host acting before it, on every tool call and at the exit. It now runs offline (`run_demo --shielded`) and is proposed as the primary candidate that per-step control has to beat ([dated note](docs/role-inversion-2026-11-21.md)).
 
 **Why not simple host rules?** They may be enough. Rules plus the same capable agent are the **mandatory null arm**; if they win, the right outcome is SHRINK (keep only the parts that earn their place) or STOP.
 

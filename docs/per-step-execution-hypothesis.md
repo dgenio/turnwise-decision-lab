@@ -4,6 +4,8 @@
 
 > **2026-11-19 note.** An offline implementation of this contract now exists on `main` in [`examples/architecture/`](../examples/architecture/README.md) (OpenAI Agents SDK and LlamaIndex, simulated model). It differs from the pseudocode below in two documented ways: it has no `ABSTAIN` operation (budget exhaustion and `HOLD`/`CLARIFY` stop visibly instead), and its `CALL_HEAVY` is a single tool-less model call returning a typed outcome, with tool-capable native continuation available only as the separate `HANDOFF_AGENT` contrast. The evidence boundaries below are dated and unchanged.
 
+> **2026-11-21 note (role inversion, [#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)).** The arm this document calls the *simple hybrid* null (host rules plus the same capable agent) now exists on `main` as **arm S, the shielded native agent**, and is proposed as the **primary candidate**, with per-step control as the challenger that must beat it. The definition of S, the pre-declared kill rule and the three task families where per-step control could still win are in [role-inversion-2026-11-21.md](role-inversion-2026-11-21.md). The text below is dated and unchanged.
+
 ## The question
 
 A model router usually answers: **which generative model should handle this request?**

@@ -94,6 +94,12 @@ python -m examples.architecture.run_demo --framework llamaindex
 python -m examples.architecture.run_demo --framework all --scenario all --handoff
 ```
 
+```bash
+python -m examples.architecture.run_demo --shielded
+```
+
+`--shielded` also runs **arm S, the shielded native agent** ([#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)): the same agent as A in its own loop, with host rules and the host's required reads before it, the host on every tool call, and a host exit check that returns a rejected answer with the reason. It is opt-in, OpenAI Agents SDK only, and **not Turnwise Core**: the model, not a policy, regains control after each observation. What it is, what it gives up and the rule under which it replaces or yields to Core: [docs/role-inversion-2026-11-21.md](../../docs/role-inversion-2026-11-21.md).
+
 Also print B', the same loop with a native-intercept model port ([what it is](#b-the-native-intercept-model-port-an-ablation-of-how-the-model-is-asked); OpenAI Agents SDK only):
 
 ```bash
@@ -348,7 +354,7 @@ B' keeps the policy, the host and the loop of arm B and changes only the model c
 - CI blocks the network only for clients that honour `HTTP(S)_PROXY` (pointed at a dead port). Only the three packages in `requirements.txt` are pinned; their dependencies are not (the owner-dispatched paid workflow installs the fully hash-pinned `requirements-actions-py312.txt`).
 - Single-turn tasks only. There are no multi-turn referents and no approve-and-resume flow.
 - **Deferred from [#49](https://github.com/dgenio/turnwise-decision-lab/issues/49):**
-  - null arms: simple host rules + the native agent, and a checklist-prompted native agent ([#43](https://github.com/dgenio/turnwise-decision-lab/issues/43));
+  - null arms: simple host rules + the native agent (now arm S, `--shielded`, [#88](https://github.com/dgenio/turnwise-decision-lab/issues/88); OpenAI Agents SDK only), and a checklist-prompted native agent (`--checklist-null`, [#43](https://github.com/dgenio/turnwise-decision-lab/issues/43)). Both exist offline; neither has been compared with a real model;
   - a follow-up/retargeting scenario;
   - prompt and schema inventory parity tooling;
   - reuse of the v0.6 runtime in [#47](https://github.com/dgenio/turnwise-decision-lab/pull/47).
@@ -365,6 +371,7 @@ B' keeps the policy, the host and the loop of arm B and changes only the model c
 | `step_schema.py` | `StepOutcome`, the typed result of one model step; `StepAnswer`, the typed final reply of the B' port |
 | `native_intercept.py`, `openai_agents/native_intercept.py`, `intercept_structure.py` | B', the native-intercept model port: the Turnwise Core loop with a real tools field, every tool call returned to the policy as a proposal, and the offline k = 1, 2, 3 table. An ablation; **not the canonical arm B** |
 | `openai_agents/`, `llamaindex/` | `conventional.py` (A), `turnwise.py` (B), `models.py` (simulated model, or a bounded provider model) |
+| `shield.py`, `openai_agents/shielded.py` | Arm S, the shielded native agent (opt-in, [#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)): host rules and reads before the agent, a host exit check with bounded feedback. Not Turnwise Core |
 | `trace.py`, `run_demo.py` | Per-step controller traces and the offline CLI |
 | `provider.py` | `ProviderLedger` (request and spend caps before sending, a record of every request and response) and the settings shared by both frameworks |
 | `provider_double.py` | Deterministic Responses API stand-in, with scriptable faults (SIMULATED) |
