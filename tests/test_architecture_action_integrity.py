@@ -389,6 +389,12 @@ class HostInvariantsUnderRandomDecisions(unittest.TestCase):
                     self.assertEqual(host.requested_writes, frozenset())
                 if result.status == "answered_directly":
                     self.assertEqual(host.requested_writes, frozenset())
+                # #13: a user-requested write never ends silently; the host names any it never received
+                submitted = {(r.tool, r.arguments.get("service")) for r in host.receipts if isinstance(r.arguments, dict)}
+                for tool, service in host.requested_writes - submitted:
+                    self.assertIn(f"{tool}(service={service})", result.answer)
+                if host.requested_writes:
+                    self.assertNotIn("no side effect was requested", host.action_record())
 
 
 class _RandomPolicy:
