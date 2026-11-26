@@ -100,6 +100,12 @@ python -m examples.architecture.run_demo --shielded
 
 `--shielded` also runs **arm S, the shielded native agent** ([#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)): the same agent as A in its own loop, with host rules and the host's required reads before it, the host on every tool call, and a host exit check that returns a rejected answer with the reason. It is opt-in, OpenAI Agents SDK only, and **not Turnwise Core**: the model, not a policy, regains control after each observation. What it is, what it gives up and the rule under which it replaces or yields to Core: [docs/role-inversion-2026-11-21.md](../../docs/role-inversion-2026-11-21.md).
 
+Also print B', the same loop with a native-intercept model port ([what it is](#b-the-native-intercept-model-port-an-ablation-of-how-the-model-is-asked); OpenAI Agents SDK only):
+
+```bash
+python -m examples.architecture.run_demo --native-intercept
+```
+
 **By default nothing leaves your machine.** The frameworks run for real: the SDK `Runner`, function-tool dispatch, structured-output parsing and LlamaIndex's agent workflow. Only the model is replaced, by each framework's own offline test double: `agents.testing.ScriptedModel` and LlamaIndex's `MockFunctionCallingLLM`. Their replies come from [`simulated_model.py`](simulated_model.py), a small deterministic investigator. It reacts only to what the framework actually passes it: instructions, the task, tool results, or the Turnwise context packet. Every trace says `SIMULATED`, and no output claims inference happened.
 
 `run_demo` is offline only; `--live` now refuses and points to the bounded smoke test below. **Real-provider runs go only through [`live_smoke.py`](live_smoke.py)**, which by default rehearses against a local provider double (free, offline):
@@ -108,7 +114,7 @@ python -m examples.architecture.run_demo --shielded
 python -m examples.architecture.live_smoke
 ```
 
-A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. **The one owner-authorized GPT-6.1 Sol attempt was dispatched on 2026-11-19 ([run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372)); HTTP 429 prevented any model outputs, and the authorization is consumed. Actual billing is unknown.** Do not repeat it. Another paid attempt requires a distinct explicit authorization and verified model access. For credential-safe execution, run `python -m examples.architecture.secure_live_once` (free rehearsal), then `python -m examples.architecture.secure_live_once --execute` on your own computer. The launcher prompts for a project key without echo, disables SDK trace export and writes results outside the repo. See the [decision packet](../../docs/live-smoke-decision-packet.md).
+A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. **The one owner-authorized attempt has been made and its authorization is consumed ([outcome](#real-provider-readiness)).** Do not repeat it. Another paid attempt requires a distinct explicit authorization and verified model access. For credential-safe execution, run `python -m examples.architecture.secure_live_once` (free rehearsal), then `python -m examples.architecture.secure_live_once --execute` on your own computer. The launcher prompts for a project key without echo, disables SDK trace export and writes results outside the repo. See the [decision packet](../../docs/live-smoke-decision-packet.md).
 
 ## Recorded output (offline: real SDK 0.25.0, simulated model)
 
@@ -187,6 +193,7 @@ In A the same request (`validate_config`) was simply executed: the model decided
 - `HOLD` / `CLARIFY` need a non-empty message, are screened for unexecuted-side-effect claims, and cannot assert an approval hold unless the host has a matching held-for-approval receipt for the named service. The policy never relays model text in them. This is a **narrow lexical guard**, not proof that arbitrary prose is correct.
 - Every result, in A and B, ends with a **host action record** built from receipts only: the authoritative statement of what was and was not executed, whatever the model's text says.
 - A rollback the user **mentions** without a plain request ("can you roll it back?", "roll back checkout and payments", a retracted or negated request) is not dropped silently: the action record lists it as `NOT REQUESTED`, with nothing held or executed. The host never guesses its target.
+- A rollback the user **did** request plainly is never dropped silently either. `DIRECT` and `FINISH` refuse to end the run while it is outstanding. If the run ends another way (`HOLD`, `CLARIFY`, or a host stop on rejections or budget) before the request reached the host, the action record lists it as `REQUESTED BY THE USER, NOT SUBMITTED`, and the host appends a line to the answer naming it: no approval request exists and nothing was executed.
 - The `FINISH` screen for claimed side effects also catches started or under-way wording ("a rollback was initiated", "rollback in progress", "the previous version was restored") and split verb phrases ("I rolled checkout back", "switched checkout back"). It remains a keyword screen: an unlisted paraphrase can pass, so the action record, not the answer text, is authoritative.
 - Which questions need which evidence is defined once (`is_causal_question`, `is_status_question` in `incident_env.py`) and shared by the host's evidence gate, `TriagePolicy` and the simulated model. A question relating a change to a symptom ("Did the checkout deployment increase error rates?") counts as causal, so paraphrases cannot dodge the evidence requirement or get a keyword-matched `DIRECT` answer.
 
@@ -199,12 +206,12 @@ In A the same request (`validate_config`) was simply executed: the model decided
 | Host validation and tool execution | **Real** Python: the existing `LocalHarness` and `world.py` handlers |
 | Synthetic incident data | Synthetic, from the existing v0.5 world |
 | Policy | **Real code**, deterministic rules ([`policies.py`](policies.py)); not learned, tuned or evaluated |
-| Provider classes: Agents SDK `OpenAIResponsesModel` + `openai.AsyncOpenAI`; LlamaIndex `OpenAIResponses` (pinned `llama-index-llms-openai==0.9.0`) | **Real**, tested offline against an HTTP-level provider double ([`provider_double.py`](provider_double.py)); **offline rehearsal passed; one authorized real attempt returned only HTTP 429** |
-| Model replies | **SIMULATED** in the demo, the tests and the smoke rehearsal; real only via `live_smoke --provider openai`, which was **attempted once but received no model outputs (HTTP 429)** |
+| Provider classes: Agents SDK `OpenAIResponsesModel` + `openai.AsyncOpenAI`; LlamaIndex `OpenAIResponses` (pinned `llama-index-llms-openai==0.9.0`) | **Real**, tested offline against an HTTP-level provider double ([`provider_double.py`](provider_double.py)); no real-model output yet ([status](#real-provider-readiness)) |
+| Model replies | **SIMULATED** in the demo, the tests and the smoke rehearsal; real only via `live_smoke --provider openai` ([status](#real-provider-readiness)) |
 
 ## Real-provider readiness
 
-**Status (2026-11-20): one owner-dispatched paid smoke was INCONCLUSIVE (HTTP 429, zero model outputs); the one-shot authorization has been consumed.** The provider-double rehearsal remains the only passing execution of the provider paths.
+**Status: the one owner-dispatched paid attempt was INCONCLUSIVE, with no model output, and its authorization is consumed** ([evidence record](../../reports/live-smoke-44520205372.md); current status in [release status](../../docs/release-status.md)). The provider-double rehearsal remains the only passing execution of the provider paths.
 
 The offline demo replaces each framework's *model object* with a test double (`ScriptedModel`, `MockFunctionCallingLLM`). That leaves the classes a live run actually uses untested, and for LlamaIndex those classes take a different internal path. So the live paths are now exercised one level lower:
 
@@ -251,7 +258,7 @@ The offline demo replaces each framework's *model object* with a test double (`S
 - `--provider openai` refuses to start without an explicit `--model`, positive prices, `OPENAI_API_KEY` and an `--authorize-usd` that covers the planned worst case.
 - In every mode it refuses model ids that a pinned framework does not know, and settings the two frameworks would send differently: a temperature for a model LlamaIndex treats as reasoning, a reasoning effort for one it does not, or a non-reasoning model without an explicit temperature.
 
-The plan and outcome of the first paid run (HTTP 429, inconclusive) are in the [decision packet](../../docs/live-smoke-decision-packet.md).
+The plan for the first paid run is in the [decision packet](../../docs/live-smoke-decision-packet.md).
 
 Compatibility findings from building this. Each one is fixed or guarded, and covered by a test:
 
@@ -318,11 +325,29 @@ No efficiency comparison is made.
 
 The side-by-side counts operations. A provider bills fresh input, cache reads, cache writes and output, and a model may ask for several tools in one response. `python -m examples.architecture.cost_structure` (offline, provider double) reports what each arm sends and prices it under three billing assumptions, for three arms: the conventional agent (**A**), the same agent when the simulated model batches its evidence reads (**A'**), and Turnwise Core (**B**). On this scenario Turnwise Core's requests are larger and repeat less of their prefix, and whether it comes out cheaper than **A** depends on the billing assumption; it is not cheaper than **A'** under any of them. This is **simulated and structural**: synthetic token counts and arithmetic, not a cost measurement. Snapshot, method and limits: [cache-aware accounting](../../docs/cost-accounting-2026-11-21.md).
 
+`--scenario all` runs the four demo scenarios and applies #85's pre-declared falsifier to their sum:
+- **As written, it fires in both frameworks.** Turnwise Core comes out 46–49% below the batched agent at realistic prefix sizes.
+- **The whole difference comes from two scenarios, `severity` and `rollback`.** In those, the host answers or holds the request without any model call.
+- **Where a model is used, Turnwise Core is not cheaper.** It is +2% to +8% on `investigate` and −4% to −5% on `status`.
+- **With the same front door, the gap disappears.** A post-hoc row charges the batched agent nothing where Turnwise sent nothing, and the difference falls to between −1% and +3%. The saving belongs to the host's no-model shortcuts, not to per-step control.
+
+Details: [four-scenario note](../../docs/cost-accounting-four-scenarios-2026-11-25.md).
+
+### B': the native-intercept model port (an ablation of how the model is asked)
+
+Arm B asks the model for one typed `StepOutcome` with no tools attached. That gives the property the hypothesis needs, *nothing a model emits is executed without a policy decision and host validation*, but it also bundles four other differences from arm A: one proposal per call, a fresh packet instead of a conversation, tools described as text, and a tool call written as JSON in a string. A difference between A and B therefore mixes "who controls" with "how the model is asked" ([#87](https://github.com/dgenio/turnwise-decision-lab/issues/87)).
+
+B' keeps the policy, the host and the loop of arm B and changes only the model call. The model gets the provider's real `tools` field and an appended conversation. **Every tool call in its response comes back to the policy as a proposal; the model call executes none of them.** The policy's adoption is validated and executed by the host as in arm B, and a call it does not adopt is answered `declined by policy: <reason>`. On the OpenAI Agents SDK the step agent's tools are inert and marked `needs_approval=True`, so the SDK itself pauses before any tool runs.
+
+**B' is labelled as an ablation, not as Turnwise Core.** Invariant 2 in `AGENTS.md` says a model step "runs with no tools", and B' sends a `tools` field. Whether to reword that invariant is the owner's decision and has not been made here.
+
+`python -m examples.architecture.intercept_structure` (offline, provider double) compares A, A', B and B' when the model chooses k = 1, 2 or 3 of the task's three reads. With the simulated model, arm B needs k + 1 requests; B' needs k + 1 if the model asks for one tool per response and 2 if it asks for all of them; and B' repeats 67% to 89% of its previous request against 43% to 60% for B. Under #87's pre-declared outcomes this is **inconclusive offline**: whether a model batches is something only a real model can show, so both ports go forward as arms. **Simulated and structural**, not a measurement, and silent on quality. Method, table and limits: [the dated note](../../docs/native-intercept-ablation-2026-11-21.md).
+
 ## Limitations: what this does not establish
 
 - **No quality, cost or latency claim.** The printed counts are operation counts for one simulated run. They are not measurements, and a count of model calls is not a cost (see [Counts are not cost](#counts-are-not-cost)). Turnwise adds policy decisions and host checks that a native agent does not have.
 - **The simulated model is not a model.** It is deterministic and was written by the same author as the policy. Offline traces prove *control flow*, not reasoning ability.
-- **Real-model behaviour is still untested.** The provider classes are tested against a provider *double* that emulates the wire format and scripted faults (malformed outputs, refusals, errors). A real model may still make different tool choices or ignore the step contract, and the API may reject parameters that the double accepts. The [first authorized smoke](../../docs/live-smoke-decision-packet.md) returned HTTP 429 without outputs; another specifically authorized, capacity-verified run would be required to observe real-model behavior.
+- **Real-model behaviour is still untested.** The provider classes are tested against a provider *double* that emulates the wire format and scripted faults (malformed outputs, refusals, errors). A real model may still make different tool choices or ignore the step contract, and the API may reject parameters that the double accepts. The only paid attempt produced no model output ([status](#real-provider-readiness)); observing real-model behavior needs another specifically authorized, capacity-verified run.
 - **The policy is hand-written** for this synthetic domain. It is a stand-in for a learned or decision-service policy (Jev/System One is not used). Simple host rules may do as well, which is the open research question in [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9).
 - **`FINISH` checks cited receipt provenance and a small host-side evidence-role contract, not truth.** In this synthetic incident domain, a causal question requires cited symptom and change reads for each named service, while a status question requires cited current-state evidence. This prevents some premature exits but is neither semantic entailment nor independent answer correctness. The native conventional baseline does not use B's FINISH contract; Level C must include A+G (the same host exit gate) to isolate the effect of per-step control.
 - The write-intent parser and the side-effect claim screen are keyword rules. They fail closed (they refuse more than necessary) but are not semantic checks.
@@ -343,7 +368,8 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 | `turnwise_core.py` | Typed contracts (`Op`, `Decision`, `ModelOutcome`, `Snapshot`), host validation of decisions, and the bounded loop |
 | `policies.py` | `TriagePolicy` (Turnwise Core) and `HandoffPolicy` (contrast only) |
 | `simulated_model.py` | Offline stand-in for model replies, the same in both architectures |
-| `step_schema.py` | `StepOutcome`, the typed result of one model step |
+| `step_schema.py` | `StepOutcome`, the typed result of one model step; `StepAnswer`, the typed final reply of the B' port |
+| `native_intercept.py`, `openai_agents/native_intercept.py`, `intercept_structure.py` | B', the native-intercept model port: the Turnwise Core loop with a real tools field, every tool call returned to the policy as a proposal, and the offline k = 1, 2, 3 table. An ablation; **not the canonical arm B** |
 | `openai_agents/`, `llamaindex/` | `conventional.py` (A), `turnwise.py` (B), `models.py` (simulated model, or a bounded provider model) |
 | `shield.py`, `openai_agents/shielded.py` | Arm S, the shielded native agent (opt-in, [#88](https://github.com/dgenio/turnwise-decision-lab/issues/88)): host rules and reads before the agent, a host exit check with bounded feedback. Not Turnwise Core |
 | `trace.py`, `run_demo.py` | Per-step controller traces and the offline CLI |
@@ -352,7 +378,7 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 | `live_smoke.py` | The bounded four-configuration smoke test: rehearsal by default, paid only with explicit authorisation |
 | `cost_accounting.py`, `cost_structure.py` | Billing units with explicit unknowns (`turnwise-billing/v1`), request-shape accounting, and the offline three-arm cost-structure report (SIMULATED, structural) |
 | `sample_output/`, `regenerate_samples.sh` | Committed offline output, checked by CI |
-| `instruction_modules.v1.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
+| `instruction_modules.v2.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
 
 Tests:
 
@@ -360,4 +386,5 @@ Tests:
 - [`tests/test_architecture_action_integrity.py`](../../tests/test_architecture_action_integrity.py): stdlib only. Unexecuted-action claims, write mentions that are not requests, write-target authority (an L56-style regression), the typed verification protocol, the pinned contract version, and a seeded randomized test that hostile policies and model replies cannot break the host invariants.
 - [`tests/test_architecture_openai_agents.py`](../../tests/test_architecture_openai_agents.py) and [`tests/test_architecture_llamaindex.py`](../../tests/test_architecture_llamaindex.py): run in the `architecture-examples` CI job, where a missing framework fails the job instead of skipping.
 - [`tests/test_architecture_provider_readiness.py`](../../tests/test_architecture_provider_readiness.py): the provider classes against the provider double, and the smoke harness. It runs in the same job, which also rehearses `live_smoke --provider double`.
+- [`tests/test_architecture_native_intercept.py`](../../tests/test_architecture_native_intercept.py): B'. With a fake port (stdlib only, main CI job): nothing runs without a policy decision and host validation, parallel proposals, declined calls, budgets. On the real SDK and the provider double (`architecture-examples` job): the approval seam, the fixed tools field, the appended conversation and the k = 1, 2, 3 report.
 - [`tests/test_architecture_cost_accounting.py`](../../tests/test_architecture_cost_accounting.py): billing units and request-shape arithmetic (stdlib only, main CI job), and the three-arm cost-structure report against the provider double (`architecture-examples` job).

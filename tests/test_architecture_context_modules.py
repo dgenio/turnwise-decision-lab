@@ -23,50 +23,49 @@ from examples.architecture.scoped_runtime import ScopedContextRuntime
 from examples.architecture.turnwise_core import Decision, ModelOutcome, Op, TurnwiseRuntime
 
 
+def write_manifest(tmp, data):
+    path = Path(tmp) / "manifest.json"
+    path.write_text(json.dumps(data), encoding="utf-8")
+    return path
+
+
 class ManifestContractTests(unittest.TestCase):
     def test_manifest_is_versioned_and_has_provenance(self):
         registry = load_manifest()
-        self.assertEqual(registry.version, "turnwise.action-modules.v1")
+        self.assertEqual(registry.version, "turnwise.action-modules.v2")
         self.assertEqual(len(registry.sha256), 64)
         self.assertEqual(len(registry.blocks), len({b.id for b in registry.blocks}))
+        self.assertTrue(all(b.source.strip() for b in registry.blocks))
 
-    def test_mandatory_and_requested_dependencies_are_loaded(self):
-        s = select_modules("CALL_HEAVY", requested=("investigate-cause",))
+    def test_mandatory_blocks_come_first_then_the_requested_one_and_absences_are_recorded(self):
+        s = select_modules("CALL_LIGHT", requested=("extract-arguments",))
         self.assertEqual([b.id for b in s.included],
-                         ["host-authority", "receipt-grounding", "investigate-cause"])
+                         ["host-authority", "receipt-grounding", "extract-arguments"])
         audit = s.audit()
-        self.assertEqual(len(audit["included"]), 3)
-        self.assertIn({"id": "summarize-evidence", "reason": "different_operation"}, audit["excluded"])
-        self.assertIn({"id": "prepare-user-update", "reason": "not_requested"}, audit["excluded"])
+        self.assertEqual(audit["excluded"], [{"id": "summarize-evidence", "reason": "not_requested"},
+                                             {"id": "investigate-cause", "reason": "different_operation"}])
+        self.assertEqual(audit["module_bytes"], sum(len(b.text.encode("utf-8")) for b in s.included))
         self.assertIn("NOT provider tokens", audit["units"])
 
-    def test_multilabel_module_composition(self):
-        s = select_modules("CALL_HEAVY", requested=("investigate-cause", "prepare-user-update"))
-        self.assertEqual(set(b.id for b in s.included),
-                         {"host-authority", "receipt-grounding", "investigate-cause", "prepare-user-update"})
+    def test_several_requested_blocks_keep_request_order_and_appear_once(self):
+        s = select_modules("CALL_LIGHT", requested=("summarize-evidence", "extract-arguments",
+                                                    "summarize-evidence", "receipt-grounding"))
+        self.assertEqual([b.id for b in s.included], ["host-authority", "receipt-grounding",
+                                                      "summarize-evidence", "extract-arguments"])
 
-    def test_conflicting_options_have_explicit_exclusion(self):
-        s = select_modules("CALL_HEAVY", requested=("expanded-mode", "concise-mode"))
-        self.assertIn("concise-mode", [b.id for b in s.included])
-        self.assertNotIn("expanded-mode", [b.id for b in s.included])
-        self.assertIn("conflict", dict(s.exclusions)["expanded-mode"])
-
-    def test_mandatory_overflow_fails_closed(self):
-        with self.assertRaisesRegex(ModuleSelectionError, "mandatory module overflow"):
-            select_modules("CALL_LIGHT", module_byte_limit=1)
-
-    def test_optional_overflow_records_omission(self):
-        minimal = select_modules("CALL_LIGHT")
-        mandatory_bytes = sum(len(b.text.encode("utf-8")) for b in minimal.included)
-        limited = select_modules("CALL_LIGHT", requested=("extract-arguments",),
-                                 module_byte_limit=mandatory_bytes)
-        self.assertEqual({b.id for b in limited.included}, {"host-authority", "receipt-grounding"})
-        self.assertEqual(dict(limited.exclusions)["extract-arguments"], "optional_module_byte_overflow")
+    def test_any_overflow_fails_closed_and_nothing_is_dropped_silently(self):
+        mandatory = sum(len(b.text.encode("utf-8")) for b in select_modules("CALL_LIGHT").included)
+        with self.assertRaisesRegex(ModuleSelectionError, "module selection overflow"):
+            select_modules("CALL_LIGHT", module_byte_limit=1)  # the mandatory blocks alone do not fit
+        with self.assertRaisesRegex(ModuleSelectionError, "module selection overflow"):
+            select_modules("CALL_LIGHT", requested=("extract-arguments",), module_byte_limit=mandatory)
+        self.assertEqual(len(select_modules("CALL_LIGHT", module_byte_limit=mandatory).included), 2)
 
     def test_invalid_requests_rejected(self):
         for op, requested in (
             ("CALL_HEAVY", ("summarize-evidence",)),
             ("CALL_LIGHT", ("made-up-instructions",)),
+            ("CALL_LIGHT", (["extract-arguments"],)),
             ("CALL_TOOL", ()),
         ):
             with self.subTest(op=op, requested=requested), self.assertRaises(ModuleSelectionError):
@@ -75,25 +74,35 @@ class ManifestContractTests(unittest.TestCase):
             with self.subTest(limit=limit), self.assertRaises(ModuleSelectionError):
                 select_modules("CALL_LIGHT", module_byte_limit=limit)
 
-    def test_missing_dependency_and_cycle_are_rejected(self):
+    def test_malformed_or_unsupported_manifests_fail_closed(self):
         base = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        variants = []
-        missing = json.loads(json.dumps(base))
-        next(b for b in missing["blocks"] if b["id"] == "investigate-cause")["depends_on"] = ["absent"]
-        variants.append(missing)
-        cycle = json.loads(json.dumps(base))
-        next(b for b in cycle["blocks"] if b["id"] == "host-authority")["depends_on"] = ["receipt-grounding"]
-        next(b for b in cycle["blocks"] if b["id"] == "receipt-grounding")["depends_on"] = ["host-authority"]
-        variants.append(cycle)
-        asymmetric = json.loads(json.dumps(base))
-        next(b for b in asymmetric["blocks"] if b["id"] == "expanded-mode")["conflicts_with"] = []
-        variants.append(asymmetric)
-        for variant in variants:
-            with tempfile.TemporaryDirectory() as tmp:
-                path = Path(tmp) / "manifest.json"
-                path.write_text(json.dumps(variant), encoding="utf-8")
-                with self.assertRaises(ModuleSelectionError):
-                    load_manifest(path)
+
+        def variant(change):
+            data = json.loads(json.dumps(base))
+            change(data)
+            return data
+
+        cases = {
+            "v1 version": variant(lambda d: d.update(version="turnwise.action-modules.v1")),
+            "unimplemented field": variant(lambda d: d["blocks"][2].update(depends_on=["receipt-grounding"])),
+            "missing field": variant(lambda d: d["blocks"][0].pop("source")),
+            "non-string id": variant(lambda d: d["blocks"][0].update(id=["host-authority"])),
+            "duplicate id": variant(lambda d: d["blocks"][1].update(id="host-authority")),
+            "string applies_to": variant(lambda d: d["blocks"][0].update(applies_to="CALL_HEAVY")),
+            "non-model operation": variant(lambda d: d["blocks"][0].update(applies_to=["CALL_TOOL"])),
+            "unhashable operation": variant(lambda d: d["blocks"][0].update(applies_to=[["CALL_HEAVY"]])),
+            "non-bool mandatory": variant(lambda d: d["blocks"][0].update(mandatory=1)),
+            "empty text": variant(lambda d: d["blocks"][0].update(text="  ")),
+            "no blocks": variant(lambda d: d.update(blocks=[])),
+        }
+        for name, data in cases.items():
+            with self.subTest(name), tempfile.TemporaryDirectory() as tmp, \
+                    self.assertRaises(ModuleSelectionError):
+                load_manifest(write_manifest(tmp, data))
+        with tempfile.TemporaryDirectory() as tmp, self.assertRaises(ModuleSelectionError):
+            load_manifest(Path(tmp) / "absent.json")
+        with tempfile.TemporaryDirectory() as tmp:  # the unchanged base loads, so the cases above are not vacuous
+            self.assertEqual(load_manifest(write_manifest(tmp, base)).version, "turnwise.action-modules.v2")
 
 
 class OptInRuntimeTests(unittest.TestCase):
@@ -162,30 +171,25 @@ class OptInRuntimeTests(unittest.TestCase):
 
         def drifting(decision):
             calls.append(decision)
-            return ("investigate-cause",) if len(calls) == 1 else ("prepare-user-update",)
+            return ("investigate-cause",) if len(calls) == 1 else ()
 
         port = OfflineModelPort()
         rt = ScopedContextRuntime(IncidentHost(TASKS["investigate"]), TriagePolicy(), port,
                                   requested_modules=drifting)
         rt.run()
         first = [m["id"] for m in port.packets[0][1]["instruction_modules"]]
-        self.assertIn("investigate-cause", first)
-        self.assertNotIn("prepare-user-update", first)
+        self.assertEqual(first, ["host-authority", "receipt-grounding", "investigate-cause"])
 
-    def test_malformed_manifest_types_fail_closed_not_with_type_errors(self):
-        base = json.loads(MANIFEST_PATH.read_text(encoding="utf-8"))
-        unhashable = json.loads(json.dumps(base))
-        unhashable["blocks"][0]["id"] = ["host-authority"]
-        stringly = json.loads(json.dumps(base))
-        stringly["blocks"][0]["applies_to"] = "CALL_HEAVY"
-        numeric = json.loads(json.dumps(base))
-        numeric["blocks"][2]["depends_on"] = [7]
-        for variant in (unhashable, stringly, numeric):
-            with self.subTest(variant=variant["blocks"][0]["id"]), tempfile.TemporaryDirectory() as tmp:
-                path = Path(tmp) / "manifest.json"
-                path.write_text(json.dumps(variant), encoding="utf-8")
-                with self.assertRaises(ModuleSelectionError):
-                    load_manifest(path)
+    def test_a_selection_is_only_sent_for_the_decision_the_host_validated(self):
+        rt = ScopedContextRuntime(IncidentHost(TASKS["investigate"]), TriagePolicy(), OfflineModelPort())
+        validated = Decision(Op.CALL_HEAVY, "validated by the host")
+        with self.assertRaisesRegex(RuntimeError, "not validated"):
+            rt._packet(validated, "heavy")  # no host validation yet
+        self.assertEqual(rt.host_validates(validated, 1), (True, ""))
+        with self.assertRaisesRegex(RuntimeError, "not validated"):
+            rt._packet(Decision(Op.CALL_HEAVY, "a different decision"), "heavy")
+        self.assertEqual([m["id"] for m in rt._packet(validated, "heavy")["instruction_modules"]],
+                         ["host-authority", "receipt-grounding", "investigate-cause"])
 
     def test_ambiguous_referent_must_clarify(self):
         result, runtime, port = run_case("unknown", "What do the runbooks say about it?",
@@ -204,14 +208,14 @@ class OptInRuntimeTests(unittest.TestCase):
                          {"host-authority", "receipt-grounding", "investigate-cause"})
         self.assertEqual(result.writes_executed, 0)
 
-    def test_host_rejects_mandatory_overflow_before_model_invocation(self):
+    def test_host_rejects_an_overflowing_selection_before_model_invocation(self):
         port = OfflineModelPort()
         rt = ScopedContextRuntime(IncidentHost(TASKS["status"]), TriagePolicy(), port,
                                   module_byte_limit=1)
         result = rt.run()
         self.assertEqual(result.status, "held")
         self.assertEqual(port.packets, [])
-        self.assertTrue(any("mandatory module overflow" in row.host for row in rt.rows))
+        self.assertTrue(any("module selection overflow" in row.host for row in rt.rows))
 
     def test_untrusted_write_proposal_does_not_get_authority(self):
         class RoguePort(OfflineModelPort):

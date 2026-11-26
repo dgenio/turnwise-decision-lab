@@ -34,7 +34,7 @@ class RunResult:
     answer: str
     rows: list[TraceRow]
     notes: list[str] = field(default_factory=list)
-    counts: dict[str, int] = field(default_factory=dict)
+    counts: dict[str, int | str] = field(default_factory=dict)  # "unknown" where a count was not reported
     writes_executed: int = 0
 
 

@@ -74,8 +74,8 @@ def worst_case_usd(prices: Prices, settings: ProviderSettings, configs=CONFIGS,
 
 
 # ---------------------------------------------------------------- one configuration
-def run_config(framework: str, architecture: str, setup: ProviderSetup) -> dict[str, Any]:
-    task = TASKS[SCENARIO]
+def run_config(framework: str, architecture: str, setup: ProviderSetup, scenario: str = SCENARIO) -> dict[str, Any]:
+    task = TASKS[scenario]
     host = IncidentHost(task)
     result = runtime = None
     error = None

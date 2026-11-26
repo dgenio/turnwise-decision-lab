@@ -33,7 +33,7 @@ from ..provider import ProviderLedger, classify_from_wire
 from ..provider_double import PACKET_MARKER
 from ..step_schema import StepOutcome
 from ..trace import RunResult
-from ..turnwise_core import STEP_CONTRACT, Budget, ModelCallFailed, Policy, TurnwiseRuntime
+from ..turnwise_core import STEP_CONTRACT, Budget, HandoffReport, ModelCallFailed, Policy, TurnwiseRuntime
 from .conventional import build_agent, run_agent
 
 
@@ -70,11 +70,12 @@ class LlamaIndexModelPort:
             raise
         return outcome.model_dump()
 
-    def handoff(self, task_text: str, max_turns: int) -> str:
+    def handoff(self, task_text: str, max_turns: int) -> HandoffReport:
         # The same agent definition, with its tools: the LLM controls this segment.
         native = build_agent(self.agent.llm, HostSession(self.host, actor="native_agent"))
-        final, _, _ = asyncio.run(run_agent(native, task_text, max_turns))
-        return final.response.content or ""
+        final, turns, _ = asyncio.run(run_agent(native, task_text, max_turns))
+        # One entry per AgentOutput event, i.e. per LLM response (the conventional arm counts the same way).
+        return HandoffReport(final.response.content or "", model_calls=len(turns))
 
 
 def step_llm_kwargs(llm: Any) -> dict[str, Any]:
