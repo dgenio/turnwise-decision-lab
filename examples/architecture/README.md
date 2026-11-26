@@ -102,7 +102,7 @@ python -m examples.architecture.run_demo --framework all --scenario all --handof
 python -m examples.architecture.live_smoke
 ```
 
-A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. **The one owner-authorized GPT-6.1 Sol attempt was dispatched on 2026-11-19 ([run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372)); HTTP 429 prevented any model outputs, and the authorization is consumed. Actual billing is unknown.** Do not repeat it. Another paid attempt requires a distinct explicit authorization and verified model access. For credential-safe execution, run `python -m examples.architecture.secure_live_once` (free rehearsal), then `python -m examples.architecture.secure_live_once --execute` on your own computer. The launcher prompts for a project key without echo, disables SDK trace export and writes results outside the repo. See the [decision packet](../../docs/live-smoke-decision-packet.md).
+A paid run needs an explicit model, prices and a spend authorisation that covers the computed worst case. **The one owner-authorized attempt has been made and its authorization is consumed ([outcome](#real-provider-readiness)).** Do not repeat it. Another paid attempt requires a distinct explicit authorization and verified model access. For credential-safe execution, run `python -m examples.architecture.secure_live_once` (free rehearsal), then `python -m examples.architecture.secure_live_once --execute` on your own computer. The launcher prompts for a project key without echo, disables SDK trace export and writes results outside the repo. See the [decision packet](../../docs/live-smoke-decision-packet.md).
 
 ## Recorded output (offline: real SDK 0.25.0, simulated model)
 
@@ -194,12 +194,12 @@ In A the same request (`validate_config`) was simply executed: the model decided
 | Host validation and tool execution | **Real** Python: the existing `LocalHarness` and `world.py` handlers |
 | Synthetic incident data | Synthetic, from the existing v0.5 world |
 | Policy | **Real code**, deterministic rules ([`policies.py`](policies.py)); not learned, tuned or evaluated |
-| Provider classes: Agents SDK `OpenAIResponsesModel` + `openai.AsyncOpenAI`; LlamaIndex `OpenAIResponses` (pinned `llama-index-llms-openai==0.9.0`) | **Real**, tested offline against an HTTP-level provider double ([`provider_double.py`](provider_double.py)); **offline rehearsal passed; one authorized real attempt returned only HTTP 429** |
-| Model replies | **SIMULATED** in the demo, the tests and the smoke rehearsal; real only via `live_smoke --provider openai`, which was **attempted once but received no model outputs (HTTP 429)** |
+| Provider classes: Agents SDK `OpenAIResponsesModel` + `openai.AsyncOpenAI`; LlamaIndex `OpenAIResponses` (pinned `llama-index-llms-openai==0.9.0`) | **Real**, tested offline against an HTTP-level provider double ([`provider_double.py`](provider_double.py)); no real-model output yet ([status](#real-provider-readiness)) |
+| Model replies | **SIMULATED** in the demo, the tests and the smoke rehearsal; real only via `live_smoke --provider openai` ([status](#real-provider-readiness)) |
 
 ## Real-provider readiness
 
-**Status (2026-11-20): one owner-dispatched paid smoke was INCONCLUSIVE (HTTP 429, zero model outputs); the one-shot authorization has been consumed.** The provider-double rehearsal remains the only passing execution of the provider paths.
+**Status: the one owner-dispatched paid attempt was INCONCLUSIVE, with no model output, and its authorization is consumed** ([evidence record](../../reports/live-smoke-44520205372.md); current status in [release status](../../docs/release-status.md)). The provider-double rehearsal remains the only passing execution of the provider paths.
 
 The offline demo replaces each framework's *model object* with a test double (`ScriptedModel`, `MockFunctionCallingLLM`). That leaves the classes a live run actually uses untested, and for LlamaIndex those classes take a different internal path. So the live paths are now exercised one level lower:
 
@@ -246,7 +246,7 @@ The offline demo replaces each framework's *model object* with a test double (`S
 - `--provider openai` refuses to start without an explicit `--model`, positive prices, `OPENAI_API_KEY` and an `--authorize-usd` that covers the planned worst case.
 - In every mode it refuses model ids that a pinned framework does not know, and settings the two frameworks would send differently: a temperature for a model LlamaIndex treats as reasoning, a reasoning effort for one it does not, or a non-reasoning model without an explicit temperature.
 
-The plan and outcome of the first paid run (HTTP 429, inconclusive) are in the [decision packet](../../docs/live-smoke-decision-packet.md).
+The plan for the first paid run is in the [decision packet](../../docs/live-smoke-decision-packet.md).
 
 Compatibility findings from building this. Each one is fixed or guarded, and covered by a test:
 
@@ -317,7 +317,7 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 
 - **No quality, cost or latency claim.** The printed counts are operation counts for one simulated run. They are not measurements, and a count of model calls is not a cost (see [Counts are not cost](#counts-are-not-cost)). Turnwise adds policy decisions and host checks that a native agent does not have.
 - **The simulated model is not a model.** It is deterministic and was written by the same author as the policy. Offline traces prove *control flow*, not reasoning ability.
-- **Real-model behaviour is still untested.** The provider classes are tested against a provider *double* that emulates the wire format and scripted faults (malformed outputs, refusals, errors). A real model may still make different tool choices or ignore the step contract, and the API may reject parameters that the double accepts. The [first authorized smoke](../../docs/live-smoke-decision-packet.md) returned HTTP 429 without outputs; another specifically authorized, capacity-verified run would be required to observe real-model behavior.
+- **Real-model behaviour is still untested.** The provider classes are tested against a provider *double* that emulates the wire format and scripted faults (malformed outputs, refusals, errors). A real model may still make different tool choices or ignore the step contract, and the API may reject parameters that the double accepts. The only paid attempt produced no model output ([status](#real-provider-readiness)); observing real-model behavior needs another specifically authorized, capacity-verified run.
 - **The policy is hand-written** for this synthetic domain. It is a stand-in for a learned or decision-service policy (Jev/System One is not used). Simple host rules may do as well, which is the open research question in [#9](https://github.com/dgenio/turnwise-decision-lab/issues/9).
 - **`FINISH` checks cited receipt provenance and a small host-side evidence-role contract, not truth.** In this synthetic incident domain, a causal question requires cited symptom and change reads for each named service, while a status question requires cited current-state evidence. This prevents some premature exits but is neither semantic entailment nor independent answer correctness. The native conventional baseline does not use B's FINISH contract; Level C must include A+G (the same host exit gate) to isolate the effect of per-step control.
 - The write-intent parser and the side-effect claim screen are keyword rules. They fail closed (they refuse more than necessary) but are not semantic checks.
@@ -346,7 +346,7 @@ The side-by-side counts operations. A provider bills fresh input, cache reads, c
 | `live_smoke.py` | The bounded four-configuration smoke test: rehearsal by default, paid only with explicit authorisation |
 | `cost_accounting.py`, `cost_structure.py` | Billing units with explicit unknowns (`turnwise-billing/v1`), request-shape accounting, and the offline three-arm cost-structure report (SIMULATED, structural) |
 | `sample_output/`, `regenerate_samples.sh` | Committed offline output, checked by CI |
-| `instruction_modules.v1.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
+| `instruction_modules.v2.json`, `context_modules.py`, `scoped_runtime.py`, `action_context_demo.py` | Opt-in #55 exhibit: pre-authored instruction blocks selected for the next model operation, with an inclusion/exclusion audit ([design and limits](../../docs/action-scoped-modules-issue55.md)). Not used by the default runtime or `run_demo` |
 
 Tests:
 

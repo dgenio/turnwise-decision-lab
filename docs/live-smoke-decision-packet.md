@@ -1,6 +1,6 @@
 # Live smoke test: decision packet (spending gate)
 
-> **Current status (2026-11-20).** The first authorization was consumed by [run 44520205372](https://github.com/dgenio/turnwise-decision-lab/actions/runs/44520205372) on 2026-11-19. All ten admitted requests received HTTP 429; no real-model responses or reported usage were obtained. The application reserved an estimated USD 0.32729; actual billing is unknown. A corrected offline-tested workflow stops at the first 429 and exports sanitized evidence. [PR #60](https://github.com/dgenio/turnwise-decision-lab/pull/60) drafted a *second*, distinct one-shot authorization; it was closed on 2026-11-20 **without merging or dispatch** because the provider project's model access and capacity were unverified ([#75](https://github.com/dgenio/turnwise-decision-lab/issues/75)). **No second provider run has been dispatched.** A future attempt needs a new PR and the owner's explicit authorization; a workflow merge alone is not a paid run.
+> **Status.** This plan's single authorization was consumed on 2026-11-19 and the attempt was INCONCLUSIVE: see [the first authorized run](#first-authorized-run-and-subsequent-offline-correction-2026-11-19) below, the [evidence record](../reports/live-smoke-44520205372.md), and [release status](release-status.md) for the current state. A future attempt needs a new PR and the owner's explicit authorization; a workflow merge alone is not a paid run.
 
 > The status line below is the **pre-run historical authorization record**, deliberately retained unmodified for chronology.
 
