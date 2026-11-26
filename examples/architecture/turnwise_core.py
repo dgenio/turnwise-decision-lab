@@ -227,6 +227,8 @@ class HandoffReport:
 
 # ---------------------------------------------------------------- the runtime
 class TurnwiseRuntime:
+    ARCHITECTURE = "Turnwise Core"  # how a run labels itself; a subclass that changes the model port says so here
+
     def __init__(self, host: IncidentHost, policy: Policy, model: ModelPort, *, budget: Budget = Budget(),
                  framework: str = "no framework"):
         self.host, self.policy, self.model, self.budget, self.framework = host, policy, model, budget, framework
@@ -503,7 +505,7 @@ class TurnwiseRuntime:
                 else "NOT adopted by the policy"))
         notes.append(self.host.action_record())
         # The label comes from what happened, not from what the policy calls itself.
-        architecture = "Agent handoff (contrast; NOT Turnwise Core)" if self._handoffs else "Turnwise Core"
+        architecture = "Agent handoff (contrast; NOT Turnwise Core)" if self._handoffs else self.ARCHITECTURE
         title = f"{architecture} -- same agent, policy: {self.policy.name} ({self.framework})"
         counts: dict[str, int | str] = {"policy_decisions": len(self.snapshots),
                                          "model_calls_chosen_by_policy": self._model_calls}

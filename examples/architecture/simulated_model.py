@@ -113,6 +113,33 @@ class SimulatedInvestigator:
         text, _ = _compose(intent, svc, evidence)
         return NativeAction("answer", text=text)
 
+    # ------------------------------------------- one Turnwise step asked through a native tools field (B')
+    def intercept_turn(self, *, task: str, tool_results: Iterable[str],
+                       tools: Iterable[str]) -> list[NativeAction] | dict[str, Any]:
+        """The same decisions as ``typed_step``, expressed the native way: tool calls, or a typed final reply.
+
+        Returns a list of tool-call actions (one, or every missing evidence read when ``batch_reads``), or a
+        ``StepAnswer`` mapping. A tool call here is a proposal for the policy; nothing is executed.
+        """
+        evidence = {r["tool"]: r for r in (_parse_result(x) for x in tool_results)
+                    if r and r.get("status") == "executed"}
+        offered = set(tools)
+        services, intent = named_services(task), _intent(task)
+        if intent in {"rollback", "fact"} or not services:
+            return _answer("needs_evidence", "This step cannot answer the task from the evidence provided.")
+        svc = services[0]
+        missing = [tool for tool in _NEEDS.get(intent, ()) if tool not in evidence]
+        if missing:
+            if missing[0] not in offered:
+                return _answer("needs_evidence", f"I need {missing[0]} evidence, which I may not request here.")
+            wanted = [tool for tool in missing if tool in offered] if self.batch_reads else missing[:1]
+            return [NativeAction("tool_call", tool, {"service": svc}) for tool in wanted]
+        if self.rogue_write:
+            # Calls a write it was never asked for, whether or not it was offered.
+            return [NativeAction("tool_call", "rollback_deploy", {"service": svc})]
+        text, cited = _compose(intent, svc, evidence)
+        return _answer("answer_candidate", text, cited)
+
     # ------------------------------------------- one Turnwise-controlled model step
     def typed_step(self, packet: dict[str, Any]) -> dict[str, Any]:
         """One bounded model call under Turnwise: return a typed StepOutcome, execute nothing."""
@@ -214,6 +241,11 @@ def _compose(intent: str, svc: str, evidence: dict[str, dict[str, Any]]) -> tupl
             text += " Its configuration matches the approved baseline."
     text += " The timing is consistent with the deploy causing the errors, but this is correlation, not proof."
     return text, cited
+
+
+def _answer(kind: str, text: str, cited: list[str] | None = None) -> dict[str, Any]:
+    """A ``StepAnswer`` as a mapping (the typed final reply of the native-intercept port)."""
+    return {"kind": kind, "text": text, "cited_receipts": list(cited or [])}
 
 
 def _outcome(kind: str, text: str, *, tool: str | None = None, arguments: dict[str, Any] | None = None,

@@ -20,3 +20,15 @@ class StepOutcome(BaseModel):
     arguments_json: Optional[str] = Field(
         description="tool_proposal only: the tool arguments as a JSON object string; else null.")
     cited_receipts: List[str] = Field(description="answer_candidate: the receipt ids the answer relies on.")
+
+
+class StepAnswer(BaseModel):
+    """The typed *final* reply of one model call made through the native-intercept port (the B' ablation, #87).
+
+    There the model asks for tools through the provider's own ``tools`` field, so this type carries no proposal:
+    it is what the model returns when it calls no tool. Like ``StepOutcome`` it cannot execute anything.
+    """
+
+    kind: Literal["answer_candidate", "needs_evidence"] = Field(description="answer_candidate or needs_evidence")
+    text: str = Field(description="The answer, or what evidence is missing.")
+    cited_receipts: List[str] = Field(description="answer_candidate: the receipt ids the answer relies on.")
