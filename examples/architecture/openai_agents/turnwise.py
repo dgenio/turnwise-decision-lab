@@ -33,7 +33,7 @@ from ..policies import TriagePolicy
 from ..provider import ProviderLedger, classify_from_wire
 from ..step_schema import StepOutcome
 from ..trace import RunResult
-from ..turnwise_core import STEP_CONTRACT, Budget, Policy, TurnwiseRuntime
+from ..turnwise_core import STEP_CONTRACT, Budget, HandoffReport, Policy, TurnwiseRuntime
 from .conventional import build_agent
 
 
@@ -67,11 +67,12 @@ class OpenAIAgentsModelPort:
             raise
         return result.final_output.model_dump()
 
-    def handoff(self, task_text: str, max_turns: int) -> str:
+    def handoff(self, task_text: str, max_turns: int) -> HandoffReport:
         # The unmodified agent, with its tools: the model controls this segment.
         result = Runner.run_sync(self.agent, task_text, context=HostSession(self.host, actor="native_agent"),
                                  max_turns=max_turns, run_config=self._config)
-        return str(result.final_output)
+        # One raw response per model call the SDK made in this segment (the conventional arm counts the same way).
+        return HandoffReport(str(result.final_output), model_calls=len(result.raw_responses))
 
 
 def run_turnwise(task: str, heavy_model: Any, light_model: Any, *, model_label: str,

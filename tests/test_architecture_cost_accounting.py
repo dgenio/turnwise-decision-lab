@@ -256,5 +256,51 @@ class CostStructureReportTests(unittest.TestCase):
         self.assertTrue(all(sum(o["type"] == "function_call" for o in out) <= 1 for out in outputs))
 
 
+@unittest.skipUnless(FRAMEWORKS_PRESENT, "both optional agent SDKs are needed")
+class CostScenariosReportTests(unittest.TestCase):
+    """Every demo scenario runs offline in all three arms; the aggregate and #85's verdict are computed, not typed."""
+
+    @classmethod
+    def setUpClass(cls):
+        from examples.architecture import cost_structure
+
+        def deny(*args, **kwargs):
+            raise AssertionError("the cost-structure report attempted a network connection")
+
+        cls.module = cost_structure
+        with mock.patch.object(socket.socket, "connect", deny), mock.patch.object(socket.socket, "connect_ex", deny):
+            cls.report = cost_structure.build_scenarios_report()
+
+    def test_all_four_scenarios_ran_in_every_arm_without_executing_a_write(self):
+        self.assertEqual(self.report["scenarios"], list(TASKS))
+        self.assertFalse(self.report["real_inference"])
+        for scenario, rep in self.report["per_scenario"].items():
+            self.assertEqual(rep["scenario"], scenario)
+            for framework in self.module.FRAMEWORKS:
+                arms = rep["frameworks"][framework]["arms"]
+                self.assertEqual([a["arm"] for a in arms], ["A", "A'", "B"])
+                self.assertTrue(all(a["verdict"] in ("PASS", "INCONCLUSIVE") and a["error"] is None for a in arms),
+                                (scenario, framework, [(a["verdict"], a["error"]) for a in arms]))
+
+    def test_turnwise_skips_the_model_only_where_its_host_answers_or_holds(self):
+        for framework in self.module.FRAMEWORKS:
+            door = self.report["aggregate"][framework]["front_door"]
+            for scenario in door["no_model_scenarios"]:
+                b = next(a for a in self.report["per_scenario"][scenario]["frameworks"][framework]["arms"]
+                         if a["arm"] == "B")
+                self.assertIn(b["termination"], ("answered_directly", "held"), (framework, scenario))
+            self.assertNotIn("investigate", door["no_model_scenarios"])
+
+    def test_the_verdict_comes_from_the_rule_and_the_text_reports_both_readings(self):
+        for framework in self.module.FRAMEWORKS:
+            agg = self.report["aggregate"][framework]
+            self.assertEqual(agg["falsifier"], self.module.falsifier_verdict(agg["costs"]))
+            self.assertIn(agg["falsifier"]["verdict"], ("FALSIFIED", "CONSISTENT", "MIXED"))
+        text = self.module.render_scenarios(self.report)
+        for needle in ("#85 falsifier, openai-agents:", "#85 falsifier, llamaindex:", "POST HOC, not pre-declared",
+                       "NOT a cost measurement", "Nothing here measures answer quality, real cost or real latency."):
+            self.assertIn(needle, text)
+
+
 if __name__ == "__main__":
     unittest.main()

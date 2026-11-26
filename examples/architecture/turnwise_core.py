@@ -209,7 +209,20 @@ class ModelPort(Protocol):
 
     def call(self, tier: str, packet: dict[str, Any]) -> Mapping[str, Any]: ...
 
-    def handoff(self, task_text: str, max_turns: int) -> str: ...
+    def handoff(self, task_text: str, max_turns: int) -> str | HandoffReport: ...
+
+
+@dataclass(frozen=True)
+class HandoffReport:
+    """What a ``HANDOFF_AGENT`` segment returns when the framework can say how many model calls it made.
+
+    ``model_calls`` comes from the framework's own record of the native agent's run (for example one
+    entry per model response). A port that returns a plain string, or a count that is not a non-negative
+    integer, is recorded as ``unknown``: the agent's calls are never reported as 0.
+    """
+
+    text: str
+    model_calls: int | None = None
 
 
 # ---------------------------------------------------------------- the runtime
@@ -226,6 +239,7 @@ class TurnwiseRuntime:
         self._rejections = 0
         self._model_calls = 0  # CALL_LIGHT / CALL_HEAVY: exactly one model call each
         self._handoffs = 0  # HANDOFF_AGENT: the agent makes its own model calls inside
+        self._handoff_model_calls: list[int | None] = []  # per handoff: reported model calls, or None (unknown)
         self._last_rejection: str | None = None
         self._adopted: dict[str, str] = {}  # model outcome id -> receipt id of the policy decision that adopted it
 
@@ -396,13 +410,19 @@ class TurnwiseRuntime:
         self._handoffs += 1
         before = len(self.host.receipts)
         halt: BaseException | None = None
+        model_calls: int | None = None
         try:
-            text = self.model.handoff(handoff_message(self.host, d.context), self.budget.handoff_max_turns)
+            returned = self.model.handoff(handoff_message(self.host, d.context), self.budget.handoff_max_turns)
         except Exception as exc:  # e.g. not supported, or the agent hit its turn limit: an observation, not a crash
             halt = exc if _find_halt(exc) is not None else None
             text, failure = "", f"handoff ended without an answer: {describe_failure(exc)}"
         else:
             failure = ""
+            text = returned.text if isinstance(returned, HandoffReport) else returned
+            reported = returned.model_calls if isinstance(returned, HandoffReport) else None
+            if type(reported) is int and reported >= 0:  # bool, float, str and negatives stay unknown
+                model_calls = reported
+        self._handoff_model_calls.append(model_calls)
         new = self.host.receipts[before:]
         self.rows.append(TraceRow(str(step), CONTROLLER, d.describe(),
                                   f"validated; control TRANSFERRED to the native agent (max {self.budget.handoff_max_turns} turns)",
@@ -470,6 +490,13 @@ class TurnwiseRuntime:
         }
 
     def _result(self, status: str, answer: str) -> RunResult:
+        # #13: DIRECT and FINISH already refuse to end a run over an outstanding requested write. Every other
+        # ending (HOLD, CLARIFY, a host stop) keeps its message and gets a host-written disposition appended,
+        # so a request the user made is never dropped silently. The text comes from the host's own parse.
+        unsubmitted = self.host.unsubmitted_requested_writes()
+        if unsubmitted:
+            answer = (f"{answer}\n\nHost: you requested {'; '.join(unsubmitted)}. It was not submitted, so no "
+                      "approval request exists and nothing was executed.")
         notes = []
         for o in (o for o in self.outcomes if o.proposal):
             rid = self._adopted.get(o.id)
@@ -480,9 +507,13 @@ class TurnwiseRuntime:
         # The label comes from what happened, not from what the policy calls itself.
         architecture = "Agent handoff (contrast; NOT Turnwise Core)" if self._handoffs else self.ARCHITECTURE
         title = f"{architecture} -- same agent, policy: {self.policy.name} ({self.framework})"
-        counts = {"policy_decisions": len(self.snapshots), "model_calls_chosen_by_policy": self._model_calls}
+        counts: dict[str, int | str] = {"policy_decisions": len(self.snapshots),
+                                         "model_calls_chosen_by_policy": self._model_calls}
         if self._handoffs:
-            counts["handoffs (agent's own model calls not counted here)"] = self._handoffs
+            counts["handoffs"] = self._handoffs
+            # The native agent's own model calls, from the framework's record; unknown if any handoff did not say.
+            counts["model_calls_inside_handoffs"] = (
+                "unknown" if None in self._handoff_model_calls else sum(self._handoff_model_calls))
         counts.update({"host_tool_requests": len(self.host.receipts), "rejected": self._rejections})
         return RunResult(title, self.model.label, self.host.user_request, status, answer, list(self.rows),
                          notes, counts, writes_executed=len(self.host.write_ledger))

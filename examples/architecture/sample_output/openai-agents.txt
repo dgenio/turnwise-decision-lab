@@ -159,7 +159,7 @@ RESULT  finished
         upstream_timeout_s 12 (baseline 8). The timing is consistent with the deploy causing the
         errors, but this is correlation, not proof.
   note: host action record: no side effect was requested or executed
-  counts: policy_decisions=4, model_calls_chosen_by_policy=0, handoffs (agent's own model calls not counted here)=1, host_tool_requests=3, rejected=0  (operation counts in this run only; not a cost, latency or quality measurement)
+  counts: policy_decisions=4, model_calls_chosen_by_policy=0, handoffs=1, model_calls_inside_handoffs=2, host_tool_requests=3, rejected=0  (operation counts in this run only; not a cost, latency or quality measurement)
   writes executed: 0
 
 === Side by side: who chose each operation ===
